@@ -1,0 +1,249 @@
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from sqlalchemy.orm import Session
+from typing import List
+import os
+import uuid
+import logging
+import asyncio
+from app.database.database import get_db
+from app.models.document import Document, DocumentStatus, DocumentType
+from app.models.user import User
+from app.models.donor import Donor
+from app.schemas.document import DocumentResponse, DocumentUpdate, DocumentUploadResponse
+from app.api.v1.endpoints.auth import get_current_user
+from app.core.config import settings
+from app.services.azure_service import azure_blob_service
+from app.services.document_processing import document_processing_service
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+@router.get("/", response_model=List[DocumentResponse])
+async def get_documents(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all documents with pagination."""
+    documents = db.query(Document).offset(skip).limit(limit).all()
+    return documents
+
+@router.get("/{document_id}", response_model=DocumentResponse)
+async def get_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a specific document by ID."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    return document
+
+@router.post("/upload", response_model=DocumentUploadResponse)
+async def upload_document(
+    donor_id: int,
+    file: UploadFile = File(...),
+    document_type: DocumentType = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a document for a donor."""
+    # Validate donor exists
+    donor = db.query(Donor).filter(Donor.id == donor_id).first()
+    if not donor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Donor with ID {donor_id} not found"
+        )
+    
+    # Validate file size
+    file_size_mb = file.size / (1024 * 1024)
+    if file_size_mb > settings.MAX_FILE_SIZE_MB:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File size exceeds maximum allowed size of {settings.MAX_FILE_SIZE_MB}MB"
+        )
+    
+    # Validate file type
+    file_extension = file.filename.split('.')[-1].lower()
+    if file_extension not in settings.ALLOWED_FILE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File type not allowed. Allowed types: {', '.join(settings.ALLOWED_FILE_TYPES)}"
+        )
+    
+    # Generate unique filename
+    unique_filename = f"{uuid.uuid4()}_{file.filename}"
+    
+    # Upload file to Azure Blob Storage
+    file_content = await file.read()
+    azure_blob_url = await azure_blob_service.upload_file(
+        file_content=file_content,
+        filename=unique_filename,
+        content_type=file.content_type
+    )
+    
+    if not azure_blob_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload file to storage"
+        )
+    
+    # Create document record
+    document = Document(
+        filename=unique_filename,
+        original_filename=file.filename,
+        file_size=file.size,
+        file_type=file.content_type,
+        document_type=document_type,
+        status=DocumentStatus.UPLOADED,
+        azure_blob_url=azure_blob_url,
+        donor_id=donor_id,
+        uploaded_by=current_user.id
+    )
+    
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+    
+    logger.info(f"Document uploaded: {file.filename} for donor {donor_id} by user: {current_user.email}")
+    
+    # Start document processing workflow
+    await document_processing_service.start_processing(document.id, db)
+    
+    return DocumentUploadResponse(
+        message="Document uploaded successfully",
+        document_id=document.id,
+        status=document.status
+    )
+
+@router.put("/{document_id}", response_model=DocumentResponse)
+async def update_document(
+    document_id: int,
+    document_update: DocumentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update document metadata."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    update_data = document_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(document, field, value)
+    
+    db.commit()
+    db.refresh(document)
+    
+    logger.info(f"Document updated: {document.original_filename} by user: {current_user.email}")
+    return document
+
+@router.delete("/{document_id}")
+async def delete_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a document."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    # Delete file from Azure Blob Storage
+    await azure_blob_service.delete_file(document.filename)
+    
+    filename = document.original_filename
+    db.delete(document)
+    db.commit()
+    
+    logger.info(f"Document deleted: {filename} by user: {current_user.email}")
+    return {"message": "Document deleted successfully"}
+
+@router.put("/{document_id}/status", response_model=DocumentResponse)
+async def update_document_status(
+    document_id: int,
+    status_update: DocumentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update document processing status and progress."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    update_data = status_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(document, field, value)
+    
+    db.commit()
+    db.refresh(document)
+    
+    logger.info(f"Document status updated: {document.original_filename} by user: {current_user.email}")
+    return document
+
+@router.get("/{document_id}/status", response_model=DocumentResponse)
+async def get_document_status(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get real-time document processing status."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    return document
+
+@router.get("/donor/{donor_id}")
+async def get_donor_documents(
+    donor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all documents for a specific donor."""
+    try:
+        documents = db.query(Document).filter(Document.donor_id == donor_id).all()
+        result = []
+        for doc in documents:
+            result.append({
+                "id": doc.id,
+                "filename": doc.filename,
+                "original_filename": doc.original_filename,
+                "file_size": doc.file_size,
+                "file_type": doc.file_type,
+                "document_type": doc.document_type.value if doc.document_type else None,
+                "status": doc.status.value,
+                "progress": doc.progress,
+                "azure_blob_url": doc.azure_blob_url,
+                "processing_result": doc.processing_result,
+                "error_message": doc.error_message,
+                "created_at": doc.created_at.isoformat(),
+                "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+                "donor_id": doc.donor_id,
+                "uploaded_by": doc.uploaded_by
+            })
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching documents for donor {donor_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching documents: {str(e)}"
+        )

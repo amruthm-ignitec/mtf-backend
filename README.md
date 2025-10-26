@@ -1,93 +1,279 @@
-# mtf-backend
+# DonorIQ Backend API
 
+A production-ready FastAPI backend for the DonorIQ tissue donation management system.
 
+## 🚀 Features
 
-## Getting started
+- **Role-based Authentication** (Admin, Doc Uploader, Medical Director)
+- **Donor Management** with priority flags
+- **Document Upload & Processing** with Azure Blob Storage
+- **AI-powered Document Analysis** using OpenAI
+- **RESTful API** with comprehensive endpoints
+- **Production-ready** with logging, error handling, and monitoring
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## 🏗️ Architecture
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/amrutmaliyes/mtf-backend.git
-git branch -M main
-git push -uf origin main
+mtf-backend/
+├── app/
+│   ├── api/v1/           # API routes and endpoints
+│   ├── core/             # Core configuration and utilities
+│   ├── database/         # Database configuration
+│   ├── models/           # SQLAlchemy models
+│   ├── schemas/          # Pydantic schemas
+│   └── services/         # Business logic services
+├── alembic/              # Database migrations
+├── scripts/              # Utility scripts
+├── tests/                # Test suite
+├── logs/                 # Application logs
+├── Dockerfile            # Docker configuration
+├── docker-compose.yml    # Local development setup
+└── run.py               # Production startup script
 ```
 
-## Integrate with your tools
+## 🛠️ Tech Stack
 
-- [ ] [Set up project integrations](https://gitlab.com/amrutmaliyes/mtf-backend/-/settings/integrations)
+- **FastAPI** - Modern, fast web framework
+- **PostgreSQL** - Reliable database
+- **SQLAlchemy** - ORM for database operations
+- **Alembic** - Database migrations
+- **Azure Blob Storage** - File storage
+- **OpenAI** - AI document analysis
+- **JWT** - Authentication tokens
+- **Docker** - Containerization
 
-## Collaborate with your team
+## 📋 Prerequisites
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+- Python 3.11+
+- PostgreSQL 13+
+- Docker (optional)
 
-## Test and Deploy
+## 🚀 Quick Start
 
-Use the built-in continuous integration in GitLab.
+### 1. Clone and Setup
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+```bash
+git clone <repository-url>
+cd mtf-backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-***
+### 2. Environment Configuration
 
-# Editing this README
+```bash
+cp env.example .env
+# Edit .env with your configuration
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### 3. Database Setup
 
-## Suggestions for a good README
+```bash
+# Run migrations
+alembic upgrade head
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+# Create admin user
+python scripts/create_admin_user.py
+```
 
-## Name
-Choose a self-explaining name for your project.
+### 4. Start the Application
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+```bash
+# Development
+python run.py
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+# Production
+gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## 🐳 Docker Deployment
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+### Local Development
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```bash
+docker-compose up -d
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Production Build
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```bash
+docker build -t donoriq-backend .
+docker run -p 8000:8000 --env-file .env donoriq-backend
+```
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+## 📊 API Documentation
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Once running, access the interactive API documentation:
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+- **Swagger UI**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## 🔐 Authentication
 
-## License
-For open source projects, say how it is licensed.
+The API uses JWT-based authentication. Default admin credentials:
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+- **Email**: `admin@donoriq.com`
+- **Password**: `admin123`
+
+⚠️ **Change the default password in production!**
+
+## 🧪 Testing
+
+```bash
+# Run API tests
+python tests/test_api.py
+
+# Run with pytest
+pytest tests/
+```
+
+## 📈 Monitoring
+
+### Health Checks
+
+- **Health**: `GET /health`
+- **Metrics**: `GET /metrics`
+
+### Logging
+
+Logs are written to:
+- **Console**: Development
+- **File**: `logs/app.log` (Production)
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | Required |
+| `SECRET_KEY` | JWT secret key | Required |
+| `DEBUG` | Debug mode | `false` |
+| `LOG_LEVEL` | Logging level | `INFO` |
+| `MAX_FILE_SIZE_MB` | Max file upload size | `500` |
+
+### Security Settings
+
+- Password minimum length: 8 characters
+- JWT token expiration: 30 minutes
+- Max login attempts: 5
+- Lockout duration: 15 minutes
+
+## 🚀 Production Deployment
+
+### 1. Environment Setup
+
+```bash
+# Set production environment variables
+export DEBUG=false
+export LOG_LEVEL=INFO
+export SECRET_KEY=your-secure-secret-key
+```
+
+### 2. Database Migration
+
+```bash
+alembic upgrade head
+```
+
+### 3. Create Admin User
+
+```bash
+python scripts/create_admin_user.py
+```
+
+### 4. Start Production Server
+
+```bash
+gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+```
+
+## 📝 API Endpoints
+
+### Authentication
+- `POST /api/v1/auth/login` - User login
+- `GET /api/v1/auth/me` - Get current user
+- `POST /api/v1/auth/logout` - User logout
+
+### Donors
+- `GET /api/v1/donors/` - List all donors
+- `POST /api/v1/donors/` - Create new donor
+- `GET /api/v1/donors/{id}` - Get donor details
+- `PUT /api/v1/donors/{id}` - Update donor
+- `PUT /api/v1/donors/{id}/priority` - Update donor priority
+- `DELETE /api/v1/donors/{id}` - Delete donor (Admin only)
+
+### Documents
+- `GET /api/v1/documents/` - List all documents
+- `POST /api/v1/documents/upload` - Upload document
+- `GET /api/v1/documents/{id}` - Get document details
+- `PUT /api/v1/documents/{id}` - Update document
+- `DELETE /api/v1/documents/{id}` - Delete document
+- `GET /api/v1/documents/donor/{donor_id}` - Get donor documents
+
+### Users (Admin only)
+- `GET /api/v1/users/` - List all users
+- `POST /api/v1/users/` - Create new user
+- `GET /api/v1/users/{id}` - Get user details
+- `PUT /api/v1/users/{id}` - Update user
+- `DELETE /api/v1/users/{id}` - Delete user
+
+## 🔒 Security Best Practices
+
+1. **Change default passwords** immediately
+2. **Use strong SECRET_KEY** for JWT tokens
+3. **Enable HTTPS** in production
+4. **Restrict CORS origins** to your domains
+5. **Regular security updates** of dependencies
+6. **Monitor logs** for suspicious activity
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **Database Connection Error**
+   - Check `DATABASE_URL` format
+   - Ensure PostgreSQL is running
+   - Verify credentials
+
+2. **Authentication Issues**
+   - Verify `SECRET_KEY` is set
+   - Check JWT token expiration
+   - Ensure user exists in database
+
+3. **File Upload Errors**
+   - Check file size limits
+   - Verify Azure Blob Storage credentials
+   - Ensure file types are allowed
+
+### Logs
+
+Check application logs for detailed error information:
+
+```bash
+tail -f logs/app.log
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 📞 Support
+
+For support and questions:
+- Create an issue in the repository
+- Contact the development team
+- Check the documentation
+
+---
+
+**DonorIQ Backend API** - Production-ready tissue donation management system.
