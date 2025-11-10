@@ -1,0 +1,189 @@
+import json
+import ast
+import time
+
+
+def get_llm_response(llm, role, primary_instruction, donor_info, reminder_instruction):
+    '''
+    Provides assessment with OpenAI API call
+    '''
+    try:
+        prompt = """{role}
+    Instruction: {primary_instruction}
+
+    Do not extract: Culture results for blood, sputum, urine, stool, bronch
+
+    Relevant donor information: {donor_info}
+
+    Here are some output examples for your reference in the desired JSON format:
+
+    Example-1
+    AI Response: {{"Left Hemipelvis Pre-Processing Culture": ["Listeria monocytogenes", "Aspergillus fumigatus"], "Right Femur Recovery Culture": [], "Right Semitendinosus Recovery Culture": ["Burkholderia mallei"]}}
+
+    Example-2
+    AI Response: {{"Cardiac Processing Representative Sample": ["Cladosporium", "Mold", "Salmonella"], "Right Peroneus Longus Recovery Culture": []}}
+
+    {reminder_instruction} DO NOT return any other character or word (like ``` or 'json') but the required result JSON.
+    AI Response: """.format(role=role, primary_instruction=primary_instruction, donor_info=donor_info, reminder_instruction=reminder_instruction)
+        response = llm.invoke(prompt)
+        return response
+    except Exception as e:
+        return e
+    
+
+def get_ms_categories(dc_info, subtissue_map, MS_MO_category_map):
+    '''
+    Given LLM extraction from DCs, provides subtissue-MS (MS subtissue or not) and microorganism-category mapping. These are to be kept and appended in excel files and exported as JSON.
+    Output format:
+    {
+        "subtissue-1": {'Type': 'MS', 'MO_CAT': [('MO1', 'C3'), ('MO2', 'C1'), ('MO7", 'C2')]},
+
+    }
+    '''
+
+    output_dc_info = {}
+
+    for subtissue, mo_list in dc_info.items():
+        if any( x in subtissue for x in ["tib/fib", "fib/tib", "radius/ulna", "ulna/radius"]):
+            subtissue = subtissue.replace("-", "").replace("  ", " ").strip()
+        else:
+            subtissue = subtissue.replace("-", "").replace("/", "").replace("  ", " ").strip()
+
+        if subtissue in subtissue_map["MS"]:
+            cat_list = []
+
+            for mo in mo_list:
+                mo = mo.lower().strip()
+                if mo in MS_MO_category_map["C3"]:
+                    cat_list.append("C3")
+                elif mo in MS_MO_category_map["C2"]:
+                    cat_list.append("C2")
+                elif mo in MS_MO_category_map["C1"]:
+                    cat_list.append("C1")
+                elif mo in MS_MO_category_map["C3A"]:
+                    cat_list.append("C3A")
+                else:
+                    cat_list.append("unknown")
+
+            output_dc_info[subtissue] = {'Type': 'MS', 'MO_CAT': list(zip(mo_list, cat_list))}
+
+        elif subtissue in subtissue_map["CARDIAC"]:
+            cat_list = ["NA"] * len(mo_list)
+            output_dc_info[subtissue] = {'Type': 'CARDIAC', 'MO_CAT': list(zip(mo_list, cat_list))}
+
+        else:
+            cat_list = ["NA"] * len(mo_list)
+            output_dc_info[subtissue] = {'Type': 'UNKNOWN', 'MO_CAT': list(zip(mo_list, cat_list))}
+
+    return output_dc_info
+
+
+def remove_species(dc_info):
+    output_dc_info = {}
+
+    for subtissue, mo_list in dc_info.items():
+        new_mo_list = [mo.replace("species", "").strip() for mo in mo_list]
+        output_dc_info[subtissue] = new_mo_list
+
+    return output_dc_info
+
+
+def reranking_culture(llm, retrieved_text_chunk):
+
+    prompt = """You are provided with donor information that may contain results for Culture tests for various tissues (like Recovery cultures, pre-processing cultures, postprocessing vivigen, cardiac processing filters, etc.) and microorganisms that may be present within these tissues. Your task is to carefully read the donor information and check whether the information is relevant to such Culture tests.
+
+    - If there are culture test results for subtissues like recovery culture, preprocessing culture, vivigen preprocessing, postprocessing vivigen, postprocessing skin, cardiac disinfect filter, cardiac processing represntative samples, etc say "RELEVANT".
+    - DO NOT OVERSEE test results for cardiac processing filters, postprocessing vivigen, aortoiliac processing filter, aortoiliac processing representative sample, cardiac disinfect filter, cardiac endpoint representative sample, cardiac representative sample, cardiac represntative filter, postprocessing skin, etc. These are also culture tests. If results for such sub-tissues are present, say "RELEVANT".
+    - Say "RELEVANT" only if culture test RESULTS for tissues are explicity present.
+    - If there is no culture test results, say "NOT RELEVANT".
+    - If there are instances of tests like blood, sputum, stool, urine, bronch, pad floor absorbent, bone, etc, say "NOT RELEVANT". 
+    - Just give output as "RELEVANT" or "NOT RELEVANT".
+
+    Example-1
+    Donor information: blood culture\ bacteria\ urine culture\ negative\ bronch\ negative\ sputum\ bacteria\ heart\ no growth observed 
+    AI response: NOT RELEVANT
+
+    Example-2
+    Donor information: left femur recovery culture\ result negative\cardiac disinfect filter\Bacteroides species\ postprocessing vivigen\ result negative\ right femur preprocessing recovery culture\ result negative\ left tib fib recovery culture\ result negative\ right achilles tendon recovery culture\ mold 
+    AI response: RELEVANT
+
+    Example-3
+    Donor information: Indicate Tissue Submitted for Processing to be Performed by LifeNet Health\JAMS Recovery Cultures Skin Prep* Date. Skin was prepped to initiate any tissue recovery.Skin Recovery Cultures. MS and Skin Recovery cultures submitted to LNH QC Lab are received and processed.
+    AI response: NOT RELEVANT
+
+    Example-4
+    Donor information: postprocessing skin rs13\ bacteria\ cardiac disinfect filter\ result negative\ cardiac processing representative sample\ clostridum perfringens
+    AI response: RELEVANT
+
+    Donor information: {retrieved_text_chunk}
+    AI response: """.format(retrieved_text_chunk=retrieved_text_chunk)
+    response = llm.invoke(prompt)
+
+    return response
+
+
+def get_collated_donor_info(info_list):
+    page_content_list = [val[0] for val in info_list]
+    collated_donor_info = '\n'.join(page_content_list)
+    return collated_donor_info
+
+
+def get_culture_results(llm, vectordb, disease_context, role, basic_instruction, reminder_instructions, subtissue_map, MS_MO_category_map):
+    test_name = "Culture test"
+    # Retrieve docs similar to each of the disease/condition descriptions and save as json
+    top_k = 10  
+    retriever_obj = vectordb.as_retriever(search_type='similarity', search_kwargs={'k': top_k})
+    retrieved_docs_dict={}
+    disease_level_res = {}
+
+    retrieved_docs = retriever_obj.invoke(disease_context[test_name])
+    retrieved_text_chunks = [(doc.page_content, f"page: {doc.metadata['page']+1}") for doc in retrieved_docs]
+    retrieved_text_chunks = sorted(retrieved_text_chunks, key=lambda x: int(x[1].split(":")[1]))
+    retrieved_docs_dict[test_name] = retrieved_text_chunks
+
+    output = []
+    extracted_results=[]
+    relevant_chunks=[]
+    citations =[]
+    keyword_pages = []
+    for chunk, page_info in retrieved_text_chunks:
+        result = reranking_culture(llm, chunk)
+        extracted_results.append((page_info, result.content))
+        if result.content=='RELEVANT':
+            relevant_chunks.append((chunk, page_info))
+
+    keywords = ([keyword for sublist in subtissue_map.values() for keyword in sublist] +
+        [keyword for sublist in MS_MO_category_map.values() for keyword in sublist])
+ 
+    if relevant_chunks:
+        citations = sorted([int(item[1].split(":")[1]) for item in relevant_chunks if "page:" in item[1]])
+ 
+    elif not relevant_chunks:
+   
+
+        for chunk, page_info in retrieved_text_chunks:
+            if any(keyword.lower() in chunk.lower() for keyword in keywords):
+                keyword_pages.append((chunk, page_info))
+                citations = sorted([int(item[1].split(":")[1]) for item in keyword_pages if "page:" in item[1]])
+    else:
+        citations = sorted([int(item[1].split(":")[1]) for item in retrieved_text_chunks if "page:" in item[1]])
+        
+
+    collated_donor_info = get_collated_donor_info(retrieved_docs_dict[test_name])
+    result = get_llm_response(llm, role[test_name], basic_instruction[test_name], collated_donor_info, reminder_instructions[test_name])
+    try:
+        final_result = ast.literal_eval(result.content.lower().replace("```", "").replace("json", "").strip())        
+        final_result = remove_species(final_result)
+        final_mapped_result = get_ms_categories(final_result, subtissue_map, MS_MO_category_map)
+    except Exception as e:
+        final_mapped_result = f"{e}\n------------\n{result}"
+ 
+    output.append((final_mapped_result))
+    
+    disease_level_res[test_name] = {"result": output, "citations": citations
+    }
+    output[0]['Citations'] = citations
+    final_mapped_result1 = output[0]
+
+    return result.content, final_mapped_result1
+  

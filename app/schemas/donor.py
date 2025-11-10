@@ -30,3 +30,5 @@ class DonorResponse(DonorBase):
 
 class DonorPriorityUpdate(BaseModel):
     is_priority: bool
+
+

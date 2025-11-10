@@ -1,0 +1,58 @@
+{
+"Autoimmune": "Example:\n{'Summary':\n\t{\nDRAI': 'The patient has never had an autoimmune disease such as systemic lupus erythematosis, rheumatoid arthritis, sarcoidosis, etc.'},\n'CONDITION RESULT': 'Negative'} \n\n Example:\n{'Summary':\n\t{\n'DRAI': 'The patient had rheumatoid arthritis since childhood.', 'Miscellaneous Summary': 'NA'},\n'CONDITION RESULT': 'Positive'}",
+
+"Cancer": "Example:\n{'Summary':\n\t{\nDRAI' : 'The patient has never had cancer.'},\n'CONDITION RESULT': 'Negative'}",
+
+"Dementia": "Example:\n{'Summary':\n\t{\nMiscellaneous Summary : NA'},\n'CONDITION RESULT': 'NA'}\n\nExample:\n{'Summary':\n\t{\nReferral Worksheet : History of Dementia : No'},\n'CONDITION RESULT': 'No'}",
+
+"Granuloma": "Example:\n{'Summary':\n\t{\nMiscellaneous Summary : NA'},\n'CONDITION RESULT': 'NA'}",
+
+"Hepatitis": "Example:\n{'Summary':\n\t{\nSerology' : 'Hepatitis B Core Total Ab, Hepatitis B Surface Ag, Hepatitis C Virus Ab, and Ultrio Elite HBV and HCV tests are all Non-Reactive', 'DRAI' : 'The donor did not live with a person who had hepatitis. The donor has never had a positive or reactive test for hepatitis and has never had liver disease or hepatitis.'},\n'CONDITION RESULT': 'Negative'}\n\nExample 2:\n{'Summary':\n\t{\nSerology' : 'Hepatitis B Core Total Ab, Hepatitis B Surface Ag, Hepatitis C Virus Ab, and Ultrio Elite HBV and HCV tests are all Non-Reactive', 'DRAI' : 'The donor did not live with a person who had hepatitis. The donor has never had a positive or reactive test for hepatitis and has never had liver disease or hepatitis. The donor had hepatitis A as a child.'},\n'CONDITION RESULT': 'Positive'}",
+
+"HIV": "Example:\n{'Summary':\n\t{\nSerology': 'The results for HIV-1/HIV-2 Plus O Antibody and HIV-1 NAT tests are both Non-Reactive', 'DRAI' : 'No history of HIV found. The patient has never had a positive or reactive test for the HIV/AIDS virus.'},\n'CONDITION RESULT': 'Negative'}",
+
+"Infection": "Example:\n{'Summary':\n\t{\nSerology' : 'SARS-CoV-2 Panther test result is Non-Reactive', 'DRAI' : 'The donor was bitten by their pet cat 3 months ago and was treated with ointment and zinc oxide by a Hospice RN. The animal was not suspected of having rabies and was not quarantined or tested. No accidental needle-stick in the past 12 months. No sexually transmitted infection in the past 12 months. No infection with the Zika Virus. No diagnosis or close contact with a person under investigation for COVID-19 in the last 28 days. Infections to the heart: Unknown what it was. She was given nitro pills for emergencies, but she never used them. Hospice care included infection control measures related to COVID-19 precautions, such as social distancing, hand hygiene, and droplet precautions.'},\n'CONDITION RESULT': 'Negative'} \n\n Example:\n{'Summary':\n\t{\n'Tissue Donor Suitability Assessment': 'No signs or symptoms of systemic infection. No trauma or infection to tissue recovery areas. Blood and urine cultures showed no growth.', 'DRAI': 'In the past 12 months, the donor was not told by a healthcare professional that they had a West Nile virus infection. The donor did not have a sexually transmitted infection such as syphilis, gonorrhea, chlamydia, genital ulcers, herpes, or genital warts. The donor did not have an infection involving the heart. In the last 28 days, the donor was not told by a healthcare professional that they had coronavirus or was a person under investigation for the coronavirus infection.', 'Miscellaneous Summary': 'The donor had a suspected COVID-19 virus infection, but the SARS-CoV-2 by PCR test result was negative. The donor had a urinary tract infection present on admission, which was treated with antibiotics.'},\n'CONDITION RESULT': 'Positive'}",
+
+"Jaundice": "Example:\n{'Summary':\n\t{\nDonor Physical Assessment' : 'No signs of jaundice were observed during the physical assessment.'},\n'CONDITION RESULT': 'Negative'} \n\n Example:\n{'Summary':\n\t{\n'Donor Physical Assessment': 'Skin has yellow coloring, the eyes are not yellow.', 'Miscellaneous Summary': 'The clinical course mentions jaundice, but follow-up notes from the RN and other assessments indicate the patient was not jaundiced.'},\n'CONDITION RESULT': 'UNKNOWN'}",
+
+"Tuberculosis": "Example:\n{'Summary':\n\t{\nDRAI' : 'In the past 12 months, the donor did not live with a person who has tuberculosis. The donor has never had tuberculosis or a positive skin or blood test for tuberculosis.'},\n'CONDITION RESULT': 'Negative'}",
+
+"Homeless": "Example:\n{'Summary':\n\t{\nMiscellaneous Summary' : 'NA'},\n'CONDITION RESULT': 'NA'}",
+
+"Jail": "Example:\n{'Summary':\n\t{\nDRAI' : 'In the past 12 months, the patient was not in lockup, jail, prison, or any juvenile correctional facility.'},\n'CONDITION RESULT': 'No'}",
+
+"Organ Donation": "Example:\n{'Summary':\n\t{\n'GENERAL APPEARANCE/EVIDENCE  OF  DONATION Organ Donation': 'No'},\n'CONDITION RESULT': 'No'}\n\n Example:\n{'Summary':\n\t{\n'GENERAL APPEARANCE/EVIDENCE  OF  DONATION Organ Donation': 'Yes'},\n'CONDITION RESULT': 'Yes'}",
+
+"Track Mark": "Example:\n{'Summary':\n\t{\n'Miscellanous Summary' : 'NA'},\n'CONDITION RESULT': 'NA'} \n\n Example:\n{'Summary':\n\t{\n'Miscellaneous Summary': 'Needle track marks are not present.'},\n'CONDITION RESULT': 'No'} \n\n Example:\n{'Summary':\n\t{\n'Miscellaneous Summary': 'Track Marks were listed as an item in the ORGAN PHYSICAL ASSESSMENT, but no specific observations or comments were noted regarding their presence.'},\n'CONDITION RESULT': 'UNKNOWN'}",
+
+"Lymph": "Example:\n{'Summary':\n\t{\nDonor Physical Assessment' : 'No signs of enlarged/abnormal lymph nodes were observed.', 'DRAI' : 'The donor did not have swollen lymph nodes or glands in the neck, armpits, or groin.'},\n'CONDITION RESULT': 'Negative'}",
+
+"Blood Culture": "Example:\n{'Summary':\n\t{\n'Blood Culture Test Status': 'Blood culture was ordered and marked as pending completion.', 'Blood Culture Summary': 'NA', 'Miscellaneous Summary': 'NA'},\n'CONDITION RESULT': 'UNKNOWN'} \n\n Example:\n{'Summary':\n\t{\n'Blood Culture Test Status': 'Blood culture tests were ordered and performed on 09/14/21. The final results were reported on 09/19/21.', 'Blood Culture Summary': 'No growth was observed in the blood culture tests from 09/14/21 to 09/19/21.', 'Miscellaneous Summary': 'NA'},\n'CONDITION RESULT': 'Yes'}",
+
+"Cooled": "Example:\n{'Summary':\n\t{\nDonor Refrigeration' : 'The donor's body was cooled for 15:44 hours and it was not cooled for 6:02 hours.'},\n'CONDITION RESULT': 'Yes'}",
+
+"Dialysis": "Example:\n{'Summary':\n\t{\nDRAI' : 'The donor was never treated with dialysis.'},\n'CONDITION RESULT': 'No'}",
+
+"Illicit": "Example:\n{'Summary':\n\t{\nMiscellaneous Summary' : 'NA'},\n'CONDITION RESULT': 'NA'}",
+
+"Immunization": "Example:\n{'Summary':\n\t{\nDRAI': 'In the past 12 months, the patient received a flu shot 3 months ago.'},\n'CONDITION RESULT': 'Yes'} \n\n Example:\n{'Summary':\n\t{\n'DRAI': 'In the past 12 months did she/he* have any shots or immunizations, such as for the flu, MMR, yellow fever, hepatitis B, etc.? No', 'Miscellaneous Summary': 'The patient received the following immunizations: FLUCELVAX QUAD 2YRS AND OLDER, Fluzone High-Dose Quad, Influenza Adult Tri, Pfizer-BioNTech COVID-19 Vaccine mRNA, Pneumococcal Polysaccharide (Pneumovax)'},\n'CONDITION RESULT': 'Yes'}",
+
+"Prep": "Example:\n{'Summary':\n\t{\nRELEVANT RECOVERY DATES AND TIMES' : 'MS Prep Date-Time: 01/27/2021 16:46 PST.'},\n'CONDITION RESULT': 'Yes'}",
+
+"Steroid": "Example:\n{'Summary':\n\t{\nDRAI' : 'The donor took prednisone for 10 years at a dose of 5mg twice a day. She did not take any non-prescribed steroids or other drugs.'},\n'CONDITION RESULT': 'Yes'} \n\n Example:\n{'Summary':\n\t{\nDRAI' : 'The donor took cocaine for 10 years . She did not take any steroids.'},\n'CONDITION RESULT': 'No'} \n\n Example:\n{'Summary':\n\t{\n'DRAI': 'The donor was prescribed fluticasone, which is a steroid. However, there is no information on the duration or dosage. The donor did not take any non-prescribed medication or dietary supplements. The donor did not use any drugs such as steroids, cocaine, heroin, amphetamines, or anything not prescribed by his doctor.', 'Miscellaneous Summary': 'NA'},\n'CONDITION RESULT': 'Yes'}",
+
+"Travel": "Example:\n{'Summary':\n\t{\nDRAI' : 'The donor did not ever travel or live outside of the United States or Canada. No travel within the past 6 months.'},\n'CONDITION RESULT': 'No'} \n\n Example:\n{'Summary':\n\t{'\nDRAI': 'The donor did not ever travel or live outside of the United States or Canada.', 'Miscellaneous Summary': 'The donor traveled to Pittsburgh, Kansas for work and local travel within the past 6 months.'},\n'CONDITION RESULT': 'No'}",
+
+"Urine Culture": "Example:\n{'Summary':\n\t{\nMiscellaneous Summary' : 'NA'},\n'CONDITION RESULT': 'NA'}",
+
+"Toxicology": "Example:\n{'Summary':\n\t{\n'Toxicology Summary': 'NA', 'Medical Examiner Info': 'Toxicology: --', 'Miscellaneous Summary': 'NA'},\n'CONDITION RESULT': 'UNKNOWN'} \n\n Example:\n{'Toxicology Summary': 'NA', 'Medical Examiner Info': 'Toxicology: No', 'Miscellaneous Summary': 'NA'},\n'CONDITION RESULT': 'No'} \n\n Example:\n{'Summary':\n\t{'Toxicology Summary': 'Ethanol level was 3.0 mg/dL, which is within normal range.', 'Medical Examiner Info': 'Toxicology: --', 'Miscellaneous Summary': 'NA'},\n'CONDITION RESULT': 'Yes'}",
+
+"SARS": "Example:\n{'Summary':\n\t{\nSerology' : 'The results for SARS-CoV-2 Panther test are Non-Reactive.'},\n'CONDITION RESULT': 'Negative'}",
+
+"Sepsis": "Example:\n{'Summary':\n\t{\n'Referral Worksheet' : 'Active Sepsis : No'},\n'CONDITION RESULT': 'Negative'} \n\n Example:\n{'Summary':\n\t{\n'Referral Notes': 'Sepsis Risk Scores were recorded multiple times on 11/17/2021, with values ranging from 1.07 to 4.83. The highest scores were recorded between 06:30 and 09:00, indicating a potential risk of sepsis during that period.', 'Miscellaneous Summary': 'NA'},\n'CONDITION RESULT': 'Positive'}",
+
+"Autopsy": "Example:\n{'Summary':\n\t{\n'Medical Examiner Info' : 'Autopsy None'},\n'CONDITION RESULT': 'No'} \n\n Example:\n{'Summary':\n\t{\n'Medical Examiner Info' : 'Autopsy : --'},\n'CONDITION RESULT': 'UNKNOWN'}",
+
+"Cause of Death": "Example:\n{'Summary':\n\t{\n'Cause of Death': 'COPD','OPO Cause of Death': 'COPD'},\n'CONDITION RESULT': 'Yes'}\n\n Example:\n{'Summary':\n\t{\n'Cause of Death': 'Intercerebral Bleeding', 'Referral Worksheet': 'OPO Cause of Death: ICB / ICH', 'Medical Examiner Info': 'Apparent Cause of Death: ---------', 'Clinical Course': 'NA', 'Miscellaneous Summary': 'NA'},\n'CONDITION RESULT': 'Yes'}"
+
+}

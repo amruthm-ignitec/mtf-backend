@@ -52,3 +52,5 @@ async def general_exception_handler(request: Request, exc: Exception):
                 "message": "An unexpected error occurred"
             }
         )
+
+

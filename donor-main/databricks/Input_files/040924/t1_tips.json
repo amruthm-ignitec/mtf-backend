@@ -1,0 +1,56 @@
+{
+"Organ Donation" : " Organ Donation means whether the deceased donor has agreed to donote his/her organ as well. Look for this informationn in the Tissue Donor Physical Assessment section of the document, where there is a question regarding organ donation for which the answer could be yes or no. If yes, the donor has agreed to donate his/her organs. If the answer is no, the donor has not agreed to donate his/her organs. If the informationn is not present in this section, check in miscellaneous sections which might include any additional informationn", 
+
+"Autopsy" : "The CONDITION RESULT should be YES if an autopsy has been done. It is found in the Medical Examiner Info under the Donor informationn section. If not found in this section, check in miscellaneous sections which might include any additional information",
+
+"Toxicology" : "The CONDITION RESULT should be YES if toxicology has been done and there is presence of toxic substances. The CONDITION RESULT should be UNKNOWN if toxicology has been done but no results are present. The CONDITION RESULT should be NO if toxicology has been done and there is no presence of toxic substances. It is found in the Medical Examiner Info under the Donor informationn section. Also, check in miscellaneous sections which might include any additional information which might include any additional informationn",
+
+"Hepatitis" : "Check for any history of Hepatitis. Even if the donor had a history of hepatitis but it was cured, the result should be POSITIVE due to the history of hepatitis.",
+
+"Cancer" : "Check for any history of cancer. Even if the donor had a history of cancer but it was cured, the result should be POSITIVE due to the history of cancer.",
+
+"Autoimmune" : "The CONDIITION RESULT should be POSITIVE if the donor had any autoimmune disease and NEGATIVE if the donor did not have any autoimmune disease. Check the donor risk assessment interview for this informationn. Also, check in miscellaneous sections which might include any additional information",
+
+"Dementia" : "The CONDIITION RESULT should be POSITIVE if the donor had dementia in his/her lifetime and NEGATIVE if the donor did not have dementia. Check the referral worksheet and donor screening sections for this informationn. Also, check in miscellaneous sections which might include any additional information",
+
+"HIV" : "The CONDITION RESULT should be POSITIVE if the donor had tested positive for HIV in his/her lifetime. If not, the CONDITION RESULT should be negative. Check the serology and the donor risk assessment interview section for this informationn. Also, check in miscellaneous sections which might include any additional information.",
+
+"Infection" : "The CONDITION RESULT should be POSITIVE if the donor had any history of infection. Check for this informationn in the donor risk assessment interview as well as miscellaneous sections. Past infections are usually mentioned in miscellaneous sections. Make sure you extract any kind of infection history the donor had in his/her lifetime. This also includes COVID-19 infections. Even if the infection was cured after being diagnosed, the CONDITION RESULT will still be POSITIVE.",
+
+"Jaundice" : "The CONDITION RESULT should be POSITIVE if the donor had any history of Jaundice. Check the donor physical assessment section for this informationn. Also, check miscellaneous sections.",
+
+"Tuberculosis" : "The CONDITION RESULT should be POSITIVE if the donor had any history of tuberculosis. Check the donor risk assessment interview section for this informationn. Also, check miscellaneous sections.",
+
+"Homeless" : "The CONDITION RESULT should be YES if the donor ever experienced homelessness. Check for this informationn in miscellaneous sections",
+
+"Jail" : "The CONDITION RESULT should be YES if the donor was ever in prison, jail or a lockup facility. Check for this informationn in the donor risk assessment interview section. Also, check in miscellaneous sections which might include any additional information",
+
+"Track Mark" : "The CONDITION RESULT should be YES if donor had track marks due to intravenous drug usage. Check miscellaneous sections for this informationn.",
+
+"Lymph" : "THE CONDITION RESULT should be YES if the donor had any history of enlarged or abnormal lymph nodes in his/her life. Check the tissue donor screening and the donor risk assessment interview for this informationn. If not present in these section, check in miscellaneous sections which might include any additional information.",
+
+"Blood Culture" : "The CONDITION RESULT should be YES if blood culture has been done and there is growth of microorganisms reported. The CONDITION RESULT should be UNKNOWN if blood culture has been done but no results are present. The CONDITION RESULT should be NO if blood cultrue has been done and there is no growth of microorganisms. Check for this informationn in miscellaneous summary",
+
+"Cooled" : "The CONDITION RESULT should be YES if the donor body's had been cooled after their death. Check the donor refrigeration section for this informationn. Also, check in miscellaneous sections which might include any additional information.",
+
+"Dialysis" : "The CONDITION RESULT should be YES if the donor ever had dialysis in his/her lifetime. Check the donor risk assessment interview for this informationn. If not present, check in miscellaneous sections which might include any additional information",
+
+"Illicit" : "The CONDITION RESULT should be YES if the donor had ever illicit drug use in his/her lifetime. Check miscellaneous sections for this inforamtion",
+
+"Immunization" : "The CONDITION RESULT should be YES if the donor had any kind of immunization in his/her life. Check for this informationn in the donor risk assessment interview as well as in miscellaneous sections",
+
+"Prep" : "The CONDITION RESULT should be YES if the prep time for has been mentioned in the document. Check for this informationn in the relevant recovery dates and times as well as donor refrigeration sections. If not present in these sections, check in miscellaneous sections which might include any additional information",
+
+"Steroid" : "The CONDITION RESULT should be YES if the donor had ever taken steroids in his/her lifetime. Usage of drugs does not amount to use of steroids. Check the donor risk assessment interview for this informationn. Also, check in miscellaneous sections which might include any additional information",
+
+"Travel" : "The CONDITION RESULT should be YES if there has been any travel outside the United States or Canada in his/her lifetime. Check the donor risk assessment interview section for this informationn. If not present, check in miscellaneous sections which might include any additional information",
+
+"Urine Culture" : "The CONDITION RESULT should be YES if urine culture has been done and there is growth of microorganisms reported. The CONDITION RESULT should be UNKNOWN if urine culture has been done but no results are present. The CONDITION RESULT should be NO if urine cultrue has been done and there is no growth of microorganisms. Check for this informationn in miscellaneous summary",
+
+"SARS" : "The CONDITION RESULT should be POSITIVE if a SARS test was conducted and the test result was positive. The CONDITION RESULT should be NEGATIVE if a SARS test was conducted and the test result was negative. The CONDITION RESULT should be UNKNOWN if a SARS test was never conducted for the donor. Check the serology section as well as miscellaneous section for this informationn",
+
+"Sepsis" : "The CONDTIION RESULT should be POSITIVE if the donor had any history for sepsis in his/her lifetime. If there is no conclusive informationn regarding whether sepsis was diagnosed or not, the CONDITION RESULT should be UNKNOWN. Check the referral worksheet for this informationn. Also, review the miscellaneous sections, where sepsis-related informationn, such as sepsis scores, may be recorded. If sepsis scores are mentioned without a clear conclusion, mark the CONDITION RESULT as UNKNOWN. If a conclusion is present, the CONDITION RESULT should be POSITIVE or NEGATIVE based on that conclusion.",
+
+"Cause of Death" : "The CONDITION RESULT should be YES if there is a clear cause of death. Check the ME CORONER/PATHOLOGY section as well as miscellaneous section for the actual cause of death. ICB stands for Intracerebral Bleeding and ICH stands for Intracranial Hemorrhage"
+
+}

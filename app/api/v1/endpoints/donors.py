@@ -133,3 +133,84 @@ async def delete_donor(
     
     logger.info(f"Donor deleted: {donor_id_str} by admin: {current_user.email}")
     return {"message": "Donor deleted successfully"}
+
+@router.get("/{donor_id}/details")
+async def get_donor_details(
+    donor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed donor information for summary page."""
+    donor = db.query(Donor).filter(Donor.id == donor_id).first()
+    if not donor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donor not found"
+        )
+    
+    # Return donor data in format expected by frontend
+    return {
+        "id": donor.id,
+        "donorName": donor.name,
+        "age": None,  # Add if you have age field
+        "gender": donor.gender,
+        "causeOfDeath": None,  # Add if you have this field
+        "uploadTimestamp": donor.created_at.isoformat() if donor.created_at else None,
+        "requiredDocuments": []  # Add if you have documents linked
+    }
+
+@router.get("/{donor_id}/extraction-data")
+async def get_donor_extraction_data(
+    donor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get extraction data for a donor (temporary endpoint for testing)."""
+    import json
+    import os
+    
+    donor = db.query(Donor).filter(Donor.id == donor_id).first()
+    if not donor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donor not found"
+        )
+    
+    # For testing: Try to load test.json if it exists
+    # In production, this would come from the database or processing service
+    # Try multiple possible paths
+    possible_paths = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), "mtf-backend-test", "test.json"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "..", "mtf-backend-test", "test.json"),
+        "/Users/amrutmaliye/Desktop/Dev/Github/donoriq/mtf-backend-test/test.json"
+    ]
+    
+    test_json_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            test_json_path = path
+            break
+    
+    if test_json_path and os.path.exists(test_json_path):
+        try:
+            with open(test_json_path, 'r') as f:
+                extraction_data = json.load(f)
+            # Update donor_id and case_id to match the requested donor
+            extraction_data["donor_id"] = donor.unique_donor_id
+            extraction_data["case_id"] = f"{donor.unique_donor_id}81"
+            return extraction_data
+        except Exception as e:
+            logger.error(f"Error loading test.json: {e}")
+    
+    # Return empty structure if test.json not found
+    return {
+        "donor_id": donor.unique_donor_id,
+        "case_id": f"{donor.unique_donor_id}81",
+        "processing_timestamp": None,
+        "processing_duration_seconds": 0,
+        "extracted_data": {},
+        "conditional_documents": {},
+        "validation": None,
+        "compliance_status": None,
+        "document_summary": None
+    }
