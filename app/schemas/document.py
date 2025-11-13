@@ -23,7 +23,7 @@ class DocumentResponse(DocumentBase):
     file_size: int
     file_type: str
     status: DocumentStatus
-    progress: float
+    progress: Optional[float] = None
     azure_blob_url: Optional[str] = None
     processing_result: Optional[str] = None
     error_message: Optional[str] = None
