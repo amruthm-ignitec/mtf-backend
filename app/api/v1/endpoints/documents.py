@@ -71,10 +71,10 @@ async def upload_document(
     
     # Validate file type
     file_extension = file.filename.split('.')[-1].lower()
-    if file_extension not in settings.ALLOWED_FILE_TYPES:
+    if file_extension not in settings.allowed_file_types_list:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type not allowed. Allowed types: {', '.join(settings.ALLOWED_FILE_TYPES)}"
+            detail=f"File type not allowed. Allowed types: {', '.join(settings.allowed_file_types_list)}"
         )
     
     # Generate unique filename
