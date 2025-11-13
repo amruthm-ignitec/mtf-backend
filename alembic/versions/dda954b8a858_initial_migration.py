@@ -18,24 +18,49 @@ depends_on = None
 
 def upgrade() -> None:
     # Create enums that will be used by other tables (must be created before tables that use them)
-    op.execute("CREATE TYPE userrole AS ENUM ('admin', 'doc_uploader', 'medical_director')")
-    op.execute("CREATE TYPE documenttype AS ENUM ('MEDICAL_HISTORY', 'SEROLOGY_REPORT', 'LAB_RESULTS', 'RECOVERY_CULTURES', 'CONSENT_FORM', 'DEATH_CERTIFICATE', 'OTHER')")
-    op.execute("CREATE TYPE documentstatus AS ENUM ('UPLOADED', 'PROCESSING', 'ANALYZING', 'REVIEWING', 'COMPLETED', 'FAILED', 'REJECTED')")
+    # Use DO blocks to check if types exist before creating them
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE userrole AS ENUM ('admin', 'doc_uploader', 'medical_director');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE documenttype AS ENUM ('MEDICAL_HISTORY', 'SEROLOGY_REPORT', 'LAB_RESULTS', 'RECOVERY_CULTURES', 'CONSENT_FORM', 'DEATH_CERTIFICATE', 'OTHER');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE documentstatus AS ENUM ('UPLOADED', 'PROCESSING', 'ANALYZING', 'REVIEWING', 'COMPLETED', 'FAILED', 'REJECTED');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
     
     # Create users table first (required for foreign keys in other tables)
-    op.create_table('users',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('email', sa.String(), nullable=False),
-        sa.Column('hashed_password', sa.String(), nullable=False),
-        sa.Column('full_name', sa.String(), nullable=False),
-        sa.Column('role', sa.Enum('admin', 'doc_uploader', 'medical_director', name='userrole'), nullable=False),
-        sa.Column('is_active', sa.Boolean(), nullable=True, server_default='true'),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
-    op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
+    # Check if table exists before creating
+    op.execute("""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+                CREATE TABLE users (
+                    id SERIAL PRIMARY KEY,
+                    email VARCHAR NOT NULL UNIQUE,
+                    hashed_password VARCHAR NOT NULL,
+                    full_name VARCHAR NOT NULL,
+                    role userrole NOT NULL,
+                    is_active BOOLEAN DEFAULT true,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                    updated_at TIMESTAMP WITH TIME ZONE
+                );
+                CREATE INDEX ix_users_id ON users(id);
+                CREATE INDEX ix_users_email ON users(email);
+            END IF;
+        END $$;
+    """)
 
 
 def downgrade() -> None:
