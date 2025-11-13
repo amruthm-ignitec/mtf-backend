@@ -18,7 +18,7 @@ depends_on = None
 
 def upgrade() -> None:
     # Create enums that will be used by other tables (must be created before tables that use them)
-    # Use DO blocks to check if types exist before creating them
+    # Use DO blocks to check if types exist before creating them (idempotent)
     op.execute("""
         DO $$ BEGIN
             CREATE TYPE userrole AS ENUM ('admin', 'doc_uploader', 'medical_director');
@@ -42,7 +42,7 @@ def upgrade() -> None:
     """)
     
     # Create users table first (required for foreign keys in other tables)
-    # Check if table exists before creating
+    # Check if table exists before creating (idempotent)
     op.execute("""
         DO $$ BEGIN
             IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
