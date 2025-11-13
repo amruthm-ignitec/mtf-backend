@@ -1,4 +1,0 @@
-{
-  "Culture test": "Based on the above information on Culture test results of the donor, please extract information on sub-tissues and microorganisms found in them and present the result in the JSON format explained above.",
-  "Serology test": "Based on the above information, please extract the names of the tests performed and their corresponding in the above JSON format explained above.\n- Provide the output only when both the test name and its corresponding result are present together in the given donor information.\n- Do not alter the test names and results provided in the data. Maintain the original test names and results as they appear in the information."
-}
