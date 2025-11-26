@@ -15,6 +15,7 @@ from app.core.exceptions import (
 )
 from app.api.v1.api import api_router
 from app.database.database import init_db
+from app.workers.document_worker import start_worker
 
 # Create FastAPI app
 app = FastAPI(
@@ -86,11 +87,19 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         raise
+    
+    # Start background worker
+    try:
+        await start_worker()
+    except Exception as e:
+        logger.error(f"Failed to start document worker: {e}")
+        # Don't raise - worker failure shouldn't prevent API from starting
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on application shutdown."""
     logger.info("Application shutting down")
+    # Worker will stop gracefully when event loop is cancelled
 
 @app.get("/")
 async def root():

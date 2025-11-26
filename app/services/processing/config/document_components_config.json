@@ -1,0 +1,183 @@
+{
+  "initial_components": {
+    "Donor Log-In Information Packet": {
+      "keywords": ["donor log-in", "log-in information packet", "template 195", "template 196", "Templates 195", "Templates 196"],
+      "description": "Initial paperwork containing donor log-in information, typically Templates 195 and 196",
+      "extraction_prompt": "Extract all information from the Donor Log-In Information Packet including donor identification, timestamps, and any administrative details.",
+      "sections": {
+        "Identification": "Donor identification numbers and codes",
+        "Timestamps": "Date and time of log-in",
+        "Administrative Details": "Any administrative or procedural information"
+      }
+    },
+    "Donor Information": {
+      "keywords": ["donor information", "donor demographics", "name", "age", "gender", "date of birth"],
+      "description": "Basic demographic and identification information about the donor",
+      "extraction_prompt": "Extract donor name, age, gender, date of birth, and any other demographic information.",
+      "sections": {
+        "Name": "Full name of the donor",
+        "Age": "Age at time of donation",
+        "Gender": "Gender of the donor",
+        "Date of Birth": "Date of birth",
+        "Other Demographics": "Any additional demographic information"
+      }
+    },
+    "Donor Risk Assessment Interview": {
+      "keywords": ["donor risk assessment interview", "DRAI", "risk assessment", "medical history interview"],
+      "description": "Comprehensive interview covering medical history, social history, and risk factors",
+      "extraction_prompt": "Extract all questions and answers from the Donor Risk Assessment Interview, including medical history, social history, travel history, and any risk factors identified.",
+      "sections": {
+        "Medical History": "Questions and answers about medical conditions",
+        "Social History": "Questions about lifestyle, travel, and social factors",
+        "Risk Factors": "Any identified risk factors for disease transmission",
+        "Additional Information": "Any other relevant information from the interview"
+      }
+    },
+    "Physical Assessment": {
+      "keywords": ["physical assessment", "physical exam", "physical examination", "donor physical assessment"],
+      "description": "Physical examination findings of the donor",
+      "extraction_prompt": "Extract all physical examination findings including vital signs, body measurements, visible abnormalities, and any notable physical characteristics.",
+      "sections": {
+        "Vital Signs": "Blood pressure, heart rate, temperature, respiratory rate",
+        "Body Measurements": "Height, weight, BMI",
+        "Physical Findings": "Any abnormal physical findings or observations",
+        "General Appearance": "General appearance and condition of the donor"
+      }
+    },
+    "Medical Records Review Summary": {
+      "keywords": ["medical records review", "medical records summary", "chart review", "records review summary"],
+      "description": "Summary of medical records reviewed for the donor",
+      "extraction_prompt": "Extract summary of medical records reviewed including diagnoses, procedures, medications, and any significant medical history documented in records.",
+      "sections": {
+        "Diagnoses": "Medical diagnoses found in records",
+        "Procedures": "Medical procedures performed",
+        "Medications": "Medications documented",
+        "Significant History": "Any significant medical history from records"
+      }
+    },
+    "Tissue Recovery Information": {
+      "keywords": ["tissue recovery", "tissue recovery information", "recovery details", "tissue procurement"],
+      "description": "Information about the tissue recovery process",
+      "extraction_prompt": "Extract all information about tissue recovery including tissues recovered, recovery procedures, timing, and any special handling requirements.",
+      "sections": {
+        "Tissues Recovered": "List of tissues that were recovered",
+        "Recovery Procedures": "Procedures used during recovery",
+        "Timing": "Time and duration of recovery",
+        "Special Handling": "Any special handling or storage requirements"
+      }
+    },
+    "Plasma Dilution": {
+      "keywords": ["plasma dilution", "dilution", "plasma", "dilution factor"],
+      "description": "Information about plasma dilution procedures and measurements",
+      "extraction_prompt": "Extract all information about plasma dilution including dilution factors, volumes, procedures, and any related measurements.",
+      "sections": {
+        "Dilution Factor": "Dilution factor used",
+        "Volumes": "Volumes of plasma and diluent",
+        "Procedures": "Procedures followed for dilution",
+        "Measurements": "Any related measurements or calculations"
+      }
+    },
+    "Authorization for Tissue Donation": {
+      "keywords": ["authorization", "tissue donation authorization", "consent", "authorization form"],
+      "description": "Authorization and consent forms for tissue donation",
+      "extraction_prompt": "Extract all information from authorization forms including who authorized the donation, date of authorization, type of authorization, and any conditions or restrictions.",
+      "sections": {
+        "Authorizer": "Who authorized the donation",
+        "Date": "Date of authorization",
+        "Type": "Type of authorization or consent",
+        "Conditions": "Any conditions or restrictions on the authorization"
+      }
+    },
+    "Infectious Disease Testing": {
+      "keywords": ["infectious disease testing", "disease testing", "infectious disease", "disease test results"],
+      "description": "Results from infectious disease testing performed on the donor",
+      "extraction_prompt": "Extract all infectious disease test results including test names, dates, results, and any relevant laboratory information.",
+      "sections": {
+        "Test Results": "Individual test results with names and outcomes",
+        "Test Dates": "Dates when tests were performed",
+        "Laboratory Information": "Laboratory that performed the tests",
+        "Additional Notes": "Any additional notes or comments about the tests"
+      }
+    },
+    "Medical Records": {
+      "keywords": ["medical records", "hospital records", "clinical records", "patient records"],
+      "description": "Complete medical records from hospitals or healthcare facilities",
+      "extraction_prompt": "Extract comprehensive information from medical records including admission notes, discharge summaries, progress notes, laboratory results, imaging reports, and any other clinical documentation.",
+      "sections": {
+        "Admission Information": "Admission notes and initial assessments",
+        "Progress Notes": "Daily or periodic progress notes",
+        "Laboratory Results": "Laboratory test results",
+        "Imaging Reports": "Radiology and imaging reports",
+        "Discharge Summary": "Discharge summary and final diagnoses"
+      }
+    }
+  },
+  "conditional_components": {
+    "Autopsy Report": {
+      "condition_check": {
+        "topic": "Autopsy",
+        "condition": "decision",
+        "expected_value": "Yes"
+      },
+      "keywords": ["autopsy report", "autopsy", "post-mortem", "postmortem examination"],
+      "description": "Autopsy report if an autopsy was performed",
+      "extraction_prompt": "Extract all information from the autopsy report including cause of death, findings, organ examination results, and any pathological diagnoses.",
+      "sections": {
+        "Cause of Death": "Primary and contributing causes of death",
+        "Gross Findings": "Gross examination findings",
+        "Microscopic Findings": "Microscopic examination results",
+        "Organ Examination": "Results of examination of individual organs",
+        "Pathological Diagnoses": "Pathological diagnoses made"
+      }
+    },
+    "Toxicology Report": {
+      "condition_check": {
+        "topic": "Toxicology",
+        "condition": "decision",
+        "expected_value": "Yes"
+      },
+      "keywords": ["toxicology report", "toxicology", "toxicology results", "drug screen", "substance testing"],
+      "description": "Toxicology report if toxicology testing was performed",
+      "extraction_prompt": "Extract all information from the toxicology report including substances tested, results, concentrations, and any interpretation or conclusions.",
+      "sections": {
+        "Substances Tested": "List of substances or drugs tested",
+        "Results": "Results for each substance (positive/negative, concentrations)",
+        "Concentrations": "Concentrations or levels detected",
+        "Interpretation": "Interpretation or conclusions from the toxicology results"
+      }
+    },
+    "Skin Dermal Cultures": {
+      "condition_check": {
+        "topic": "Prep",
+        "condition": "decision",
+        "expected_value": "Yes"
+      },
+      "keywords": ["skin dermal cultures", "skin cultures", "dermal cultures", "skin recovery cultures"],
+      "description": "Skin dermal culture results if skin recovery was performed",
+      "extraction_prompt": "Extract all information about skin dermal cultures including culture sites, microorganisms identified, results, and any categorization.",
+      "sections": {
+        "Culture Sites": "Sites where skin cultures were taken",
+        "Results": "Culture results (positive/negative)",
+        "Microorganisms": "Any microorganisms identified",
+        "Categorization": "Category classification if applicable"
+      }
+    },
+    "Bioburden Results": {
+      "condition_check": {
+        "topic": "Prep",
+        "condition": "decision",
+        "expected_value": "Yes"
+      },
+      "keywords": ["bioburden", "bioburden results", "bioburden testing", "microbial bioburden"],
+      "description": "Bioburden testing results if fresh tissue processing was performed",
+      "extraction_prompt": "Extract all information about bioburden testing including test methods, results, microbial counts, and any interpretation.",
+      "sections": {
+        "Test Methods": "Methods used for bioburden testing",
+        "Results": "Bioburden test results",
+        "Microbial Counts": "Counts of microorganisms detected",
+        "Interpretation": "Interpretation of bioburden levels"
+      }
+    }
+  }
+}
+

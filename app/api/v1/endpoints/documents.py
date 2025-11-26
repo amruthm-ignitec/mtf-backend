@@ -13,7 +13,7 @@ from app.schemas.document import DocumentResponse, DocumentUpdate, DocumentUploa
 from app.api.v1.endpoints.auth import get_current_user
 from app.core.config import settings
 from app.services.azure_service import azure_blob_service
-from app.services.document_processing import document_processing_service
+from app.services.processing.result_parser import result_parser
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -113,8 +113,8 @@ async def upload_document(
     
     logger.info(f"Document uploaded: {file.filename} for donor {donor_id} by user: {current_user.email}")
     
-    # Start document processing workflow
-    await document_processing_service.start_processing(document.id, db)
+    # Document is queued for processing (status = UPLOADED)
+    # Background worker will pick it up from the queue
     
     return DocumentUploadResponse(
         message="Document uploaded successfully",
@@ -247,3 +247,89 @@ async def get_donor_documents(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching documents: {str(e)}"
         )
+
+@router.get("/{document_id}/extraction")
+async def get_document_extraction(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all extraction results for a specific document."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    # Get extraction results from database
+    extraction_results = result_parser.get_all_extraction_results_for_document(document_id, db)
+    
+    return {
+        "document_id": document_id,
+        "extraction_results": extraction_results
+    }
+
+@router.get("/{document_id}/culture")
+async def get_document_culture(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get culture results for a specific document."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    return result_parser.get_culture_results_for_document(document_id, db)
+
+@router.get("/{document_id}/serology")
+async def get_document_serology(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get serology results for a specific document."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    return result_parser.get_serology_results_for_document(document_id, db)
+
+@router.get("/{document_id}/topics")
+async def get_document_topics(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get topic results for a specific document."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    return result_parser.get_topic_results_for_document(document_id, db)
+
+@router.get("/{document_id}/components")
+async def get_document_components(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get component results for a specific document."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    return result_parser.get_component_results_for_document(document_id, db)

@@ -1,0 +1,11 @@
+{
+    "Donor Risk Assessment Interview": "A standardized interview process to evaluate the health and lifestyle factors of a potential tissue donor, aiming to assess the risk of transmitting diseases to the recipient. It consists of a series of questions followed by the answer to the question. Depending on the answer, there may be subsequent questions related to the same question. Always look for the answer to the question. Do not give the answer solely based on the question. Return all the questions and its answers. Summarize the questions and the answers provided to them",
+
+    "Donor Information": "Donor information consisting of Donor Name, Age and Gender of the donor. Found in the DONOR INFORMATION section.",
+
+    "Medical History" : "- Summarize the provided medical history by identifying and extracting key information related to the following sections:\n- Chief Complaint\n- Physical Examination\n- History of Present Illness \n- Past Medical History n- Family History \n- Social History\n- Surgery History \n- Medications\n- Home Medications\n- Detailed Assessment and Plan, Lab Results and Test Reports.\n- If tests were conducted, summarize their results.\n- Allergies.\n- Also, incorporate any other relevant information that contributes to a comprehensive understanding of the patient's condition and treatment, while not strictly adhering to these predefined sections.\n- The start of the medical history can be indicated by the mention of a fax transmission from the respective hospital/health care centre.",
+
+    "Mass" : "Refers to an abnormal growth of mass, lump or any mass effects in the body. It can be referred to as localized swelling, tumor, abnormal accumulation of tissue, mass effect, node growth etc.",
+
+    "Organ Transplant Recipient" : "Organ Transplant Recipient: Information on whether the donor ever received a transplant or went through a medical procedure that involved  being exposed to live cells, tissues or organs from an animal."
+}

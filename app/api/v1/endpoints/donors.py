@@ -389,9 +389,8 @@ async def get_donor_extraction_data(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get extraction data for a donor (temporary endpoint for testing)."""
-    import json
-    import os
+    """Get aggregated extraction data for a donor from DonorExtraction table."""
+    from app.models.donor_extraction import DonorExtraction
     
     donor = db.query(Donor).filter(Donor.id == donor_id).first()
     if not donor:
@@ -400,33 +399,15 @@ async def get_donor_extraction_data(
             detail="Donor not found"
         )
     
-    # For testing: Try to load test.json if it exists
-    # In production, this would come from the database or processing service
-    # Try multiple possible paths
-    possible_paths = [
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), "mtf-backend-test", "test.json"),
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "..", "mtf-backend-test", "test.json"),
-        "/Users/amrutmaliye/Desktop/Dev/Github/donoriq/mtf-backend-test/test.json"
-    ]
+    # Query DonorExtraction table
+    donor_extraction = db.query(DonorExtraction).filter(
+        DonorExtraction.donor_id == donor_id
+    ).first()
     
-    test_json_path = None
-    for path in possible_paths:
-        if os.path.exists(path):
-            test_json_path = path
-            break
+    if donor_extraction and donor_extraction.extraction_data:
+        return donor_extraction.extraction_data
     
-    if test_json_path and os.path.exists(test_json_path):
-        try:
-            with open(test_json_path, 'r') as f:
-                extraction_data = json.load(f)
-            # Update donor_id and case_id to match the requested donor
-            extraction_data["donor_id"] = donor.unique_donor_id
-            extraction_data["case_id"] = f"{donor.unique_donor_id}81"
-            return extraction_data
-        except Exception as e:
-            logger.error(f"Error loading test.json: {e}")
-    
-    # Return empty structure if test.json not found
+    # Return empty structure if no extraction data found
     return {
         "donor_id": donor.unique_donor_id,
         "case_id": f"{donor.unique_donor_id}81",
@@ -437,4 +418,228 @@ async def get_donor_extraction_data(
         "validation": None,
         "compliance_status": None,
         "document_summary": None
+    }
+
+@router.post("/search-similar")
+async def search_similar_donors(
+    query: str,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Semantic search for similar donors based on extraction data."""
+    from app.models.donor_extraction_vector import DonorExtractionVector
+    from app.services.processing.utils.llm_config import llm_setup
+    import asyncio
+    
+    try:
+        # Generate embedding for query
+        _, embeddings = await asyncio.get_event_loop().run_in_executor(None, llm_setup)
+        query_embedding = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: embeddings.embed_query(query)
+        )
+        
+        # Search using pgvector similarity
+        # Note: This requires raw SQL for pgvector similarity search
+        from sqlalchemy import text
+        
+        # Use cosine similarity
+        # Convert embedding list to string format for pgvector
+        embedding_str = '[' + ','.join(map(str, query_embedding)) + ']'
+        
+        results = db.execute(
+            text("""
+                SELECT 
+                    donor_id,
+                    extraction_type,
+                    extraction_text,
+                    1 - (embedding <=> CAST(:query_embedding AS vector)) as similarity
+                FROM donor_extraction_vectors
+                WHERE embedding IS NOT NULL
+                ORDER BY embedding <=> CAST(:query_embedding AS vector)
+                LIMIT :limit
+            """),
+            {
+                "query_embedding": embedding_str,
+                "limit": limit
+            }
+        ).fetchall()
+        
+        # Group by donor_id and get best matches
+        donor_similarities = {}
+        for row in results:
+            donor_id = row[0]
+            similarity = float(row[3])
+            if donor_id not in donor_similarities or similarity > donor_similarities[donor_id]['similarity']:
+                donor_similarities[donor_id] = {
+                    "donor_id": donor_id,
+                    "similarity": similarity,
+                    "extraction_type": row[1],
+                    "extraction_text": row[2]
+                }
+        
+        # Get donor details
+        similar_donors = []
+        for donor_id, match_info in donor_similarities.items():
+            donor = db.query(Donor).filter(Donor.id == donor_id).first()
+            if donor:
+                similar_donors.append({
+                    "donor_id": donor_id,
+                    "donor_name": donor.name,
+                    "unique_donor_id": donor.unique_donor_id,
+                    "similarity_score": match_info['similarity'],
+                    "matched_on": match_info['extraction_type']
+                })
+        
+        # Sort by similarity
+        similar_donors.sort(key=lambda x: x['similarity_score'], reverse=True)
+        
+        return {
+            "query": query,
+            "results": similar_donors[:limit]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in similarity search: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error performing similarity search: {str(e)}"
+        )
+
+@router.get("/{donor_id}/similar")
+async def get_similar_donors(
+    donor_id: int,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get similar donors based on extraction data vectors."""
+    from app.models.donor_extraction_vector import DonorExtractionVector
+    from sqlalchemy import text
+    
+    donor = db.query(Donor).filter(Donor.id == donor_id).first()
+    if not donor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donor not found"
+        )
+    
+    # Get donor's extraction vectors
+    donor_vectors = db.query(DonorExtractionVector).filter(
+        DonorExtractionVector.donor_id == donor_id,
+        DonorExtractionVector.embedding.isnot(None)
+    ).all()
+    
+    if not donor_vectors:
+        return {
+            "donor_id": donor_id,
+            "similar_donors": [],
+            "message": "No extraction vectors found for this donor"
+        }
+    
+    # Use the first vector for similarity search
+    reference_vector = donor_vectors[0].embedding
+    
+    # Search for similar donors
+    try:
+        # Convert embedding to string format for pgvector
+        if hasattr(reference_vector, '__iter__'):
+            embedding_str = '[' + ','.join(map(str, reference_vector)) + ']'
+        else:
+            embedding_str = str(reference_vector)
+        
+        results = db.execute(
+            text("""
+                SELECT 
+                    donor_id,
+                    extraction_type,
+                    1 - (embedding <=> CAST(:ref_embedding AS vector)) as similarity
+                FROM donor_extraction_vectors
+                WHERE donor_id != :donor_id
+                AND embedding IS NOT NULL
+                ORDER BY embedding <=> CAST(:ref_embedding AS vector)
+                LIMIT :limit
+            """),
+            {
+                "ref_embedding": embedding_str,
+                "donor_id": donor_id,
+                "limit": limit
+            }
+        ).fetchall()
+        
+        # Group by donor_id
+        donor_similarities = {}
+        for row in results:
+            similar_donor_id = row[0]
+            similarity = float(row[2])
+            if similar_donor_id not in donor_similarities or similarity > donor_similarities[similar_donor_id]['similarity']:
+                donor_similarities[similar_donor_id] = {
+                    "donor_id": similar_donor_id,
+                    "similarity": similarity
+                }
+        
+        # Get donor details
+        similar_donors = []
+        for similar_donor_id, match_info in donor_similarities.items():
+            similar_donor = db.query(Donor).filter(Donor.id == similar_donor_id).first()
+            if similar_donor:
+                similar_donors.append({
+                    "donor_id": similar_donor_id,
+                    "donor_name": similar_donor.name,
+                    "unique_donor_id": similar_donor.unique_donor_id,
+                    "similarity_score": match_info['similarity']
+                })
+        
+        similar_donors.sort(key=lambda x: x['similarity_score'], reverse=True)
+        
+        return {
+            "donor_id": donor_id,
+            "similar_donors": similar_donors
+        }
+        
+    except Exception as e:
+        logger.error(f"Error finding similar donors for {donor_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error finding similar donors: {str(e)}"
+        )
+
+@router.get("/{donor_id}/extraction/detailed")
+async def get_donor_extraction_detailed(
+    donor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed breakdown of extraction results per document for a donor."""
+    from app.models.document import Document, DocumentStatus
+    from app.services.processing.result_parser import result_parser
+    
+    donor = db.query(Donor).filter(Donor.id == donor_id).first()
+    if not donor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donor not found"
+        )
+    
+    # Get all completed documents
+    documents = db.query(Document).filter(
+        Document.donor_id == donor_id,
+        Document.status == DocumentStatus.COMPLETED
+    ).all()
+    
+    detailed_results = {}
+    for document in documents:
+        detailed_results[document.id] = {
+            "document_id": document.id,
+            "filename": document.original_filename,
+            "culture": result_parser.get_culture_results_for_document(document.id, db),
+            "serology": result_parser.get_serology_results_for_document(document.id, db),
+            "topics": result_parser.get_topic_results_for_document(document.id, db),
+            "components": result_parser.get_component_results_for_document(document.id, db)
+        }
+    
+    return {
+        "donor_id": donor_id,
+        "documents": detailed_results
     }

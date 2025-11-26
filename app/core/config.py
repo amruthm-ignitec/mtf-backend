@@ -20,10 +20,15 @@ class Settings(BaseSettings):
     AZURE_STORAGE_ACCOUNT_KEY: str = ""
     AZURE_STORAGE_CONTAINER_NAME: str = "documents"
     
-    # OpenAI
+    # OpenAI / Azure OpenAI
     OPENAI_API_KEY: str = ""
-    OPENAI_EMBEDDING_MODEL: str = "text-embedding-ada-002"
-    OPENAI_SUMMARIZATION_MODEL: str = "gpt-3.5-turbo"
+    OPENAI_API_BASE: str = ""  # Azure OpenAI endpoint (e.g., https://YOUR-RESOURCE.openai.azure.com/)
+    OPENAI_API_VERSION: str = "2023-07-01-preview"
+    AZURE_OPENAI_CHAT_DEPLOYMENT_NAME: str = "gpt-4o"
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME: str = "text-embedding-3-large"
+    AZURE_OPENAI_EMBEDDING_API_VERSION: str = "2023-05-15"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-ada-002"  # Legacy, can be removed
+    OPENAI_SUMMARIZATION_MODEL: str = "gpt-3.5-turbo"  # Legacy, can be removed
     
     # Application
     DEBUG: bool = False
@@ -62,6 +67,12 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
     DB_POOL_RECYCLE: int = 3600
+    
+    # Background Worker Configuration (asyncio-based)
+    WORKER_ENABLED: bool = True
+    WORKER_POLL_INTERVAL: int = 5  # seconds between queue polls
+    WORKER_MAX_CONCURRENT: int = 3  # max documents processed simultaneously
+    WORKER_MAX_RETRIES: int = 3  # max retry attempts for failed documents
     
     @field_validator('DEBUG', mode='before')
     @classmethod
