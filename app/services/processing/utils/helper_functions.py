@@ -12,9 +12,9 @@ from langchain.schema import Document
 
 # OCR imports (optional - will fail gracefully if not available)
 try:
-    import pytesseract
-    from PIL import Image
+    from openai import AzureOpenAI
     import fitz  # PyMuPDF
+    import base64
     OCR_AVAILABLE = True
 except ImportError:
     OCR_AVAILABLE = False
@@ -74,50 +74,107 @@ def get_prompt_components():
 
 
 
-def extract_text_with_ocr(filename):
+def extract_text_with_ocr(filename, llm=None):
     """
-    Extract text from PDF using OCR (for image-based/scanned PDFs).
+    Extract text from PDF using Azure OpenAI GPT-4 Vision (for image-based/scanned PDFs).
     
     Args:
         filename: Path to PDF file
+        llm: Optional Azure OpenAI client (will create one if not provided)
         
     Returns:
         List of Document objects with extracted text
     """
     if not OCR_AVAILABLE:
-        raise ImportError("OCR dependencies (pytesseract, Pillow) not available. Install with: pip install pytesseract Pillow")
+        raise ImportError("OCR dependencies (openai, pymupdf) not available. Install with: pip install openai pymupdf")
     
-    logger.info(f"Attempting OCR extraction for {filename}")
+    # Get Azure OpenAI credentials from environment
+    api_key = os.getenv("OPENAI_API_KEY")
+    api_base = os.getenv("OPENAI_API_BASE")
+    api_version = os.getenv("OPENAI_API_VERSION", "2023-07-01-preview")
+    deployment_name = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME", "gpt-4o")
+    
+    if not api_key or not api_base:
+        raise ValueError(
+            "Azure OpenAI credentials not configured. "
+            "Set OPENAI_API_KEY and OPENAI_API_BASE environment variables."
+        )
+    
+    logger.info(f"Attempting Azure OpenAI GPT-4 Vision OCR extraction for {filename}")
     page_docs = []
     
     try:
+        # Initialize Azure OpenAI client if not provided
+        if llm is None:
+            client = AzureOpenAI(
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=api_base
+            )
+        else:
+            # If llm is provided, extract client from it (for LangChain compatibility)
+            # For now, create a new client
+            client = AzureOpenAI(
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=api_base
+            )
+        
         # Open PDF with PyMuPDF
         pdf_document = fitz.open(filename)
         
         for page_num in range(len(pdf_document)):
             page = pdf_document[page_num]
             
-            # Convert PDF page to image
-            # Use higher DPI for better OCR accuracy (300 DPI recommended)
-            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom = ~144 DPI, increase for better quality
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            
-            # Perform OCR on the image
             try:
-                # Use pytesseract to extract text
-                text = pytesseract.image_to_string(img, lang='eng')
+                # Convert PDF page to image (PNG format)
+                # Use higher DPI for better OCR accuracy
+                # Matrix(3, 3) = 3x zoom ≈ 216 DPI, good balance of quality and API cost
+                pix = page.get_pixmap(matrix=fitz.Matrix(3, 3))
                 
-                # Clean up the text
-                text = text.strip()
+                # Convert pixmap to base64-encoded PNG
+                img_bytes = pix.tobytes("png")
+                img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+                
+                # Use GPT-4 Vision to extract text from the image
+                response = client.chat.completions.create(
+                    model=deployment_name,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an expert at extracting text from medical documents. Extract ALL text from the image, preserving the original structure, formatting, and layout as much as possible. Include all numbers, dates, names, and medical terms exactly as they appear."
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Extract all text from this document page. Preserve the original formatting, line breaks, and structure. Include everything: headers, body text, tables, lists, and any other text content."
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/png;base64,{img_base64}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    max_tokens=4000,  # Adjust based on expected text length
+                    temperature=0  # Deterministic extraction
+                )
+                
+                # Extract text from response
+                text = response.choices[0].message.content.strip()
                 
                 if text:  # Only add if text was extracted
                     page_docs.append(Document(
                         page_content=text,
                         metadata={'source': filename, 'page': page_num + 1}
                     ))
-                    logger.debug(f"OCR extracted {len(text)} characters from page {page_num + 1}")
+                    logger.debug(f"GPT-4 Vision extracted {len(text)} characters from page {page_num + 1}")
                 else:
-                    logger.warning(f"No text extracted from page {page_num + 1} using OCR")
+                    logger.warning(f"No text extracted from page {page_num + 1} using GPT-4 Vision")
                     
             except Exception as ocr_error:
                 logger.warning(f"OCR failed for page {page_num + 1}: {ocr_error}")
@@ -129,7 +186,7 @@ def extract_text_with_ocr(filename):
         if not page_docs:
             raise ValueError(f"OCR extraction produced no text from PDF: {filename}")
         
-        logger.info(f"OCR successfully extracted text from {len(page_docs)} pages")
+        logger.info(f"GPT-4 Vision successfully extracted text from {len(page_docs)} pages")
         return page_docs
         
     except Exception as e:
