@@ -83,7 +83,11 @@ class DocumentProcessingService:
                 raise ValueError(f"Document {document_id} has no Azure blob URL")
             
             logger.info(f"Downloading PDF from Azure Blob: {document.azure_blob_url}")
-            temp_pdf_path = await pdf_service.download_from_blob(document.azure_blob_url)
+            # Pass the filename from database for more reliable blob name resolution
+            temp_pdf_path = await pdf_service.download_from_blob(
+                document.azure_blob_url, 
+                blob_filename=document.filename
+            )
             
             if not temp_pdf_path or not os.path.exists(temp_pdf_path):
                 raise FileNotFoundError(f"Failed to download PDF for document {document_id}")

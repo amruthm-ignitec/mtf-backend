@@ -5,6 +5,7 @@ import os
 import tempfile
 import logging
 import aiohttp
+from urllib.parse import unquote
 from typing import Optional
 from app.services.azure_service import azure_blob_service
 
@@ -15,12 +16,13 @@ class PDFService:
     """Service for handling PDF downloads from Azure Blob Storage."""
     
     @staticmethod
-    async def download_from_blob(blob_url: str) -> Optional[str]:
+    async def download_from_blob(blob_url: str, blob_filename: Optional[str] = None) -> Optional[str]:
         """
         Download a PDF from Azure Blob Storage to a temporary file.
         
         Args:
             blob_url: URL of the blob in Azure Storage
+            blob_filename: Optional filename stored in database (more reliable than parsing URL)
             
         Returns:
             Path to temporary file if successful, None otherwise
@@ -31,19 +33,19 @@ class PDFService:
             temp_path = temp_file.name
             temp_file.close()
             
-            # Download from Azure Blob Storage
-            # Extract blob name from URL
-            blob_name = blob_url.split('/')[-1].split('?')[0]
-            
             # Get blob client
             if not azure_blob_service.is_enabled():
                 logger.warning("Azure Blob Storage not enabled, cannot download file")
                 return None
             
-            # Extract blob name from URL if it's a full URL
-            # URL format: https://account.blob.core.windows.net/container/blobname
-            if '/' in blob_url:
-                # Try to extract from URL path
+            # Use provided filename if available (more reliable than parsing URL)
+            if blob_filename:
+                blob_name = blob_filename
+                logger.debug(f"Using provided blob filename: {blob_name}")
+            else:
+                # Extract blob name from URL if filename not provided
+                # URL format: https://account.blob.core.windows.net/container/blobname
+                # Extract blob name from URL path
                 url_parts = blob_url.split('/')
                 if len(url_parts) >= 4:
                     # Find container name and blob name
@@ -53,7 +55,20 @@ class PDFService:
                             container_idx = i
                             break
                     if container_idx >= 0 and container_idx + 1 < len(url_parts):
-                        blob_name = '/'.join(url_parts[container_idx + 1:]).split('?')[0]
+                        # Extract blob name and URL-decode it (handles %20 for spaces, etc.)
+                        encoded_blob_name = '/'.join(url_parts[container_idx + 1:]).split('?')[0]
+                        blob_name = unquote(encoded_blob_name)
+                        logger.debug(f"Extracted and decoded blob name from URL: {blob_name}")
+                    else:
+                        # Fallback: use last part of URL
+                        encoded_blob_name = blob_url.split('/')[-1].split('?')[0]
+                        blob_name = unquote(encoded_blob_name)
+                        logger.debug(f"Using fallback blob name extraction: {blob_name}")
+                else:
+                    # Fallback: use last part of URL
+                    encoded_blob_name = blob_url.split('/')[-1].split('?')[0]
+                    blob_name = unquote(encoded_blob_name)
+                    logger.debug(f"Using fallback blob name extraction: {blob_name}")
             
             # Download blob content
             blob_client = azure_blob_service.blob_service_client.get_blob_client(
