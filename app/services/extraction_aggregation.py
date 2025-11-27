@@ -20,6 +20,10 @@ from app.services.processing.utils.merge_helpers import (
     merge_components_results
 )
 from app.services.processing.result_parser import result_parser
+from app.services.critical_findings_service import critical_findings_service
+from app.services.medical_findings_service import medical_findings_service
+from app.services.tissue_eligibility_service import tissue_eligibility_service
+from app.services.information_formatter_service import information_formatter_service
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +123,58 @@ class ExtractionAggregationService:
                 # Map component names to extraction data keys
                 component_key = component_name.lower().replace(' ', '_').replace('-', '_')
                 extraction_data["extracted_data"][component_key] = component_info
+            
+            # Add culture and serology results to extraction data
+            if merged_culture:
+                extraction_data["culture_results"] = merged_culture
+            if merged_serology:
+                extraction_data["serology_results"] = merged_serology
+            
+            # Detect critical findings
+            critical_findings = critical_findings_service.detect_critical_findings(donor_id, db)
+            
+            # Generate key medical findings summary
+            key_medical_findings = medical_findings_service.generate_medical_findings_summary(
+                extraction_data["extracted_data"]
+            )
+            extraction_data["key_medical_findings"] = key_medical_findings
+            
+            # Analyze tissue eligibility
+            donor_age = None
+            if donor:
+                donor_age = donor.age
+            tissue_eligibility = tissue_eligibility_service.analyze_tissue_eligibility(
+                extraction_data["extracted_data"],
+                donor_age
+            )
+            extraction_data["tissue_eligibility"] = tissue_eligibility
+            
+            # Format recovery information
+            recovery_info = information_formatter_service.format_recovery_information(
+                extraction_data["extracted_data"]
+            )
+            extraction_data["recovery_information"] = recovery_info
+            
+            # Format terminal information
+            terminal_info = information_formatter_service.format_terminal_information(
+                extraction_data["extracted_data"],
+                merged_topics
+            )
+            extraction_data["terminal_information"] = terminal_info
+            
+            # Extract critical lab values
+            critical_lab_values = information_formatter_service.extract_critical_lab_values(
+                extraction_data["extracted_data"]
+            )
+            extraction_data["critical_lab_values"] = critical_lab_values
+            
+            # Build validation object with critical findings
+            validation = {
+                "critical_findings": critical_findings,
+                "has_critical_findings": len(critical_findings) > 0,
+                "automatic_rejection": any(f.get("automaticRejection", False) for f in critical_findings)
+            }
+            extraction_data["validation"] = validation
             
             # Store or update DonorExtraction
             donor_extraction = db.query(DonorExtraction).filter(
