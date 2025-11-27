@@ -20,10 +20,6 @@ class Settings(BaseSettings):
     AZURE_STORAGE_ACCOUNT_KEY: str = ""
     AZURE_STORAGE_CONTAINER_NAME: str = "documents"
     
-    # Azure Computer Vision (for OCR)
-    AZURE_COMPUTER_VISION_ENDPOINT: str = ""  # e.g., https://YOUR-RESOURCE.cognitiveservices.azure.com/
-    AZURE_COMPUTER_VISION_KEY: str = ""
-    
     # OpenAI / Azure OpenAI
     OPENAI_API_KEY: str = ""
     OPENAI_API_BASE: str = ""  # Azure OpenAI endpoint (e.g., https://YOUR-RESOURCE.openai.azure.com/)
