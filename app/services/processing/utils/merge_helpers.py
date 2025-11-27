@@ -17,15 +17,15 @@ def merge_culture_results(culture_results_list: List[Dict[str, Any]]) -> Dict[st
         culture_results_list: List of culture results dictionaries from different PDFs
         
     Returns:
-        Dict: Merged culture results
+        Dict: Merged culture results in format {"result": [...], "citations": [...]}
     """
     if not culture_results_list:
-        return {}
+        return {"result": [], "citations": []}
     
     # Filter out None/empty results
     valid_results = [r for r in culture_results_list if r is not None]
     if not valid_results:
-        return {}
+        return {"result": [], "citations": []}
     
     # Culture results structure: {"result": [...], "citations": [...]}
     # Combine all results and citations
@@ -78,12 +78,12 @@ def merge_serology_results(serology_results_list: List[Dict[str, Any]]) -> Dict[
         Dict: Merged serology results in format {"result": {...}, "citations": [...]}
     """
     if not serology_results_list:
-        return {}
+        return {"result": {}, "citations": []}
     
     # Filter out None/empty results
     valid_results = [r for r in serology_results_list if r is not None]
     if not valid_results:
-        return {}
+        return {"result": {}, "citations": []}
     
     # Serology results structure from result_parser: {"result": {test_name: result_value}, "citations": [...]}
     # Combine all test results

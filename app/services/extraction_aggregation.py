@@ -65,13 +65,27 @@ class ExtractionAggregationService:
             for document in documents:
                 # Get culture results
                 culture_data = result_parser.get_culture_results_for_document(document.id, db)
-                if culture_data and culture_data.get('result'):
-                    all_culture_results.append(culture_data)
+                # Always add culture_data if it exists (even if result is empty list)
+                # This ensures we capture the structure even when no results found
+                if culture_data:
+                    # Check if result exists and has items (not just empty list)
+                    if culture_data.get('result') and len(culture_data.get('result', [])) > 0:
+                        all_culture_results.append(culture_data)
+                    else:
+                        # Log when no culture results found for this document
+                        logger.debug(f"No culture results found for document {document.id}")
                 
                 # Get serology results
                 serology_data = result_parser.get_serology_results_for_document(document.id, db)
-                if serology_data and serology_data.get('result'):
-                    all_serology_results.append(serology_data)
+                # Always add serology_data if it exists (even if result is empty dict)
+                # This ensures we capture the structure even when no results found
+                if serology_data:
+                    # Check if result exists and has items (not just empty dict)
+                    if serology_data.get('result') and len(serology_data.get('result', {})) > 0:
+                        all_serology_results.append(serology_data)
+                    else:
+                        # Log when no serology results found for this document
+                        logger.debug(f"No serology results found for document {document.id}")
                 
                 # Get topic results
                 topic_data = result_parser.get_topic_results_for_document(document.id, db)
@@ -91,12 +105,18 @@ class ExtractionAggregationService:
             
             # Log merge results for debugging
             logger.info(f"Merge results for donor {donor_id}: "
-                       f"culture={bool(merged_culture)}, serology={bool(merged_serology)}, "
-                       f"topics={bool(merged_topics)}, components={bool(merged_components)}")
+                       f"culture_docs={len(all_culture_results)}, serology_docs={len(all_serology_results)}, "
+                       f"culture_merged={bool(merged_culture)}, serology_merged={bool(merged_serology)}")
             if merged_serology:
                 logger.debug(f"Serology results: {merged_serology}")
+            else:
+                logger.warning(f"No serology results merged for donor {donor_id}. "
+                             f"Checked {len(documents)} documents, found {len(all_serology_results)} with serology data")
             if merged_culture:
                 logger.debug(f"Culture results: {merged_culture}")
+            else:
+                logger.warning(f"No culture results merged for donor {donor_id}. "
+                             f"Checked {len(documents)} documents, found {len(all_culture_results)} with culture data")
             
             # Build ExtractionDataResponse structure
             extraction_data = {
@@ -135,8 +155,14 @@ class ExtractionAggregationService:
             
             # Add culture and serology results to extraction data
             # Always include them, even if empty, so frontend knows the structure
-            extraction_data["culture_results"] = merged_culture if merged_culture else {"result": [], "citations": []}
-            extraction_data["serology_results"] = merged_serology if merged_serology else {"result": {}, "citations": []}
+            # Merge functions now return proper structure even when empty, but ensure we always have the fields
+            if not merged_culture or not isinstance(merged_culture, dict) or "result" not in merged_culture:
+                merged_culture = {"result": [], "citations": []}
+            if not merged_serology or not isinstance(merged_serology, dict) or "result" not in merged_serology:
+                merged_serology = {"result": {}, "citations": []}
+            
+            extraction_data["culture_results"] = merged_culture
+            extraction_data["serology_results"] = merged_serology
             
             # Detect critical findings
             critical_findings = critical_findings_service.detect_critical_findings(donor_id, db)
