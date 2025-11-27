@@ -72,9 +72,10 @@ def merge_serology_results(serology_results_list: List[Dict[str, Any]]) -> Dict[
     
     Args:
         serology_results_list: List of serology results dictionaries from different PDFs
+        Expected format: [{"result": {"HIV": "Negative", ...}, "citations": [...]}, ...]
         
     Returns:
-        Dict: Merged serology results
+        Dict: Merged serology results in format {"result": {...}, "citations": [...]}
     """
     if not serology_results_list:
         return {}
@@ -84,27 +85,31 @@ def merge_serology_results(serology_results_list: List[Dict[str, Any]]) -> Dict[
     if not valid_results:
         return {}
     
-    # Serology results structure: {test_name: (result, page), ...}
+    # Serology results structure from result_parser: {"result": {test_name: result_value}, "citations": [...]}
     # Combine all test results
     merged_results = {}
-    all_pages = set()
+    all_citations = []
     
     for result_dict in valid_results:
         if isinstance(result_dict, dict):
-            for test_name, test_data in result_dict.items():
-                if isinstance(test_data, tuple) and len(test_data) >= 2:
-                    result_value, page = test_data[0], test_data[1]
-                    all_pages.add(page)
-                    
-                    # If test already exists, keep the first one
+            # Handle the format from result_parser: {"result": {...}, "citations": [...]}
+            if 'result' in result_dict and isinstance(result_dict['result'], dict):
+                # Merge test results - keep first occurrence of each test
+                for test_name, test_result in result_dict['result'].items():
                     if test_name not in merged_results:
-                        merged_results[test_name] = (result_value, page)
-                elif isinstance(test_data, dict):
-                    # Handle dict format if it exists
-                    if test_name not in merged_results:
-                        merged_results[test_name] = test_data
+                        merged_results[test_name] = test_result
+            
+            # Collect citations
+            if 'citations' in result_dict and isinstance(result_dict['citations'], list):
+                all_citations.extend(result_dict['citations'])
     
-    return merged_results
+    # Deduplicate citations
+    unique_citations = sorted(list(set(all_citations)))
+    
+    return {
+        "result": merged_results,
+        "citations": unique_citations
+    }
 
 
 def merge_topics_results(topics_results_list: List[Dict[str, Any]]) -> Dict[str, Any]:

@@ -89,6 +89,15 @@ class ExtractionAggregationService:
             merged_topics = merge_topics_results(all_topic_results) if all_topic_results else {}
             merged_components = merge_components_results(all_component_results) if all_component_results else {}
             
+            # Log merge results for debugging
+            logger.info(f"Merge results for donor {donor_id}: "
+                       f"culture={bool(merged_culture)}, serology={bool(merged_serology)}, "
+                       f"topics={bool(merged_topics)}, components={bool(merged_components)}")
+            if merged_serology:
+                logger.debug(f"Serology results: {merged_serology}")
+            if merged_culture:
+                logger.debug(f"Culture results: {merged_culture}")
+            
             # Build ExtractionDataResponse structure
             extraction_data = {
                 "donor_id": str(donor_id),  # Will be updated with unique_donor_id
@@ -125,10 +134,9 @@ class ExtractionAggregationService:
                 extraction_data["extracted_data"][component_key] = component_info
             
             # Add culture and serology results to extraction data
-            if merged_culture:
-                extraction_data["culture_results"] = merged_culture
-            if merged_serology:
-                extraction_data["serology_results"] = merged_serology
+            # Always include them, even if empty, so frontend knows the structure
+            extraction_data["culture_results"] = merged_culture if merged_culture else {"result": [], "citations": []}
+            extraction_data["serology_results"] = merged_serology if merged_serology else {"result": {}, "citations": []}
             
             # Detect critical findings
             critical_findings = critical_findings_service.detect_critical_findings(donor_id, db)
