@@ -4,7 +4,7 @@ Merges results and stores in DonorExtraction table.
 """
 import json
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.models.document import Document, DocumentStatus
