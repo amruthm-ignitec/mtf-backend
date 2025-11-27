@@ -232,7 +232,7 @@ async def get_queue_details(
         
         
         # Get extraction data from DonorExtraction table for critical findings and document presence
-        critical_findings = []
+        critical_findings = None  # None means extraction hasn't happened yet, [] means no findings
         rejection_reason = None
         
         from app.models.donor_extraction import DonorExtraction
@@ -244,6 +244,8 @@ async def get_queue_details(
         extraction_data = None
         if donor_extraction and donor_extraction.extraction_data:
             extraction_data = donor_extraction.extraction_data
+            # Initialize as empty array if extraction data exists
+            critical_findings = []
             
             # Get critical findings from validation
             if extraction_data.get("validation") and extraction_data["validation"].get("critical_findings"):
