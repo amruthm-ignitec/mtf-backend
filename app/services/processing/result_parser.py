@@ -101,8 +101,18 @@ class ResultParser:
             
             formatted_results = {}
             for result in results:
+                # Parse summary if it's a JSON string (stored as string in DB)
+                summary = result.summary
+                if isinstance(summary, str) and summary.strip().startswith('{'):
+                    try:
+                        import json
+                        summary = json.loads(summary)
+                    except (json.JSONDecodeError, ValueError):
+                        # If parsing fails, keep as string
+                        pass
+                
                 formatted_results[result.topic_name] = {
-                    "summary": result.summary,
+                    "summary": summary,
                     "citations": result.citations or [],
                     "source_pages": result.source_pages or []
                 }
@@ -133,10 +143,20 @@ class ResultParser:
             conditional_components = {}
             
             for result in results:
+                # Parse summary if it's a JSON string (stored as string in DB)
+                summary = result.summary
+                if isinstance(summary, str) and summary.strip().startswith('{'):
+                    try:
+                        import json
+                        summary = json.loads(summary)
+                    except (json.JSONDecodeError, ValueError):
+                        # If parsing fails, keep as string
+                        pass
+                
                 component_data = {
                     "present": result.present,
                     "pages": result.pages or [],
-                    "summary": result.summary,
+                    "summary": summary,
                     "extracted_data": result.extracted_data or {}
                 }
                 

@@ -3,6 +3,7 @@ Service for storing extraction results directly in PostgreSQL database.
 Replaces JSON file creation with direct database inserts.
 """
 import logging
+import json
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 from app.models.culture_result import CultureResult
@@ -123,7 +124,13 @@ class DBStorageService:
             if isinstance(topics_data, dict):
                 for topic_name, topic_info in topics_data.items():
                     if isinstance(topic_info, dict):
+                        # Convert summary to string if it's a dict
                         summary = topic_info.get('summary', '')
+                        if isinstance(summary, dict):
+                            summary = json.dumps(summary)
+                        elif summary is None:
+                            summary = ''
+                        
                         citations = topic_info.get('citations', [])
                         source_pages = topic_info.get('source_pages', [])
                         
@@ -168,12 +175,19 @@ class DBStorageService:
             # Store initial components
             for component_name, component_info in initial_components.items():
                 if isinstance(component_info, dict):
+                    # Convert summary to string if it's a dict
+                    summary = component_info.get('summary', '')
+                    if isinstance(summary, dict):
+                        summary = json.dumps(summary)
+                    elif summary is None:
+                        summary = ''
+                    
                     component_result = ComponentResult(
                         document_id=document_id,
                         component_name=component_name,
                         present=component_info.get('present', False),
                         pages=component_info.get('pages', []),
-                        summary=component_info.get('summary', ''),
+                        summary=summary,
                         extracted_data=component_info.get('extracted_data', {})
                     )
                     db.add(component_result)
@@ -182,12 +196,19 @@ class DBStorageService:
             # Store conditional components (only if present)
             for component_name, component_info in conditional_components.items():
                 if isinstance(component_info, dict) and component_info.get('present', False):
+                    # Convert summary to string if it's a dict
+                    summary = component_info.get('summary', '')
+                    if isinstance(summary, dict):
+                        summary = json.dumps(summary)
+                    elif summary is None:
+                        summary = ''
+                    
                     component_result = ComponentResult(
                         document_id=document_id,
                         component_name=component_name,
                         present=True,
                         pages=component_info.get('pages', []),
-                        summary=component_info.get('summary', ''),
+                        summary=summary,
                         extracted_data=component_info.get('extracted_data', {})
                     )
                     db.add(component_result)
