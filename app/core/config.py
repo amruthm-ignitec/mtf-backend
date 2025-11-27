@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     WORKER_MAX_CONCURRENT: int = 3  # max documents processed simultaneously
     WORKER_MAX_RETRIES: int = 3  # max retry attempts for failed documents
     
+    # Summary Deduplication
+    ENABLE_SUMMARY_DEDUPLICATION: bool = True  # Enable LLM-based summary deduplication
+    
     @field_validator('DEBUG', mode='before')
     @classmethod
     def parse_bool(cls, v):

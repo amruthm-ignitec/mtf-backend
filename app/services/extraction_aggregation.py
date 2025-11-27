@@ -28,6 +28,20 @@ from app.services.information_formatter_service import information_formatter_ser
 logger = logging.getLogger(__name__)
 
 
+def _get_llm_instance() -> Optional[Any]:
+    """
+    Get LLM instance lazily if available.
+    Returns None if LLM is not available or initialization fails.
+    """
+    try:
+        from app.services.processing.utils.llm_config import llm_setup
+        llm, _ = llm_setup()
+        return llm
+    except Exception as e:
+        logger.debug(f"LLM not available for summary deduplication: {str(e)}")
+        return None
+
+
 class ExtractionAggregationService:
     """Service for aggregating extraction results per donor."""
     
@@ -97,11 +111,14 @@ class ExtractionAggregationService:
                 if component_data:
                     all_component_results.append(component_data)
             
+            # Get LLM instance for summary deduplication (optional, will fall back if unavailable)
+            llm_instance = _get_llm_instance()
+            
             # Merge results
             merged_culture = merge_culture_results(all_culture_results) if all_culture_results else {}
             merged_serology = merge_serology_results(all_serology_results) if all_serology_results else {}
             merged_topics = merge_topics_results(all_topic_results) if all_topic_results else {}
-            merged_components = merge_components_results(all_component_results) if all_component_results else {}
+            merged_components = merge_components_results(all_component_results, llm=llm_instance) if all_component_results else {}
             
             # Log merge results for debugging
             logger.info(f"Merge results for donor {donor_id}: "
@@ -306,7 +323,9 @@ class ExtractionAggregationService:
                             base_component.get('summary'),
                             merge_component.get('summary'),
                             base_confidence,
-                            merge_confidence
+                            merge_confidence,
+                            llm=llm_instance,
+                            component_name=component_key
                         )
                         
                         # Update pages and present flag

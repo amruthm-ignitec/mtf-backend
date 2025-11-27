@@ -4,7 +4,7 @@ Copied from mtf-backend-test/utils/test_helpers.py
 """
 import json
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -276,7 +276,9 @@ def _merge_summaries(
     base_summary: Any,
     new_summary: Any,
     base_confidence: float,
-    new_confidence: float
+    new_confidence: float,
+    llm: Optional[Any] = None,
+    component_name: Optional[str] = None
 ) -> Any:
     """
     Merge summaries from two components intelligently.
@@ -286,6 +288,8 @@ def _merge_summaries(
         new_summary: New summary (can be dict or string)
         base_confidence: Confidence score of base summary
         new_confidence: Confidence score of new summary
+        llm: Optional LLM instance for intelligent deduplication
+        component_name: Optional component name for LLM context
         
     Returns:
         Merged summary
@@ -298,15 +302,24 @@ def _merge_summaries(
                 merged[key] = new_value
             else:
                 base_value = merged[key]
-                # If both are strings, combine them
+                # If both are strings, try intelligent deduplication first
                 if isinstance(base_value, str) and isinstance(new_value, str):
-                    # Combine unique information
-                    if new_value not in base_value:
-                        merged[key] = f"{base_value}. {new_value}" if base_value else new_value
+                    # Try LLM-based deduplication if enabled and available
+                    deduplicated = _try_deduplicate_strings(
+                        [base_value, new_value],
+                        f"{component_name or 'summary'}.{key}" if component_name else key,
+                        llm
+                    )
+                    if deduplicated is not None:
+                        merged[key] = deduplicated
                     else:
-                        # If new value is already in base, prefer higher confidence
-                        if new_confidence > base_confidence:
-                            merged[key] = new_value
+                        # Fall back to existing logic
+                        if new_value not in base_value:
+                            merged[key] = f"{base_value}. {new_value}" if base_value else new_value
+                        else:
+                            # If new value is already in base, prefer higher confidence
+                            if new_confidence > base_confidence:
+                                merged[key] = new_value
                 else:
                     # For other types, prefer higher confidence
                     if new_confidence > base_confidence:
@@ -320,7 +333,16 @@ def _merge_summaries(
         if not new_summary:
             return base_summary
         
-        # Combine unique information
+        # Try LLM-based deduplication if enabled and available
+        deduplicated = _try_deduplicate_strings(
+            [base_summary, new_summary],
+            component_name or "summary",
+            llm
+        )
+        if deduplicated is not None:
+            return deduplicated
+        
+        # Fall back to existing logic
         if new_summary not in base_summary:
             # Prefer more complete summary if confidence is similar
             if abs(new_confidence - base_confidence) < 10:
@@ -339,12 +361,65 @@ def _merge_summaries(
     return base_summary
 
 
-def merge_components_results(components_results_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _try_deduplicate_strings(
+    summaries: List[str],
+    component_name: str,
+    llm: Optional[Any]
+) -> Optional[str]:
+    """
+    Try to deduplicate strings using LLM if available and enabled.
+    
+    Args:
+        summaries: List of summary strings to deduplicate
+        component_name: Name of the component for context
+        llm: Optional LLM instance
+        
+    Returns:
+        Deduplicated string, or None if LLM unavailable or feature disabled
+    """
+    try:
+        from app.core.config import settings
+        from app.services.summary_deduplication_service import summary_deduplication_service
+        
+        # Check if feature is enabled
+        if not getattr(settings, 'ENABLE_SUMMARY_DEDUPLICATION', True):
+            return None
+        
+        # Check if we have enough summaries and they're long enough
+        valid_summaries = [s for s in summaries if s and s.strip()]
+        if len(valid_summaries) < 2:
+            return None
+        
+        # Check combined length threshold (avoid LLM calls for very short summaries)
+        combined_length = sum(len(s) for s in valid_summaries)
+        if combined_length < 200:
+            return None
+        
+        # Try deduplication if LLM is available
+        if llm:
+            return summary_deduplication_service.deduplicate_and_summarize(
+                valid_summaries,
+                component_name,
+                llm
+            )
+        
+        return None
+    except Exception as e:
+        # Log but don't fail - always fall back to existing logic
+        logger.debug(f"Failed to deduplicate summaries for {component_name}: {str(e)}")
+        return None
+
+
+def merge_components_results(
+    components_results_list: List[Dict[str, Any]],
+    llm: Optional[Any] = None
+) -> Dict[str, Any]:
     """
     Merge document components results from multiple PDFs.
     
     Args:
         components_results_list: List of components results dictionaries from different PDFs
+        llm: Optional LLM instance for intelligent summary deduplication
         
     Returns:
         Dict: Merged components results
@@ -394,6 +469,11 @@ def merge_components_results(components_results_list: List[Dict[str, Any]]) -> D
             best_component = component_results[0].copy()
             best_confidence = best_component.get('confidence', 0.0) or 0.0
             
+            # Collect all summaries for batch deduplication if LLM is available
+            all_summaries = []
+            if best_component.get('summary'):
+                all_summaries.append(best_component.get('summary'))
+            
             # Merge other components into the best one
             for comp in component_results[1:]:
                 comp_confidence = comp.get('confidence', 0.0) or 0.0
@@ -412,18 +492,53 @@ def merge_components_results(components_results_list: List[Dict[str, Any]]) -> D
                         comp_confidence
                     )
                 
-                # Merge summaries intelligently
+                # Collect summaries for batch deduplication
                 if comp.get('summary'):
-                    best_component['summary'] = _merge_summaries(
-                        best_component.get('summary'),
-                        comp.get('summary'),
-                        best_confidence,
-                        comp_confidence
-                    )
+                    all_summaries.append(comp.get('summary'))
                 
                 # Update present flag (if any component is present, mark as present)
                 if comp.get('present', False):
                     best_component['present'] = True
+            
+            # Handle summary merging: try batch deduplication first, then fall back to incremental
+            if len(all_summaries) >= 2:
+                # Try LLM-based batch deduplication if available
+                if llm:
+                    deduplicated = _try_deduplicate_strings(
+                        all_summaries,
+                        component_name,
+                        llm
+                    )
+                    if deduplicated is not None:
+                        best_component['summary'] = deduplicated
+                    else:
+                        # Fall back to incremental merging
+                        current_summary = all_summaries[0]
+                        for summary in all_summaries[1:]:
+                            current_summary = _merge_summaries(
+                                current_summary,
+                                summary,
+                                best_confidence,
+                                best_confidence,  # Use same confidence for all
+                                llm=None,  # No LLM for fallback
+                                component_name=component_name
+                            )
+                        best_component['summary'] = current_summary
+                else:
+                    # No LLM available, use incremental merging
+                    current_summary = all_summaries[0]
+                    for summary in all_summaries[1:]:
+                        current_summary = _merge_summaries(
+                            current_summary,
+                            summary,
+                            best_confidence,
+                            best_confidence,  # Use same confidence for all
+                            llm=None,  # No LLM
+                            component_name=component_name
+                        )
+                    best_component['summary'] = current_summary
+            elif len(all_summaries) == 1:
+                best_component['summary'] = all_summaries[0]
             
             merged['initial_components'][component_name] = best_component
     
@@ -447,6 +562,11 @@ def merge_components_results(components_results_list: List[Dict[str, Any]]) -> D
             best_component = component_results[0].copy()
             best_confidence = best_component.get('confidence', 0.0) or 0.0
             
+            # Collect all summaries for batch deduplication
+            all_summaries = []
+            if best_component.get('summary'):
+                all_summaries.append(best_component.get('summary'))
+            
             # Merge other components into the best one
             for comp in component_results[1:]:
                 comp_confidence = comp.get('confidence', 0.0) or 0.0
@@ -465,14 +585,53 @@ def merge_components_results(components_results_list: List[Dict[str, Any]]) -> D
                         comp_confidence
                     )
                 
-                # Merge summaries intelligently
+                # Collect summaries for batch deduplication
                 if comp.get('summary'):
-                    best_component['summary'] = _merge_summaries(
-                        best_component.get('summary'),
-                        comp.get('summary'),
-                        best_confidence,
-                        comp_confidence
+                    all_summaries.append(comp.get('summary'))
+                
+                # Update present flag
+                if comp.get('present', False):
+                    best_component['present'] = True
+            
+            # Handle summary merging: try batch deduplication first, then fall back to incremental
+            if len(all_summaries) >= 2:
+                # Try LLM-based batch deduplication if available
+                if llm:
+                    deduplicated = _try_deduplicate_strings(
+                        all_summaries,
+                        component_name,
+                        llm
                     )
+                    if deduplicated is not None:
+                        best_component['summary'] = deduplicated
+                    else:
+                        # Fall back to incremental merging
+                        current_summary = all_summaries[0]
+                        for summary in all_summaries[1:]:
+                            current_summary = _merge_summaries(
+                                current_summary,
+                                summary,
+                                best_confidence,
+                                best_confidence,
+                                llm=None,
+                                component_name=component_name
+                            )
+                        best_component['summary'] = current_summary
+                else:
+                    # No LLM available, use incremental merging
+                    current_summary = all_summaries[0]
+                    for summary in all_summaries[1:]:
+                        current_summary = _merge_summaries(
+                            current_summary,
+                            summary,
+                            best_confidence,
+                            best_confidence,
+                            llm=None,
+                            component_name=component_name
+                        )
+                    best_component['summary'] = current_summary
+            elif len(all_summaries) == 1:
+                best_component['summary'] = all_summaries[0]
             
             merged['conditional_components'][component_name] = best_component
     
