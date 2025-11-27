@@ -28,6 +28,7 @@ def merge_culture_results(culture_results_list: List[Dict[str, Any]]) -> Dict[st
         return {"result": [], "citations": []}
     
     # Culture results structure: {"result": [...], "citations": [...]}
+    # Citations are now objects: [{"document_id": int, "page": int}, ...]
     # Combine all results and citations
     all_results = []
     all_citations = []
@@ -39,10 +40,34 @@ def merge_culture_results(culture_results_list: List[Dict[str, Any]]) -> Dict[st
                 all_results.extend(result_dict['result'])
             # Extract citations
             if 'citations' in result_dict and isinstance(result_dict['citations'], list):
-                all_citations.extend(result_dict['citations'])
+                for citation in result_dict['citations']:
+                    # Handle both new format (dict with document_id) and legacy format (just page number)
+                    if isinstance(citation, dict) and "document_id" in citation:
+                        all_citations.append(citation)
+                    elif isinstance(citation, (int, str)):
+                        # Legacy format - we can't determine document_id here, so skip
+                        # This should not happen if result_parser is working correctly
+                        logger.warning("Found legacy citation format (page number only) in culture results merge")
+                    else:
+                        all_citations.append(citation)
     
-    # Deduplicate citations
-    unique_citations = sorted(list(set(all_citations)))
+    # Deduplicate citations by (document_id, page) tuple
+    unique_citations = []
+    seen = set()
+    for citation in all_citations:
+        if isinstance(citation, dict) and "document_id" in citation and "page" in citation:
+            key = (citation["document_id"], citation["page"])
+            if key not in seen:
+                seen.add(key)
+                unique_citations.append(citation)
+        else:
+            # Handle non-standard citation formats
+            if citation not in seen:
+                seen.add(citation)
+                unique_citations.append(citation)
+    
+    # Sort by document_id, then page
+    unique_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)) if isinstance(x, dict) else (0, 0))
     
     # Merge results - keep unique entries based on content
     merged_result = []
@@ -86,6 +111,7 @@ def merge_serology_results(serology_results_list: List[Dict[str, Any]]) -> Dict[
         return {"result": {}, "citations": []}
     
     # Serology results structure from result_parser: {"result": {test_name: result_value}, "citations": [...]}
+    # Citations are now objects: [{"document_id": int, "page": int}, ...]
     # Combine all test results
     merged_results = {}
     all_citations = []
@@ -101,10 +127,33 @@ def merge_serology_results(serology_results_list: List[Dict[str, Any]]) -> Dict[
             
             # Collect citations
             if 'citations' in result_dict and isinstance(result_dict['citations'], list):
-                all_citations.extend(result_dict['citations'])
+                for citation in result_dict['citations']:
+                    # Handle both new format (dict with document_id) and legacy format (just page number)
+                    if isinstance(citation, dict) and "document_id" in citation:
+                        all_citations.append(citation)
+                    elif isinstance(citation, (int, str)):
+                        # Legacy format - we can't determine document_id here, so skip
+                        logger.warning("Found legacy citation format (page number only) in serology results merge")
+                    else:
+                        all_citations.append(citation)
     
-    # Deduplicate citations
-    unique_citations = sorted(list(set(all_citations)))
+    # Deduplicate citations by (document_id, page) tuple
+    unique_citations = []
+    seen = set()
+    for citation in all_citations:
+        if isinstance(citation, dict) and "document_id" in citation and "page" in citation:
+            key = (citation["document_id"], citation["page"])
+            if key not in seen:
+                seen.add(key)
+                unique_citations.append(citation)
+        else:
+            # Handle non-standard citation formats
+            if citation not in seen:
+                seen.add(citation)
+                unique_citations.append(citation)
+    
+    # Sort by document_id, then page
+    unique_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)) if isinstance(x, dict) else (0, 0))
     
     return {
         "result": merged_results,
@@ -152,9 +201,34 @@ def merge_topics_results(topics_results_list: List[Dict[str, Any]]) -> Dict[str,
                 if 'citation' in topic_data:
                     citations = topic_data['citation']
                     if isinstance(citations, list):
-                        all_citations.extend(citations)
+                        for citation in citations:
+                            # Handle both new format (dict with document_id) and legacy format
+                            if isinstance(citation, dict) and "document_id" in citation:
+                                all_citations.append(citation)
+                            elif isinstance(citation, (int, str)):
+                                # Legacy format - try to get document_id from topic_data if available
+                                doc_id = topic_data.get('document_id')
+                                if doc_id:
+                                    try:
+                                        page_num = int(citation) if isinstance(citation, str) and citation.isdigit() else citation
+                                        all_citations.append({"document_id": doc_id, "page": page_num})
+                                    except (ValueError, TypeError):
+                                        all_citations.append(citation)
+                                else:
+                                    all_citations.append(citation)
+                            else:
+                                all_citations.append(citation)
                     elif isinstance(citations, (int, str)):
-                        all_citations.append(citations)
+                        # Legacy format - try to get document_id from topic_data if available
+                        doc_id = topic_data.get('document_id')
+                        if doc_id:
+                            try:
+                                page_num = int(citations) if isinstance(citations, str) and citations.isdigit() else citations
+                                all_citations.append({"document_id": doc_id, "page": page_num})
+                            except (ValueError, TypeError):
+                                all_citations.append(citations)
+                        else:
+                            all_citations.append(citations)
         
         if topic_results:
             # Find the best result (prefer non-empty, non-NA)
@@ -178,39 +252,42 @@ def merge_topics_results(topics_results_list: List[Dict[str, Any]]) -> Dict[str,
             if best_result is None:
                 best_result = topic_results[0]
             
-            # Merge citations - normalize to integers for sorting
-            normalized_citations = []
+            # Merge citations - preserve document_id structure
+            # Citations should be objects: [{"document_id": int, "page": int}, ...]
+            unique_citations = []
+            seen = set()
             for citation in all_citations:
-                if isinstance(citation, int):
-                    normalized_citations.append(citation)
-                elif isinstance(citation, str):
+                if isinstance(citation, dict) and "document_id" in citation and "page" in citation:
+                    key = (citation["document_id"], citation["page"])
+                    if key not in seen:
+                        seen.add(key)
+                        unique_citations.append(citation)
+                elif isinstance(citation, (int, str)):
+                    # Legacy format - try to normalize but we can't add document_id here
+                    # This should be rare if result_parser is working correctly
                     try:
-                        if citation.isdigit():
-                            normalized_citations.append(int(citation))
-                        elif ':' in citation:
-                            parts = citation.split(':')
-                            for part in parts:
-                                part = part.strip()
-                                if part.isdigit():
-                                    normalized_citations.append(int(part))
-                                    break
+                        if isinstance(citation, str) and citation.isdigit():
+                            normalized = int(citation)
                         else:
-                            normalized_citations.append(citation)
-                    except (ValueError, AttributeError):
-                        normalized_citations.append(citation)
-                else:
-                    try:
-                        normalized_citations.append(int(citation))
+                            normalized = citation
+                        if normalized not in seen:
+                            seen.add(normalized)
+                            unique_citations.append(normalized)
                     except (ValueError, TypeError):
-                        normalized_citations.append(citation)
+                        if citation not in seen:
+                            seen.add(citation)
+                            unique_citations.append(citation)
+                else:
+                    # Unknown format, keep as is
+                    if citation not in seen:
+                        seen.add(citation)
+                        unique_citations.append(citation)
             
-            # Remove duplicates and sort
-            int_citations = [c for c in normalized_citations if isinstance(c, int)]
-            str_citations = [c for c in normalized_citations if isinstance(c, str)]
-            
-            unique_int_citations = sorted(list(set(int_citations)))
-            unique_str_citations = sorted(list(set(str_citations)))
-            unique_citations = unique_int_citations + unique_str_citations
+            # Sort: dict citations by (document_id, page), others at end
+            dict_citations = [c for c in unique_citations if isinstance(c, dict) and "document_id" in c]
+            other_citations = [c for c in unique_citations if not (isinstance(c, dict) and "document_id" in c)]
+            dict_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)))
+            unique_citations = dict_citations + other_citations
             
             # Create merged result
             merged_topic = best_result.copy()
@@ -478,10 +555,30 @@ def merge_components_results(
             for comp in component_results[1:]:
                 comp_confidence = comp.get('confidence', 0.0) or 0.0
                 
-                # Merge pages
-                best_pages = set(best_component.get('pages', []))
-                comp_pages = set(comp.get('pages', []))
-                best_component['pages'] = sorted(list(best_pages | comp_pages))
+                # Merge pages - preserve document_id structure
+                best_pages = best_component.get('pages', [])
+                comp_pages = comp.get('pages', [])
+                # Convert to sets of tuples for deduplication if they're dicts with document_id
+                if best_pages and isinstance(best_pages[0], dict) and "document_id" in best_pages[0]:
+                    seen = set()
+                    merged_pages = []
+                    for page in best_pages + comp_pages:
+                        if isinstance(page, dict) and "document_id" in page and "page" in page:
+                            key = (page["document_id"], page["page"])
+                            if key not in seen:
+                                seen.add(key)
+                                merged_pages.append(page)
+                        else:
+                            if page not in seen:
+                                seen.add(page)
+                                merged_pages.append(page)
+                    merged_pages.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)) if isinstance(x, dict) else (0, 0))
+                    best_component['pages'] = merged_pages
+                else:
+                    # Legacy format: just page numbers
+                    best_pages_set = set(best_pages)
+                    comp_pages_set = set(comp_pages)
+                    best_component['pages'] = sorted(list(best_pages_set | comp_pages_set))
                 
                 # Merge extracted_data intelligently
                 if comp.get('extracted_data'):
@@ -571,10 +668,30 @@ def merge_components_results(
             for comp in component_results[1:]:
                 comp_confidence = comp.get('confidence', 0.0) or 0.0
                 
-                # Merge pages
-                best_pages = set(best_component.get('pages', []))
-                comp_pages = set(comp.get('pages', []))
-                best_component['pages'] = sorted(list(best_pages | comp_pages))
+                # Merge pages - preserve document_id structure
+                best_pages = best_component.get('pages', [])
+                comp_pages = comp.get('pages', [])
+                # Convert to sets of tuples for deduplication if they're dicts with document_id
+                if best_pages and isinstance(best_pages[0], dict) and "document_id" in best_pages[0]:
+                    seen = set()
+                    merged_pages = []
+                    for page in best_pages + comp_pages:
+                        if isinstance(page, dict) and "document_id" in page and "page" in page:
+                            key = (page["document_id"], page["page"])
+                            if key not in seen:
+                                seen.add(key)
+                                merged_pages.append(page)
+                        else:
+                            if page not in seen:
+                                seen.add(page)
+                                merged_pages.append(page)
+                    merged_pages.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)) if isinstance(x, dict) else (0, 0))
+                    best_component['pages'] = merged_pages
+                else:
+                    # Legacy format: just page numbers
+                    best_pages_set = set(best_pages)
+                    comp_pages_set = set(comp_pages)
+                    best_component['pages'] = sorted(list(best_pages_set | comp_pages_set))
                 
                 # Merge extracted_data intelligently
                 if comp.get('extracted_data'):

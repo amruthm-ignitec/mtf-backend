@@ -34,17 +34,36 @@ class ResultParser:
             ).all()
             
             formatted_results = []
+            citations = []
             for result in results:
                 formatted_results.append({
                     "tissue_location": result.tissue_location,
                     "microorganism": result.microorganism,
                     "source_page": result.source_page,
-                    "confidence": result.confidence
+                    "confidence": result.confidence,
+                    "document_id": result.document_id
                 })
+                # Build citations with document_id
+                if result.source_page:
+                    citations.append({
+                        "document_id": result.document_id,
+                        "page": result.source_page
+                    })
+            
+            # Deduplicate citations (same document_id + page combination)
+            unique_citations = []
+            seen = set()
+            for citation in citations:
+                key = (citation["document_id"], citation["page"])
+                if key not in seen:
+                    seen.add(key)
+                    unique_citations.append(citation)
+            # Sort by document_id, then page
+            unique_citations.sort(key=lambda x: (x["document_id"], x["page"]))
             
             return {
                 "result": formatted_results,
-                "citations": sorted(list(set([r.source_page for r in results if r.source_page])))
+                "citations": unique_citations
             }
         except Exception as e:
             logger.error(f"Error getting culture results for document {document_id}: {e}")
@@ -71,12 +90,27 @@ class ResultParser:
             citations = []
             for result in results:
                 formatted_results[result.test_name] = result.result
+                # Build citations with document_id
                 if result.source_page:
-                    citations.append(result.source_page)
+                    citations.append({
+                        "document_id": result.document_id,
+                        "page": result.source_page
+                    })
+            
+            # Deduplicate citations (same document_id + page combination)
+            unique_citations = []
+            seen = set()
+            for citation in citations:
+                key = (citation["document_id"], citation["page"])
+                if key not in seen:
+                    seen.add(key)
+                    unique_citations.append(citation)
+            # Sort by document_id, then page
+            unique_citations.sort(key=lambda x: (x["document_id"], x["page"]))
             
             return {
                 "result": formatted_results,
-                "citations": sorted(list(set(citations)))
+                "citations": unique_citations
             }
         except Exception as e:
             logger.error(f"Error getting serology results for document {document_id}: {e}")
@@ -111,10 +145,32 @@ class ResultParser:
                         # If parsing fails, keep as string
                         pass
                 
+                # Convert citations to include document_id if they're just page numbers
+                citations = result.citations or []
+                citations_with_doc_id = []
+                if citations:
+                    for citation in citations:
+                        if isinstance(citation, dict) and "document_id" in citation:
+                            citations_with_doc_id.append(citation)
+                        elif isinstance(citation, (int, str)):
+                            # Legacy format: just page number, add document_id
+                            try:
+                                page_num = int(citation) if isinstance(citation, str) and citation.isdigit() else citation
+                                citations_with_doc_id.append({
+                                    "document_id": result.document_id,
+                                    "page": page_num
+                                })
+                            except (ValueError, TypeError):
+                                # If conversion fails, keep as is
+                                citations_with_doc_id.append(citation)
+                        else:
+                            citations_with_doc_id.append(citation)
+                
                 formatted_results[result.topic_name] = {
                     "summary": summary,
-                    "citations": result.citations or [],
-                    "source_pages": result.source_pages or []
+                    "citations": citations_with_doc_id,
+                    "source_pages": result.source_pages or [],
+                    "document_id": result.document_id
                 }
             
             return formatted_results
@@ -153,12 +209,34 @@ class ResultParser:
                         # If parsing fails, keep as string
                         pass
                 
+                # Convert pages to citations with document_id
+                pages = result.pages or []
+                pages_with_doc_id = []
+                if pages:
+                    for page in pages:
+                        if isinstance(page, dict) and "document_id" in page:
+                            pages_with_doc_id.append(page)
+                        elif isinstance(page, (int, str)):
+                            # Legacy format: just page number, add document_id
+                            try:
+                                page_num = int(page) if isinstance(page, str) and page.isdigit() else page
+                                pages_with_doc_id.append({
+                                    "document_id": result.document_id,
+                                    "page": page_num
+                                })
+                            except (ValueError, TypeError):
+                                # If conversion fails, keep as is
+                                pages_with_doc_id.append(page)
+                        else:
+                            pages_with_doc_id.append(page)
+                
                 component_data = {
                     "present": result.present,
-                    "pages": result.pages or [],
+                    "pages": pages_with_doc_id,
                     "summary": summary,
                     "extracted_data": result.extracted_data or {},
-                    "confidence": result.confidence if hasattr(result, 'confidence') else None
+                    "confidence": result.confidence if hasattr(result, 'confidence') else None,
+                    "document_id": result.document_id
                 }
                 
                 # Determine if it's initial or conditional based on component name
