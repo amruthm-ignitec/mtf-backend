@@ -182,13 +182,21 @@ class DBStorageService:
                     elif summary is None:
                         summary = ''
                     
+                    # Get confidence score, calculate if not provided
+                    confidence = component_info.get('confidence')
+                    if confidence is None:
+                        # Calculate confidence if not provided
+                        from app.services.processing.document_components import calculate_component_confidence
+                        confidence = calculate_component_confidence(component_info, component_info.get('pages', []))
+                    
                     component_result = ComponentResult(
                         document_id=document_id,
                         component_name=component_name,
                         present=component_info.get('present', False),
                         pages=component_info.get('pages', []),
                         summary=summary,
-                        extracted_data=component_info.get('extracted_data', {})
+                        extracted_data=component_info.get('extracted_data', {}),
+                        confidence=confidence
                     )
                     db.add(component_result)
                     count += 1
@@ -203,13 +211,21 @@ class DBStorageService:
                     elif summary is None:
                         summary = ''
                     
+                    # Get confidence score, calculate if not provided
+                    confidence = component_info.get('confidence')
+                    if confidence is None:
+                        # Calculate confidence if not provided
+                        from app.services.processing.document_components import calculate_component_confidence
+                        confidence = calculate_component_confidence(component_info, component_info.get('pages', []))
+                    
                     component_result = ComponentResult(
                         document_id=document_id,
                         component_name=component_name,
                         present=True,
                         pages=component_info.get('pages', []),
                         summary=summary,
-                        extracted_data=component_info.get('extracted_data', {})
+                        extracted_data=component_info.get('extracted_data', {}),
+                        confidence=confidence
                     )
                     db.add(component_result)
                     count += 1

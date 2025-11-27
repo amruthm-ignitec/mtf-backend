@@ -157,7 +157,8 @@ class ResultParser:
                     "present": result.present,
                     "pages": result.pages or [],
                     "summary": summary,
-                    "extracted_data": result.extracted_data or {}
+                    "extracted_data": result.extracted_data or {},
+                    "confidence": result.confidence if hasattr(result, 'confidence') else None
                 }
                 
                 # Determine if it's initial or conditional based on component name

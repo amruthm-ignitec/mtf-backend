@@ -220,6 +220,125 @@ def merge_topics_results(topics_results_list: List[Dict[str, Any]]) -> Dict[str,
     return merged_topics
 
 
+def _merge_extracted_data(
+    base_data: Dict[str, Any],
+    new_data: Dict[str, Any],
+    base_confidence: float,
+    new_confidence: float
+) -> Dict[str, Any]:
+    """
+    Merge extracted_data from two components, preferring higher confidence values.
+    
+    Args:
+        base_data: Base extracted_data dict
+        new_data: New extracted_data dict to merge
+        base_confidence: Confidence score of base data
+        new_confidence: Confidence score of new data
+        
+    Returns:
+        Dict: Merged extracted_data
+    """
+    merged = base_data.copy() if base_data else {}
+    
+    for key, new_value in new_data.items():
+        if key not in merged:
+            # New key, add it
+            merged[key] = new_value
+        else:
+            base_value = merged[key]
+            
+            # Handle different data types
+            if isinstance(new_value, list) and isinstance(base_value, list):
+                # Combine arrays, deduplicate
+                combined = base_value + new_value
+                # Deduplicate while preserving order
+                seen = set()
+                merged[key] = []
+                for item in combined:
+                    item_str = json.dumps(item, sort_keys=True) if isinstance(item, (dict, list)) else str(item)
+                    if item_str not in seen:
+                        seen.add(item_str)
+                        merged[key].append(item)
+            elif isinstance(new_value, dict) and isinstance(base_value, dict):
+                # Recursively merge nested objects
+                merged[key] = _merge_extracted_data(base_value, new_value, base_confidence, new_confidence)
+            else:
+                # For conflicts, prefer higher confidence value
+                if new_confidence > base_confidence:
+                    merged[key] = new_value
+                # If confidence is equal or base is higher, keep base value
+                # (already in merged dict)
+    
+    return merged
+
+
+def _merge_summaries(
+    base_summary: Any,
+    new_summary: Any,
+    base_confidence: float,
+    new_confidence: float
+) -> Any:
+    """
+    Merge summaries from two components intelligently.
+    
+    Args:
+        base_summary: Base summary (can be dict or string)
+        new_summary: New summary (can be dict or string)
+        base_confidence: Confidence score of base summary
+        new_confidence: Confidence score of new summary
+        
+    Returns:
+        Merged summary
+    """
+    # Handle dict summaries
+    if isinstance(base_summary, dict) and isinstance(new_summary, dict):
+        merged = base_summary.copy()
+        for key, new_value in new_summary.items():
+            if key not in merged:
+                merged[key] = new_value
+            else:
+                base_value = merged[key]
+                # If both are strings, combine them
+                if isinstance(base_value, str) and isinstance(new_value, str):
+                    # Combine unique information
+                    if new_value not in base_value:
+                        merged[key] = f"{base_value}. {new_value}" if base_value else new_value
+                    else:
+                        # If new value is already in base, prefer higher confidence
+                        if new_confidence > base_confidence:
+                            merged[key] = new_value
+                else:
+                    # For other types, prefer higher confidence
+                    if new_confidence > base_confidence:
+                        merged[key] = new_value
+        return merged
+    
+    # Handle string summaries
+    if isinstance(base_summary, str) and isinstance(new_summary, str):
+        if not base_summary:
+            return new_summary
+        if not new_summary:
+            return base_summary
+        
+        # Combine unique information
+        if new_summary not in base_summary:
+            # Prefer more complete summary if confidence is similar
+            if abs(new_confidence - base_confidence) < 10:
+                # If confidence is similar, prefer longer/more detailed
+                return new_summary if len(new_summary) > len(base_summary) else base_summary
+            else:
+                # Prefer higher confidence
+                return new_summary if new_confidence > base_confidence else base_summary
+        else:
+            # If new summary is subset of base, keep base
+            return base_summary if len(base_summary) >= len(new_summary) else new_summary
+    
+    # If types don't match, prefer higher confidence
+    if new_confidence > base_confidence:
+        return new_summary
+    return base_summary
+
+
 def merge_components_results(components_results_list: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Merge document components results from multiple PDFs.
@@ -262,20 +381,49 @@ def merge_components_results(components_results_list: List[Dict[str, Any]]) -> D
                 component_results.append(result_dict['initial_components'][component_name])
         
         if component_results:
-            # Use the first present component, or merge if needed
-            best_component = None
-            for comp in component_results:
-                if comp.get('present', False):
-                    if best_component is None:
-                        best_component = comp
-                    else:
-                        # Merge pages and data
-                        best_pages = set(best_component.get('pages', []))
-                        comp_pages = set(comp.get('pages', []))
-                        best_component['pages'] = sorted(list(best_pages | comp_pages))
+            # Sort by confidence (higher first), then by present flag
+            component_results.sort(
+                key=lambda x: (
+                    x.get('confidence', 0.0) or 0.0,
+                    x.get('present', False)
+                ),
+                reverse=True
+            )
             
-            if best_component is None:
-                best_component = component_results[0]
+            # Use component with highest confidence as base
+            best_component = component_results[0].copy()
+            best_confidence = best_component.get('confidence', 0.0) or 0.0
+            
+            # Merge other components into the best one
+            for comp in component_results[1:]:
+                comp_confidence = comp.get('confidence', 0.0) or 0.0
+                
+                # Merge pages
+                best_pages = set(best_component.get('pages', []))
+                comp_pages = set(comp.get('pages', []))
+                best_component['pages'] = sorted(list(best_pages | comp_pages))
+                
+                # Merge extracted_data intelligently
+                if comp.get('extracted_data'):
+                    best_component['extracted_data'] = _merge_extracted_data(
+                        best_component.get('extracted_data', {}),
+                        comp.get('extracted_data', {}),
+                        best_confidence,
+                        comp_confidence
+                    )
+                
+                # Merge summaries intelligently
+                if comp.get('summary'):
+                    best_component['summary'] = _merge_summaries(
+                        best_component.get('summary'),
+                        comp.get('summary'),
+                        best_confidence,
+                        comp_confidence
+                    )
+                
+                # Update present flag (if any component is present, mark as present)
+                if comp.get('present', False):
+                    best_component['present'] = True
             
             merged['initial_components'][component_name] = best_component
     
@@ -289,13 +437,42 @@ def merge_components_results(components_results_list: List[Dict[str, Any]]) -> D
                     component_results.append(comp)
         
         if component_results:
-            # Use the first present component
-            best_component = component_results[0]
+            # Sort by confidence (higher first)
+            component_results.sort(
+                key=lambda x: x.get('confidence', 0.0) or 0.0,
+                reverse=True
+            )
+            
+            # Use component with highest confidence as base
+            best_component = component_results[0].copy()
+            best_confidence = best_component.get('confidence', 0.0) or 0.0
+            
+            # Merge other components into the best one
             for comp in component_results[1:]:
+                comp_confidence = comp.get('confidence', 0.0) or 0.0
+                
                 # Merge pages
                 best_pages = set(best_component.get('pages', []))
                 comp_pages = set(comp.get('pages', []))
                 best_component['pages'] = sorted(list(best_pages | comp_pages))
+                
+                # Merge extracted_data intelligently
+                if comp.get('extracted_data'):
+                    best_component['extracted_data'] = _merge_extracted_data(
+                        best_component.get('extracted_data', {}),
+                        comp.get('extracted_data', {}),
+                        best_confidence,
+                        comp_confidence
+                    )
+                
+                # Merge summaries intelligently
+                if comp.get('summary'):
+                    best_component['summary'] = _merge_summaries(
+                        best_component.get('summary'),
+                        comp.get('summary'),
+                        best_confidence,
+                        comp_confidence
+                    )
             
             merged['conditional_components'][component_name] = best_component
     

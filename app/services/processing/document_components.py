@@ -11,6 +11,88 @@ from .topic_summarization import search_keywords, ts_llm_call_with_pause
 
 logger = logging.getLogger(__name__)
 
+
+def calculate_component_confidence(
+    component_info: Dict[str, Any],
+    pages: List[int],
+    document_created_at: Any = None
+) -> float:
+    """
+    Calculate confidence score for a component extraction result.
+    
+    Confidence is calculated based on:
+    - Data completeness: percentage of expected fields populated in extracted_data
+    - Summary length/completeness: longer, more detailed summaries = higher confidence
+    - Number of pages found: more pages = higher confidence (up to a limit)
+    - Recency: newer documents = slightly higher confidence (optional)
+    
+    Args:
+        component_info: Component information dict with 'extracted_data' and 'summary'
+        pages: List of page numbers where component was found
+        document_created_at: Optional datetime of document creation (for recency)
+        
+    Returns:
+        float: Confidence score between 0.0 and 1.0 (0-100 scale)
+    """
+    confidence = 0.0
+    
+    # Factor 1: Data completeness (40% weight)
+    # Check how many fields are populated in extracted_data
+    extracted_data = component_info.get('extracted_data', {})
+    if isinstance(extracted_data, dict):
+        total_fields = len(extracted_data)
+        non_empty_fields = sum(1 for v in extracted_data.values() if v not in [None, '', [], {}])
+        if total_fields > 0:
+            completeness_ratio = non_empty_fields / total_fields
+        else:
+            # If no fields expected, check if we have any data at all
+            completeness_ratio = 1.0 if extracted_data else 0.0
+    else:
+        completeness_ratio = 0.0
+    
+    # Factor 2: Summary completeness (30% weight)
+    # Longer, more detailed summaries indicate better extraction
+    summary = component_info.get('summary', '')
+    if isinstance(summary, dict):
+        # If summary is a dict, count non-empty values
+        summary_str = json.dumps(summary)
+    else:
+        summary_str = str(summary) if summary else ''
+    
+    summary_length = len(summary_str)
+    # Normalize: summaries > 200 chars are considered complete
+    summary_completeness = min(1.0, summary_length / 200.0) if summary_length > 0 else 0.0
+    
+    # Factor 3: Page count (20% weight)
+    # More pages found = higher confidence, but with diminishing returns
+    page_count = len(pages) if pages else 0
+    if page_count == 0:
+        page_confidence = 0.0
+    elif page_count == 1:
+        page_confidence = 0.5
+    elif page_count <= 3:
+        page_confidence = 0.7 + (page_count - 1) * 0.1
+    else:
+        page_confidence = 1.0  # 4+ pages = max confidence
+    
+    # Factor 4: Present flag (10% weight)
+    # If component is marked as present, that's a positive signal
+    present_confidence = 1.0 if component_info.get('present', False) else 0.5
+    
+    # Calculate weighted confidence
+    confidence = (
+        completeness_ratio * 0.40 +
+        summary_completeness * 0.30 +
+        page_confidence * 0.20 +
+        present_confidence * 0.10
+    )
+    
+    # Ensure confidence is between 0.0 and 1.0
+    confidence = max(0.0, min(1.0, confidence))
+    
+    # Convert to 0-100 scale for storage
+    return confidence * 100.0
+
 # Get the base directory for config files (relative to this file)
 _CONFIG_DIR = os.path.join(os.path.dirname(__file__), 'config')
 
@@ -197,7 +279,8 @@ def extract_component_content(
             "pages": [],
             "summary": "",
             "extracted_data": {},
-            "citations": []
+            "citations": [],
+            "confidence": 0.0
         }
     
     # Create prompt and extract content
@@ -218,21 +301,41 @@ def extract_component_content(
         extracted_data = result.get("Extracted_Data", {})
         present = result.get("PRESENT", "Yes").lower() == "yes"
         
+        # Build component info for confidence calculation
+        component_info = {
+            "present": present,
+            "summary": summary,
+            "extracted_data": extracted_data
+        }
+        
+        # Calculate confidence score
+        confidence = calculate_component_confidence(component_info, pages)
+        
         return {
             "present": present,
             "pages": pages,
             "summary": summary,
             "extracted_data": extracted_data,
-            "citations": pages
+            "citations": pages,
+            "confidence": confidence
         }
     except Exception as e:
         logger.error(f"Error extracting content for {component_name}: {e}")
+        # Calculate confidence even for error cases (will be low)
+        component_info = {
+            "present": len(pages) > 0,
+            "summary": f"Error during extraction: {str(e)}",
+            "extracted_data": {}
+        }
+        confidence = calculate_component_confidence(component_info, pages)
+        
         return {
             "present": len(pages) > 0,
             "pages": pages,
             "summary": f"Error during extraction: {str(e)}",
             "extracted_data": {},
-            "citations": pages
+            "citations": pages,
+            "confidence": confidence
         }
 
 

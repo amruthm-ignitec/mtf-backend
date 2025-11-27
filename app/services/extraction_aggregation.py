@@ -255,21 +255,120 @@ class ExtractionAggregationService:
                 DonorExtraction.donor_id == donor_id
             ).first()
             
-            if donor_extraction:
-                # Update existing
-                donor_extraction.extraction_data = extraction_data
+            if donor_extraction and donor_extraction.extraction_data:
+                # Merge with existing data instead of replacing
+                existing_data = donor_extraction.extraction_data
+                logger.info(f"Merging new extraction data with existing data for donor {donor_id}")
+                
+                # Merge extracted_data components
+                existing_extracted_data = existing_data.get("extracted_data", {})
+                new_extracted_data = extraction_data.get("extracted_data", {})
+                
+                # For each component in new data, merge with existing if present
+                merged_extracted_data = existing_extracted_data.copy()
+                for component_key, new_component in new_extracted_data.items():
+                    if component_key in merged_extracted_data:
+                        # Component exists in both - merge them
+                        existing_component = merged_extracted_data[component_key]
+                        
+                        # Merge pages
+                        existing_pages = set(existing_component.get('pages', []))
+                        new_pages = set(new_component.get('pages', []))
+                        merged_pages = sorted(list(existing_pages | new_pages))
+                        
+                        # Get confidence scores
+                        existing_confidence = existing_component.get('confidence', 0.0) or 0.0
+                        new_confidence = new_component.get('confidence', 0.0) or 0.0
+                        
+                        # Use higher confidence as base
+                        if new_confidence > existing_confidence:
+                            base_component = new_component.copy()
+                            base_confidence = new_confidence
+                            merge_component = existing_component
+                            merge_confidence = existing_confidence
+                        else:
+                            base_component = existing_component.copy()
+                            base_confidence = existing_confidence
+                            merge_component = new_component
+                            merge_confidence = new_confidence
+                        
+                        # Merge extracted_data
+                        from app.services.processing.utils.merge_helpers import _merge_extracted_data, _merge_summaries
+                        base_component['extracted_data'] = _merge_extracted_data(
+                            base_component.get('extracted_data', {}),
+                            merge_component.get('extracted_data', {}),
+                            base_confidence,
+                            merge_confidence
+                        )
+                        
+                        # Merge summaries
+                        base_component['summary'] = _merge_summaries(
+                            base_component.get('summary'),
+                            merge_component.get('summary'),
+                            base_confidence,
+                            merge_confidence
+                        )
+                        
+                        # Update pages and present flag
+                        base_component['pages'] = merged_pages
+                        base_component['present'] = base_component.get('present', False) or merge_component.get('present', False)
+                        base_component['confidence'] = max(base_confidence, merge_confidence)
+                        
+                        merged_extracted_data[component_key] = base_component
+                    else:
+                        # New component, add it
+                        merged_extracted_data[component_key] = new_component
+                
+                # Merge other fields - prefer newer but preserve existing if new is incomplete
+                merged_data = existing_data.copy()
+                merged_data["extracted_data"] = merged_extracted_data
+                
+                # Merge culture_results and serology_results (already merged from all documents)
+                if extraction_data.get("culture_results"):
+                    merged_data["culture_results"] = extraction_data["culture_results"]
+                if extraction_data.get("serology_results"):
+                    merged_data["serology_results"] = extraction_data["serology_results"]
+                
+                # Merge conditional_documents
+                existing_conditional = existing_data.get("conditional_documents", {})
+                new_conditional = extraction_data.get("conditional_documents", {})
+                merged_conditional = existing_conditional.copy()
+                merged_conditional.update(new_conditional)
+                merged_data["conditional_documents"] = merged_conditional
+                
+                # Update computed fields (always recalculate)
+                merged_data["validation"] = extraction_data.get("validation")
+                merged_data["key_medical_findings"] = extraction_data.get("key_medical_findings")
+                merged_data["tissue_eligibility"] = extraction_data.get("tissue_eligibility")
+                merged_data["recovery_information"] = extraction_data.get("recovery_information")
+                merged_data["terminal_information"] = extraction_data.get("terminal_information")
+                merged_data["critical_lab_values"] = extraction_data.get("critical_lab_values")
+                
+                # Update metadata
+                merged_data["processing_timestamp"] = extraction_data.get("processing_timestamp")
+                merged_data["document_summary"] = extraction_data.get("document_summary")
+                
+                # Update DonorExtraction with merged data
+                donor_extraction.extraction_data = merged_data
                 donor_extraction.documents_processed = len(documents)
                 donor_extraction.processing_status = "complete"
                 donor_extraction.last_updated_at = datetime.now()
+                logger.info(f"Successfully merged extraction data for donor {donor_id}")
             else:
-                # Create new
-                donor_extraction = DonorExtraction(
-                    donor_id=donor_id,
-                    extraction_data=extraction_data,
-                    documents_processed=len(documents),
-                    processing_status="complete"
-                )
-                db.add(donor_extraction)
+                # Create new or update without existing data
+                if donor_extraction:
+                    donor_extraction.extraction_data = extraction_data
+                    donor_extraction.documents_processed = len(documents)
+                    donor_extraction.processing_status = "complete"
+                    donor_extraction.last_updated_at = datetime.now()
+                else:
+                    donor_extraction = DonorExtraction(
+                        donor_id=donor_id,
+                        extraction_data=extraction_data,
+                        documents_processed=len(documents),
+                        processing_status="complete"
+                    )
+                    db.add(donor_extraction)
             
             db.commit()
             logger.info(f"Successfully aggregated results for donor {donor_id}")
