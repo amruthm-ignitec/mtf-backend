@@ -152,6 +152,46 @@ class ExtractionAggregationService:
                 # Map component names to extraction data keys
                 component_key = component_name.lower().replace(' ', '_').replace('-', '_')
                 extraction_data["extracted_data"][component_key] = component_info
+                
+                # Extract serology results from infectious_disease_testing component if serology_results table is empty
+                if component_key == "infectious_disease_testing" and component_info.get("present"):
+                    component_extracted_data = component_info.get("extracted_data", {})
+                    if component_extracted_data:
+                        # Check if we have serology results in the component data
+                        # The extracted_data should contain test names as keys with results as values
+                        serology_from_component = {}
+                        citations_from_component = component_info.get("pages", [])
+                        
+                        # Common serology test name patterns
+                        serology_test_patterns = [
+                            "hiv", "hbv", "hcv", "htlv", "syphilis", "west nile", "zika",
+                            "sars-cov", "covid", "legionella", "hepatitis", "hbsag", 
+                            "anti-hbc", "anti-hcv", "anti-hiv", "pcr", "antigen", "antibody"
+                        ]
+                        
+                        for key, value in component_extracted_data.items():
+                            if value:  # Skip empty values
+                                key_lower = key.lower()
+                                # Check if key looks like a serology test name
+                                if any(pattern in key_lower for pattern in serology_test_patterns):
+                                    serology_from_component[key] = str(value)
+                        
+                        # If we found serology results in component and don't have any from database, use component data
+                        if serology_from_component and not merged_serology.get("result"):
+                            logger.info(f"Extracted {len(serology_from_component)} serology results from infectious_disease_testing component for donor {donor_id}")
+                            # Merge with existing (empty) serology results
+                            merged_serology = {
+                                "result": serology_from_component,
+                                "citations": list(set(merged_serology.get("citations", []) + citations_from_component))
+                            }
+                        elif serology_from_component and merged_serology.get("result"):
+                            # Merge component data with database results (database takes precedence)
+                            existing_results = merged_serology.get("result", {})
+                            for test_name, result_value in serology_from_component.items():
+                                if test_name not in existing_results:
+                                    existing_results[test_name] = result_value
+                            merged_serology["result"] = existing_results
+                            merged_serology["citations"] = sorted(list(set(merged_serology.get("citations", []) + citations_from_component)))
             
             # Add culture and serology results to extraction data
             # Always include them, even if empty, so frontend knows the structure
