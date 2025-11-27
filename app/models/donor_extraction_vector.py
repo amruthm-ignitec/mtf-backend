@@ -20,7 +20,7 @@ class DonorExtractionVector(Base):
     donor_id = Column(Integer, ForeignKey("donors.id"), nullable=False, index=True)
     extraction_type = Column(String, nullable=False, index=True)  # 'culture', 'serology', 'topic', 'component'
     extraction_text = Column(Text, nullable=False)  # Textual representation of extracted data
-    embedding = Column(Vector(1536), nullable=True) if VECTOR_AVAILABLE else Column(JSON, nullable=True)  # Vector embedding (1536 dimensions)
+    embedding = Column(Vector(3072), nullable=True) if VECTOR_AVAILABLE else Column(JSON, nullable=True)  # Vector embedding (3072 dimensions for text-embedding-3-large)
     extraction_metadata = Column(JSON, nullable=True)  # Original structured data (renamed from 'metadata' to avoid SQLAlchemy conflict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     

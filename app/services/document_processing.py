@@ -120,17 +120,8 @@ class DocumentProcessingService:
                     lambda: self.embeddings.embed_query(chunk_text)
                 )
                 
-                # Ensure embedding has correct dimensions (1536) for database schema
-                if chunk_embedding:
-                    embedding_len = len(chunk_embedding)
-                    if embedding_len > 1536:
-                        # Truncate to 1536 dimensions
-                        logger.warning(f"Chunk embedding has {embedding_len} dimensions, truncating to 1536")
-                        chunk_embedding = chunk_embedding[:1536]
-                    elif embedding_len < 1536:
-                        # Pad with zeros (shouldn't happen, but handle it)
-                        logger.warning(f"Chunk embedding has {embedding_len} dimensions, padding to 1536")
-                        chunk_embedding = chunk_embedding + [0.0] * (1536 - embedding_len)
+                # Embeddings are now 3072 dimensions (text-embedding-3-large default)
+                # No truncation needed - database schema supports 3072 dimensions
                 
                 chunk_data = {
                     'text': chunk_text,

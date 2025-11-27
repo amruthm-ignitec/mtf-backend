@@ -21,7 +21,7 @@ class DocumentChunk(Base):
     chunk_text = Column(Text, nullable=False)  # The actual text content of the chunk
     chunk_index = Column(Integer, nullable=False)  # Order of chunk in document
     page_number = Column(Integer, nullable=True)  # Page number where chunk is from
-    embedding = Column(Vector(1536), nullable=True) if VECTOR_AVAILABLE else Column(JSON, nullable=True)  # Vector embedding (1536 dimensions for text-embedding-3-large)
+    embedding = Column(Vector(3072), nullable=True) if VECTOR_AVAILABLE else Column(JSON, nullable=True)  # Vector embedding (3072 dimensions for text-embedding-3-large)
     chunk_metadata = Column(JSON, nullable=True)  # Additional metadata about the chunk (renamed from 'metadata' to avoid SQLAlchemy conflict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
