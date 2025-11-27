@@ -24,6 +24,8 @@ openai>=1.12.0
 pdfplumber==0.11.4
 pymupdf>=1.24.0
 pdfminer.six==20231228
+pytesseract>=0.3.10
+Pillow>=10.0.0
 
 # LangChain for AI Processing
 langchain==0.2.15

@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import json
+import logging
 from langchain.text_splitter import CharacterTextSplitter, RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_community.vectorstores import FAISS
@@ -8,6 +9,17 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PDFMinerLoader
 from langchain_community.document_loaders import PDFPlumberLoader
 from langchain.schema import Document
+
+# OCR imports (optional - will fail gracefully if not available)
+try:
+    import pytesseract
+    from PIL import Image
+    import fitz  # PyMuPDF
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 # Get the base directory for config files (relative to this file)
 _CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config')
@@ -62,51 +74,181 @@ def get_prompt_components():
 
 
 
-def data_load(filename, parser_name):
-    '''
-    Loads data from PDF file and chunks it
-    '''
+def extract_text_with_ocr(filename):
+    """
+    Extract text from PDF using OCR (for image-based/scanned PDFs).
+    
+    Args:
+        filename: Path to PDF file
+        
+    Returns:
+        List of Document objects with extracted text
+    """
+    if not OCR_AVAILABLE:
+        raise ImportError("OCR dependencies (pytesseract, Pillow) not available. Install with: pip install pytesseract Pillow")
+    
+    logger.info(f"Attempting OCR extraction for {filename}")
+    page_docs = []
+    
     try:
-        # Check if file exists first
-        if not os.path.exists(filename):
-            raise FileNotFoundError(f"PDF file not found: {filename}")
+        # Open PDF with PyMuPDF
+        pdf_document = fitz.open(filename)
         
-        if parser_name == "pymupdf":
-            loader = PyMuPDFLoader(filename)
-            page_docs = loader.load()
-        elif parser_name == "pdfminer":
-            loader = PDFMinerLoader(filename, concatenate_pages=False)
-            temp_page_docs = loader.load()
-            page_docs=[]
-            for num, doc in enumerate(temp_page_docs):
-                new_doc = Document(page_content=doc.page_content, metadata={'source': doc.metadata['source'], 'page': num+1})
-                page_docs.append(new_doc)
-        elif parser_name == "pdfplumber":
-            loader = PDFPlumberLoader(filename)
-            page_docs = loader.load()
-        else:
-            raise ValueError(f"Unknown parser name: {parser_name}")
+        for page_num in range(len(pdf_document)):
+            page = pdf_document[page_num]
+            
+            # Convert PDF page to image
+            # Use higher DPI for better OCR accuracy (300 DPI recommended)
+            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x zoom = ~144 DPI, increase for better quality
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            
+            # Perform OCR on the image
+            try:
+                # Use pytesseract to extract text
+                text = pytesseract.image_to_string(img, lang='eng')
+                
+                # Clean up the text
+                text = text.strip()
+                
+                if text:  # Only add if text was extracted
+                    page_docs.append(Document(
+                        page_content=text,
+                        metadata={'source': filename, 'page': page_num + 1}
+                    ))
+                    logger.debug(f"OCR extracted {len(text)} characters from page {page_num + 1}")
+                else:
+                    logger.warning(f"No text extracted from page {page_num + 1} using OCR")
+                    
+            except Exception as ocr_error:
+                logger.warning(f"OCR failed for page {page_num + 1}: {ocr_error}")
+                # Continue with other pages even if one fails
+                continue
         
-        if not page_docs or len(page_docs) == 0:
-            raise ValueError(f"PDF file appears to be empty or could not be parsed: {filename}")
+        pdf_document.close()
         
-        text_splitter = CharacterTextSplitter(
-                separator = " ",
-                chunk_size = 3000,
-                chunk_overlap  = 250 
-            )
-        chunk_docs =  text_splitter.split_documents(page_docs)
+        if not page_docs:
+            raise ValueError(f"OCR extraction produced no text from PDF: {filename}")
         
-        # Filter out empty chunks (can cause embedding issues)
-        chunk_docs = [doc for doc in chunk_docs if doc.page_content and doc.page_content.strip()]
+        logger.info(f"OCR successfully extracted text from {len(page_docs)} pages")
+        return page_docs
         
-        if not chunk_docs or len(chunk_docs) == 0:
-            raise ValueError(f"PDF file produced no valid text chunks after splitting: {filename}")
-        
-        return page_docs, chunk_docs
     except Exception as e:
-        # Re-raise with more context
-        raise Exception(f"Failed to load PDF file '{filename}' using {parser_name}: {str(e)}") from e
+        raise Exception(f"OCR extraction failed for PDF '{filename}': {str(e)}") from e
+
+
+def data_load(filename, parser_name=None, use_fallback=True):
+    '''
+    Loads data from PDF file and chunks it.
+    Tries multiple parsers with fallback to OCR if text extraction fails.
+    
+    Args:
+        filename: Path to PDF file
+        parser_name: Preferred parser to try first ('pdfplumber', 'pymupdf', 'pdfminer', or None for auto)
+        use_fallback: If True, tries alternative parsers and OCR if initial parser fails
+        
+    Returns:
+        Tuple of (page_docs, chunk_docs)
+    '''
+    # Check if file exists first
+    if not os.path.exists(filename):
+        raise FileNotFoundError(f"PDF file not found: {filename}")
+    
+    # List of parsers to try in order
+    parsers_to_try = []
+    if parser_name:
+        parsers_to_try = [parser_name]
+    else:
+        # Default order: pdfplumber (best for text), pymupdf (good fallback), pdfminer (last resort)
+        parsers_to_try = ['pdfplumber', 'pymupdf', 'pdfminer']
+    
+    last_error = None
+    
+    # Try each parser
+    for parser in parsers_to_try:
+        try:
+            logger.info(f"Attempting to extract text using {parser} for {filename}")
+            
+            if parser == "pymupdf":
+                loader = PyMuPDFLoader(filename)
+                page_docs = loader.load()
+            elif parser == "pdfminer":
+                loader = PDFMinerLoader(filename, concatenate_pages=False)
+                temp_page_docs = loader.load()
+                page_docs = []
+                for num, doc in enumerate(temp_page_docs):
+                    new_doc = Document(
+                        page_content=doc.page_content, 
+                        metadata={'source': doc.metadata.get('source', filename), 'page': num+1}
+                    )
+                    page_docs.append(new_doc)
+            elif parser == "pdfplumber":
+                loader = PDFPlumberLoader(filename)
+                page_docs = loader.load()
+            else:
+                raise ValueError(f"Unknown parser name: {parser}")
+            
+            if not page_docs or len(page_docs) == 0:
+                raise ValueError(f"PDF file appears to be empty or could not be parsed: {filename}")
+            
+            # Check if we got any actual text content
+            has_text = any(doc.page_content and doc.page_content.strip() for doc in page_docs)
+            if not has_text:
+                raise ValueError(f"Parser {parser} extracted no text content from PDF: {filename}")
+            
+            # Successfully extracted text, proceed with chunking
+            logger.info(f"Successfully extracted text using {parser}, proceeding with chunking")
+            break
+            
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Parser {parser} failed for {filename}: {str(e)}")
+            
+            # If this was the last parser and fallback is enabled, try OCR
+            if parser == parsers_to_try[-1] and use_fallback:
+                logger.info(f"All text extraction parsers failed, attempting OCR fallback for {filename}")
+                try:
+                    page_docs = extract_text_with_ocr(filename)
+                    logger.info(f"OCR successfully extracted text from {filename}")
+                    break
+                except Exception as ocr_error:
+                    # OCR also failed, raise combined error
+                    raise Exception(
+                        f"All extraction methods failed for PDF '{filename}'. "
+                        f"Text parsers failed: {str(last_error)}. "
+                        f"OCR failed: {str(ocr_error)}"
+                    ) from ocr_error
+            elif parser != parsers_to_try[-1]:
+                # Not the last parser, continue to next one
+                continue
+            else:
+                # Last parser and no fallback, raise error
+                raise Exception(f"Failed to load PDF file '{filename}' using {parser}: {str(e)}") from e
+    else:
+        # All parsers failed and OCR wasn't tried or failed
+        if use_fallback and OCR_AVAILABLE:
+            raise Exception(
+                f"All text extraction methods failed for PDF '{filename}'. "
+                f"Last error: {str(last_error)}"
+            )
+        else:
+            raise Exception(f"Failed to load PDF file '{filename}': {str(last_error)}") from last_error
+    
+    # Chunk the documents
+    text_splitter = CharacterTextSplitter(
+        separator=" ",
+        chunk_size=3000,
+        chunk_overlap=250
+    )
+    chunk_docs = text_splitter.split_documents(page_docs)
+    
+    # Filter out empty chunks (can cause embedding issues)
+    chunk_docs = [doc for doc in chunk_docs if doc.page_content and doc.page_content.strip()]
+    
+    if not chunk_docs or len(chunk_docs) == 0:
+        raise ValueError(f"PDF file produced no valid text chunks after splitting: {filename}")
+    
+    logger.info(f"Successfully loaded and chunked PDF: {len(page_docs)} pages, {len(chunk_docs)} chunks")
+    return page_docs, chunk_docs
     
 
 def get_embeddings(filename, chunk_docs, embeddings, save_embeddings=False, embeddings_dir='Embeddings'):
@@ -208,8 +350,9 @@ def processing_dc(file_path, embeddings, save_embeddings=False, delete_after=Fal
         raise ValueError("Embeddings object is None. Check embedding deployment configuration in .env file.")
     
     # Chunk & Create Embeddings
-    # data_load will raise an exception if it fails, which will be caught by the caller
-    page_doc_list, doc_list = data_load(file_path, 'pdfplumber')
+    # data_load will try multiple parsers and fallback to OCR if needed
+    # It will raise an exception if all methods fail, which will be caught by the caller
+    page_doc_list, doc_list = data_load(file_path, parser_name='pdfplumber', use_fallback=True)
     
     # get_embeddings will raise an exception if it fails, which will be caught by the caller
     vectordb, em_dir_name = get_embeddings(file_path, doc_list, embeddings, save_embeddings=save_embeddings)
