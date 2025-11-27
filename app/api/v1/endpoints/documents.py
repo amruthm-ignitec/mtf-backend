@@ -333,3 +333,62 @@ async def get_document_components(
         )
     
     return result_parser.get_component_results_for_document(document_id, db)
+
+@router.get("/{document_id}/sas-url")
+async def get_document_sas_url(
+    document_id: int,
+    expiry_minutes: int = 30,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get a SAS (Shared Access Signature) URL for a document that's valid for a specified duration.
+    This allows temporary, secure access to private Azure Blob Storage documents.
+    
+    Args:
+        document_id: ID of the document
+        expiry_minutes: Number of minutes the SAS URL should be valid (default: 30, max: 60)
+        
+    Returns:
+        Dictionary with sas_url and expiry information
+    """
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    # Validate expiry_minutes (max 60 minutes for security)
+    if expiry_minutes < 1 or expiry_minutes > 60:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="expiry_minutes must be between 1 and 60"
+        )
+    
+    if not document.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document has no filename"
+        )
+    
+    # Generate SAS URL
+    sas_url = await azure_blob_service.generate_sas_url(
+        filename=document.filename,
+        expiry_minutes=expiry_minutes
+    )
+    
+    if not sas_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate SAS URL for document"
+        )
+    
+    logger.info(f"Generated SAS URL for document {document_id} by user: {current_user.email}")
+    
+    return {
+        "document_id": document_id,
+        "sas_url": sas_url,
+        "expiry_minutes": expiry_minutes,
+        "original_filename": document.original_filename
+    }

@@ -1,7 +1,9 @@
 import os
 import logging
 from typing import Optional, BinaryIO
-from azure.storage.blob import BlobServiceClient, BlobClient
+from datetime import datetime, timedelta
+from azure.storage.blob import BlobServiceClient, BlobClient, BlobSasPermissions
+from azure.storage.blob import generate_blob_sas, generate_account_sas, AccountSasPermissions
 from azure.core.exceptions import AzureError
 from app.core.config import settings
 
@@ -143,6 +145,56 @@ class AzureBlobService:
     def is_enabled(self) -> bool:
         """Check if Azure Blob Storage is properly configured and enabled."""
         return self.enabled
+    
+    async def generate_sas_url(self, filename: str, expiry_minutes: int = 30) -> Optional[str]:
+        """
+        Generate a SAS (Shared Access Signature) URL for a blob that's valid for a specified duration.
+        This allows temporary, secure access to private blobs.
+        
+        Args:
+            filename: The filename (blob name) to generate SAS URL for
+            expiry_minutes: Number of minutes the SAS URL should be valid (default: 30)
+            
+        Returns:
+            The SAS URL if successful, None if failed
+        """
+        if not self.enabled:
+            # Return a simulated URL for development
+            logger.info(f"Simulated SAS URL generation for file: {filename}")
+            return f"https://{self.account_name}.blob.core.windows.net/{self.container_name}/{filename}"
+        
+        try:
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name,
+                blob=filename
+            )
+            
+            # Check if blob exists
+            if not blob_client.exists():
+                logger.warning(f"File not found in Azure Blob Storage: {filename}")
+                return None
+            
+            # Generate SAS token
+            sas_token = generate_blob_sas(
+                account_name=self.account_name,
+                container_name=self.container_name,
+                blob_name=filename,
+                account_key=self.account_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.utcnow() + timedelta(minutes=expiry_minutes)
+            )
+            
+            # Construct SAS URL
+            sas_url = f"{blob_client.url}?{sas_token}"
+            logger.info(f"Generated SAS URL for {filename}, valid for {expiry_minutes} minutes")
+            return sas_url
+            
+        except AzureError as e:
+            logger.error(f"Error generating SAS URL for {filename}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error generating SAS URL for {filename}: {e}")
+            return None
 
 # Global instance
 azure_blob_service = AzureBlobService()
