@@ -58,16 +58,19 @@ def llm_setup():
     # Create embeddings instance
     # Note: azure_endpoint should be just the base URL, not the full endpoint with query string
     # text-embedding-3-large supports dimensions from 256 to 3072
-    # We configure it to 1536 to match our database schema
-    # Note: dimensions parameter may not be supported directly, so we rely on truncation fallback
-    # in vector_conversion.py and document_processing.py if needed
+    # We need 1536 dimensions to match our database schema (Vector(1536))
+    # 
+    # IMPORTANT: The dimensions parameter is passed via model_kwargs for Azure OpenAI
+    # This tells the API to generate embeddings with exactly 1536 dimensions, avoiding data loss
+    # from truncation. The first 1536 dimensions are the most important, but requesting them
+    # directly from the API is better than truncating 3072-dimensional embeddings.
     embeddings = AzureOpenAIEmbeddings(
         azure_deployment=embedding_deployment,
         azure_endpoint=api_base_clean,
         openai_api_key=api_key,
         openai_api_version=embedding_api_version,
-        chunk_size=1
-        # dimensions parameter removed - will be handled by truncation in embedding generation code
+        chunk_size=1,
+        model_kwargs={"dimensions": 1536}  # Request 1536 dimensions directly from API (no data loss)
     )
     
     return llm, embeddings
