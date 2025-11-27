@@ -231,105 +231,102 @@ async def get_queue_details(
                 processing_status = "pending"
         
         
-        # Try to get extraction data for critical findings
+        # Get extraction data from DonorExtraction table for critical findings and document presence
         critical_findings = []
         rejection_reason = None
         
-        # Try to load extraction data
-        possible_paths = [
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), "mtf-backend-test", "test.json"),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "..", "mtf-backend-test", "test.json"),
-            "/Users/amrutmaliye/Desktop/Dev/Github/donoriq/mtf-backend-test/test.json"
-        ]
+        from app.models.donor_extraction import DonorExtraction
+        
+        donor_extraction = db.query(DonorExtraction).filter(
+            DonorExtraction.donor_id == donor.id
+        ).first()
         
         extraction_data = None
-        for path in possible_paths:
-            if os.path.exists(path):
-                try:
-                    with open(path, 'r') as f:
-                        extraction_data = json.load(f)
-                    break
-                except Exception as e:
-                    logger.error(f"Error loading test.json: {e}")
-        
-        # Check for critical findings in extraction data
-        if extraction_data and extraction_data.get("validation"):
-            validation = extraction_data.get("validation", {})
-            if validation.get("critical_findings"):
-                for finding in validation.get("critical_findings", []):
+        if donor_extraction and donor_extraction.extraction_data:
+            extraction_data = donor_extraction.extraction_data
+            
+            # Get critical findings from validation
+            if extraction_data.get("validation") and extraction_data["validation"].get("critical_findings"):
+                for finding in extraction_data["validation"]["critical_findings"]:
                     critical_findings.append({
                         "type": finding.get("type", "Unknown"),
-                        "severity": "CRITICAL",
-                        "automaticRejection": True,
-                        "detectedAt": extraction_data.get("processing_timestamp"),
-                        "source": {
-                            "documentId": "doc1",
-                            "pageNumber": finding.get("page", "Unknown"),
-                            "confidence": finding.get("confidence", 0.95)
-                        }
+                        "severity": finding.get("severity", "CRITICAL"),
+                        "automaticRejection": finding.get("automaticRejection", False),
+                        "detectedAt": finding.get("detectedAt"),
+                        "source": finding.get("source", {
+                            "documentId": "Unknown",
+                            "pageNumber": "Unknown",
+                            "confidence": 0.95
+                        })
                     })
-                    if not rejection_reason:
-                        rejection_reason = f"Critical Finding: {finding.get('type', 'Unknown')}"
+                    if not rejection_reason and finding.get("automaticRejection"):
+                        finding_type = finding.get("type", "Unknown")
+                        rejection_reason = f"Critical Finding: {finding_type}"
+                        # Update processing status to rejected if automatic rejection
+                        if finding.get("automaticRejection"):
+                            processing_status = "rejected"
         
-        # For demo purposes, add mock data for donors without critical findings or missing documents
-        # This ensures the column always has data to display
-        
-        # Add critical findings for some donors (alternating pattern for variety)
-        if donor.id % 3 == 1:  # Every 3rd donor starting from 1 (1, 4, 7, ...)
-            critical_findings = [{
-                "type": "HIV",
-                "severity": "CRITICAL",
-                "automaticRejection": True,
-                "detectedAt": donor.created_at.isoformat() if donor.created_at else None,
-                "source": {
-                    "documentId": "doc1",
-                    "pageNumber": "3",
-                    "confidence": 0.98
-                }
-            }]
-            rejection_reason = "Critical Finding: HIV Positive"
-            processing_status = "rejected"
-        elif donor.id % 5 == 2:  # Every 5th donor starting from 2 (2, 7, 12, ...)
-            critical_findings = [{
-                "type": "Hepatitis B",
-                "severity": "CRITICAL",
-                "automaticRejection": True,
-                "detectedAt": donor.created_at.isoformat() if donor.created_at else None,
-                "source": {
-                    "documentId": "doc2",
-                    "pageNumber": "5",
-                    "confidence": 0.95
-                }
-            }]
-            rejection_reason = "Critical Finding: Hepatitis B Positive"
-            processing_status = "rejected"
-        
-        # If no critical findings, ensure some documents are missing or processing for demo purposes
-        # This ensures the column always has data to display
-        if not critical_findings:
-            # Count current statuses
-            missing_docs = [doc for doc in required_documents if doc["status"] == "missing"]
-            processing_docs = [doc for doc in required_documents if doc["status"] == "processing"]
-            completed_docs = [doc for doc in required_documents if doc["status"] == "completed"]
+        # Update required documents status based on extraction data present fields
+        if extraction_data and extraction_data.get("extracted_data"):
+            extracted_data = extraction_data["extracted_data"]
             
-            # If all documents are completed or there are no missing/processing documents,
-            # add some dummy missing or processing documents for demo
-            if len(missing_docs) == 0 and len(processing_docs) == 0:
-                # For even donor IDs, mark 2-3 documents as missing
-                if donor.id % 2 == 0:
-                    # Mark first 2 documents as missing (or processing if they exist)
-                    for i in range(min(2, len(required_documents))):
-                        if required_documents[i]["status"] == "completed":
-                            required_documents[i]["status"] = "missing"
-                else:
-                    # For odd donor IDs, mark 1-2 documents as processing
-                    for i in range(min(2, len(required_documents))):
-                        if required_documents[i]["status"] == "completed":
-                            required_documents[i]["status"] = "processing"
-                    # If still no processing docs, mark one as processing
-                    if len([doc for doc in required_documents if doc["status"] == "processing"]) == 0:
-                        if len(required_documents) > 0:
-                            required_documents[0]["status"] = "processing"
+            # Map required document types to extraction data keys
+            # These keys are generated from component names: "Component Name" -> "component_name"
+            extraction_key_mapping = {
+                'Medical History': ['medical_records', 'medical_records_review_summary'],
+                'Serology Report': ['infectious_disease_testing'],
+                'Laboratory Results': ['medical_records', 'medical_records_review_summary'],
+                'Recovery Cultures': ['tissue_recovery_information'],
+                'Consent Form': ['authorization_for_tissue_donation'],
+                'Death Certificate': ['donor_information', 'donor_log_in_information_packet']
+            }
+            
+            # Update document statuses based on present field in extraction data
+            for req_doc in required_documents:
+                doc_name = req_doc["name"]
+                extraction_keys = extraction_key_mapping.get(doc_name, [])
+                
+                # Check if any of the mapped extraction keys have present=True
+                found_present = False
+                for extraction_key in extraction_keys:
+                    if extraction_key in extracted_data:
+                        section = extracted_data[extraction_key]
+                        if section and isinstance(section, dict):
+                            # Check the present field (can be boolean or "Yes"/"No" string)
+                            present_value = section.get("present")
+                            if present_value is True or present_value == "Yes" or present_value == "yes":
+                                found_present = True
+                                # If extraction says present, check if document actually exists
+                                doc = doc_by_type.get(doc_name)
+                                if doc:
+                                    # Document exists - use actual document status
+                                    if doc.status == DocumentStatus.COMPLETED:
+                                        req_doc["status"] = "completed"
+                                    elif doc.status in [DocumentStatus.PROCESSING, DocumentStatus.ANALYZING, DocumentStatus.REVIEWING]:
+                                        req_doc["status"] = "processing"
+                                    else:
+                                        req_doc["status"] = "missing"
+                                else:
+                                    # Extraction says present but no document uploaded - might be in another document
+                                    # Keep current status
+                                    pass
+                            elif present_value is False or present_value == "No" or present_value == "no":
+                                # Explicitly marked as not present
+                                if not doc_by_type.get(doc_name):
+                                    req_doc["status"] = "missing"
+                                break
+                
+                # If extraction data says not present and no document exists, mark as missing
+                if not found_present and not doc_by_type.get(doc_name):
+                    # Check if any extraction key exists and explicitly says not present
+                    for extraction_key in extraction_keys:
+                        if extraction_key in extracted_data:
+                            section = extracted_data[extraction_key]
+                            if section and isinstance(section, dict):
+                                present_value = section.get("present")
+                                if present_value is False or present_value == "No" or present_value == "no":
+                                    req_doc["status"] = "missing"
+                                    break
         
         result.append({
             "id": str(donor.id),
