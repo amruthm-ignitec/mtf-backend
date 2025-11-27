@@ -57,12 +57,17 @@ def llm_setup():
     
     # Create embeddings instance
     # Note: azure_endpoint should be just the base URL, not the full endpoint with query string
+    # text-embedding-3-large supports dimensions from 256 to 3072
+    # We configure it to 1536 to match our database schema
+    # Try both direct parameter and model_kwargs for compatibility
     embeddings = AzureOpenAIEmbeddings(
         azure_deployment=embedding_deployment,
         azure_endpoint=api_base_clean,
         openai_api_key=api_key,
         openai_api_version=embedding_api_version,
-        chunk_size=1
+        chunk_size=1,
+        dimensions=1536,  # Configure to match database schema (Vector(1536))
+        model_kwargs={"dimensions": 1536}  # Fallback: pass via model_kwargs if direct parameter doesn't work
     )
     
     return llm, embeddings
