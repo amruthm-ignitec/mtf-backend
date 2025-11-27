@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
 import os
 import uuid
 import logging
 import asyncio
+import io
 from app.database.database import get_db
 from app.models.document import Document, DocumentStatus, DocumentType
 from app.models.user import User
@@ -392,3 +394,81 @@ async def get_document_sas_url(
         "expiry_minutes": expiry_minutes,
         "original_filename": document.original_filename
     }
+
+@router.get("/{document_id}/pdf")
+async def get_document_pdf(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Stream a PDF document from Azure Blob Storage with proper CORS headers.
+    This endpoint proxies the PDF to avoid CORS issues when loading in PDF.js.
+    
+    Args:
+        document_id: ID of the document
+        
+    Returns:
+        StreamingResponse with PDF content and proper headers
+    """
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    if not document.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document has no filename"
+        )
+    
+    if not azure_blob_service.is_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Azure Blob Storage is not configured"
+        )
+    
+    try:
+        # Get blob client
+        blob_client = azure_blob_service.blob_service_client.get_blob_client(
+            container=azure_blob_service.container_name,
+            blob=document.filename
+        )
+        
+        # Check if blob exists
+        if not blob_client.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="PDF file not found in Azure Blob Storage"
+            )
+        
+        # Download blob content
+        blob_data = blob_client.download_blob().readall()
+        
+        # Create a streaming response with proper headers
+        def generate():
+            yield blob_data
+        
+        logger.info(f"Streaming PDF for document {document_id} to user: {current_user.email}")
+        
+        return StreamingResponse(
+            io.BytesIO(blob_data),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="{document.original_filename}"',
+                "Access-Control-Allow-Origin": "*",  # Allow CORS for PDF.js
+                "Access-Control-Allow-Methods": "GET",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error streaming PDF for document {document_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to stream PDF: {str(e)}"
+        )
