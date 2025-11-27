@@ -50,10 +50,13 @@ def upgrade() -> None:
         """)
         
         # Recreate vector similarity index with new dimensions
+        # Use HNSW instead of ivfflat because ivfflat only supports up to 2000 dimensions
+        # HNSW is better for high-dimensional vectors and supports 3072 dimensions
         op.execute("""
             CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx 
             ON document_chunks 
-            USING ivfflat (embedding vector_cosine_ops);
+            USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64);
         """)
     
     # Check if donor_extraction_vectors table exists and has embedding column
@@ -79,10 +82,13 @@ def upgrade() -> None:
         """)
         
         # Recreate vector similarity index with new dimensions
+        # Use HNSW instead of ivfflat because ivfflat only supports up to 2000 dimensions
+        # HNSW is better for high-dimensional vectors and supports 3072 dimensions
         op.execute("""
             CREATE INDEX IF NOT EXISTS donor_extraction_vectors_embedding_idx 
             ON donor_extraction_vectors 
-            USING ivfflat (embedding vector_cosine_ops);
+            USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64);
         """)
 
 
@@ -114,7 +120,7 @@ def downgrade() -> None:
             USING (embedding[1:1536])::vector(1536);
         """)
         
-        # Recreate index
+        # Recreate index (back to ivfflat for 1536 dimensions)
         op.execute("""
             CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx 
             ON document_chunks 
@@ -141,7 +147,7 @@ def downgrade() -> None:
             USING (embedding[1:1536])::vector(1536);
         """)
         
-        # Recreate index
+        # Recreate index (back to ivfflat for 1536 dimensions)
         op.execute("""
             CREATE INDEX IF NOT EXISTS donor_extraction_vectors_embedding_idx 
             ON donor_extraction_vectors 
