@@ -49,15 +49,16 @@ def upgrade() -> None:
             ALTER COLUMN embedding TYPE vector(3072);
         """)
         
-        # Recreate vector similarity index with new dimensions
-        # Use HNSW instead of ivfflat because ivfflat only supports up to 2000 dimensions
-        # HNSW is better for high-dimensional vectors and supports 3072 dimensions
-        op.execute("""
-            CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx 
-            ON document_chunks 
-            USING hnsw (embedding vector_cosine_ops)
-            WITH (m = 16, ef_construction = 64);
-        """)
+        # NOTE: Index creation skipped due to pgvector limitation
+        # Both ivfflat and hnsw indexes have a 2000 dimension limit in many pgvector versions
+        # Queries will still work using sequential scans (slower but functional)
+        # To enable indexes, upgrade pgvector extension to a version that supports >2000 dimensions
+        # For now, similarity searches will work without an index using the <=> operator
+        # Example upgrade command (if supported by your PostgreSQL version):
+        #   ALTER EXTENSION vector UPDATE;
+        # Then manually create index:
+        #   CREATE INDEX document_chunks_embedding_idx 
+        #   ON document_chunks USING hnsw (embedding vector_cosine_ops);
     
     # Check if donor_extraction_vectors table exists and has embedding column
     result = conn.execute(sa.text("""
@@ -81,15 +82,16 @@ def upgrade() -> None:
             ALTER COLUMN embedding TYPE vector(3072);
         """)
         
-        # Recreate vector similarity index with new dimensions
-        # Use HNSW instead of ivfflat because ivfflat only supports up to 2000 dimensions
-        # HNSW is better for high-dimensional vectors and supports 3072 dimensions
-        op.execute("""
-            CREATE INDEX IF NOT EXISTS donor_extraction_vectors_embedding_idx 
-            ON donor_extraction_vectors 
-            USING hnsw (embedding vector_cosine_ops)
-            WITH (m = 16, ef_construction = 64);
-        """)
+        # NOTE: Index creation skipped due to pgvector limitation
+        # Both ivfflat and hnsw indexes have a 2000 dimension limit in many pgvector versions
+        # Queries will still work using sequential scans (slower but functional)
+        # To enable indexes, upgrade pgvector extension to a version that supports >2000 dimensions
+        # For now, similarity searches will work without an index using the <=> operator
+        # Example upgrade command (if supported by your PostgreSQL version):
+        #   ALTER EXTENSION vector UPDATE;
+        # Then manually create index:
+        #   CREATE INDEX donor_extraction_vectors_embedding_idx 
+        #   ON donor_extraction_vectors USING hnsw (embedding vector_cosine_ops);
 
 
 def downgrade() -> None:
