@@ -1,7 +1,7 @@
 """add confidence to component_results
 
 Revision ID: add_confidence_component
-Revises: a44281be1c8f
+Revises: update_vector_dimensions_3072
 Create Date: 2025-01-27 12:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_confidence_component'
-down_revision = 'a44281be1c8f'
+down_revision = 'update_vector_dimensions_3072'
 branch_labels = None
 depends_on = None
 
