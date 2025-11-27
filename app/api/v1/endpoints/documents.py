@@ -447,20 +447,18 @@ async def get_document_pdf(
         # Download blob content
         blob_data = blob_client.download_blob().readall()
         
-        # Create a streaming response with proper headers
-        def generate():
-            yield blob_data
-        
-        logger.info(f"Streaming PDF for document {document_id} to user: {current_user.email}")
+        logger.info(f"Streaming PDF for document {document_id} to user: {current_user.email}, size: {len(blob_data)} bytes")
         
         return StreamingResponse(
             io.BytesIO(blob_data),
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f'inline; filename="{document.original_filename}"',
+                "Content-Length": str(len(blob_data)),
                 "Access-Control-Allow-Origin": "*",  # Allow CORS for PDF.js
                 "Access-Control-Allow-Methods": "GET",
                 "Access-Control-Allow-Headers": "*",
+                "Cache-Control": "no-cache",
             }
         )
         
