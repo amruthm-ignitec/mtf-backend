@@ -196,10 +196,28 @@ class ExtractionAggregationService:
                         # If we found serology results in component and don't have any from database, use component data
                         if serology_from_component and not merged_serology.get("result"):
                             logger.info(f"Extracted {len(serology_from_component)} serology results from infectious_disease_testing component for donor {donor_id}")
+                            # Merge citations properly (citations are dicts, need to deduplicate by tuple)
+                            all_citations = merged_serology.get("citations", []) + citations_from_component
+                            unique_citations = []
+                            seen = set()
+                            for citation in all_citations:
+                                if isinstance(citation, dict) and "document_id" in citation and "page" in citation:
+                                    key = (citation["document_id"], citation["page"])
+                                    if key not in seen:
+                                        seen.add(key)
+                                        unique_citations.append(citation)
+                                else:
+                                    # Handle non-standard citation formats
+                                    if citation not in seen:
+                                        seen.add(citation)
+                                        unique_citations.append(citation)
+                            # Sort by document_id, then page
+                            unique_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)) if isinstance(x, dict) else (0, 0))
+                            
                             # Merge with existing (empty) serology results
                             merged_serology = {
                                 "result": serology_from_component,
-                                "citations": list(set(merged_serology.get("citations", []) + citations_from_component))
+                                "citations": unique_citations
                             }
                         elif serology_from_component and merged_serology.get("result"):
                             # Merge component data with database results (database takes precedence)
@@ -208,7 +226,25 @@ class ExtractionAggregationService:
                                 if test_name not in existing_results:
                                     existing_results[test_name] = result_value
                             merged_serology["result"] = existing_results
-                            merged_serology["citations"] = sorted(list(set(merged_serology.get("citations", []) + citations_from_component)))
+                            
+                            # Merge citations properly (citations are dicts, need to deduplicate by tuple)
+                            all_citations = merged_serology.get("citations", []) + citations_from_component
+                            unique_citations = []
+                            seen = set()
+                            for citation in all_citations:
+                                if isinstance(citation, dict) and "document_id" in citation and "page" in citation:
+                                    key = (citation["document_id"], citation["page"])
+                                    if key not in seen:
+                                        seen.add(key)
+                                        unique_citations.append(citation)
+                                else:
+                                    # Handle non-standard citation formats
+                                    if citation not in seen:
+                                        seen.add(citation)
+                                        unique_citations.append(citation)
+                            # Sort by document_id, then page
+                            unique_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)) if isinstance(x, dict) else (0, 0))
+                            merged_serology["citations"] = unique_citations
             
             # Add culture and serology results to extraction data
             # Always include them, even if empty, so frontend knows the structure
