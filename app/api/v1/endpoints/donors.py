@@ -4,15 +4,30 @@ from typing import List, Dict, Any
 import logging
 import json
 import os
+import re
 from app.database.database import get_db
 from app.models.donor import Donor
 from app.models.document import Document, DocumentStatus, DocumentType
 from app.models.user import User, UserRole
 from app.schemas.donor import DonorCreate, DonorUpdate, DonorResponse, DonorPriorityUpdate
 from app.api.v1.endpoints.auth import get_current_user
+from app.services.processing.document_components import load_component_config
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+def component_name_to_extraction_key(component_name: str) -> str:
+    """
+    Convert component name to extraction key format.
+    Example: "Donor Log-In Information Packet" -> "donor_log_in_information_packet"
+    """
+    # Convert to lowercase and replace spaces/special chars with underscores
+    key = component_name.lower()
+    # Replace special characters and spaces with underscores
+    key = re.sub(r'[^a-z0-9]+', '_', key)
+    # Remove leading/trailing underscores
+    key = key.strip('_')
+    return key
 
 @router.get("/", response_model=List[DonorResponse])
 async def get_donors(
@@ -146,15 +161,17 @@ async def get_queue_details(
     donors = db.query(Donor).all()
     result = []
     
-    # Required document types
-    REQUIRED_DOC_TYPES = [
-        'Medical History',
-        'Serology Report',
-        'Laboratory Results',
-        'Recovery Cultures',
-        'Consent Form',
-        'Death Certificate'
-    ]
+    # Load Initial Paperwork Case Checklist from config
+    component_config = load_component_config()
+    initial_components = component_config.get("initial_components", {})
+    
+    # Get required document types from Initial Paperwork Case Checklist
+    # These are the component names from the config
+    REQUIRED_DOC_TYPES = list(initial_components.keys()) if initial_components else []
+    
+    # If config is not available, fall back to empty list (will show no required docs)
+    if not REQUIRED_DOC_TYPES:
+        logger.warning("No initial components found in config. Missing documents will not be determined from checklist.")
     
     for donor in donors:
         # Get all documents for this donor
@@ -273,17 +290,16 @@ async def get_queue_details(
             extracted_data = extraction_data["extracted_data"]
             
             # Map required document types to extraction data keys
-            # These keys are generated from component names: "Component Name" -> "component_name"
-            extraction_key_mapping = {
-                'Medical History': ['medical_records', 'medical_records_review_summary'],
-                'Serology Report': ['infectious_disease_testing'],
-                'Laboratory Results': ['medical_records', 'medical_records_review_summary'],
-                'Recovery Cultures': ['tissue_recovery_information'],
-                'Consent Form': ['authorization_for_tissue_donation'],
-                'Death Certificate': ['donor_information', 'donor_log_in_information_packet']
-            }
+            # Generate mapping from Initial Paperwork component names to their extraction keys
+            # Component names are converted to snake_case for extraction keys
+            extraction_key_mapping = {}
+            for component_name in REQUIRED_DOC_TYPES:
+                extraction_key = component_name_to_extraction_key(component_name)
+                # Each component maps to its own extraction key
+                extraction_key_mapping[component_name] = [extraction_key]
             
             # Update document statuses based on present field in extraction data
+            # Extraction data is the source of truth for Initial Paperwork components
             for req_doc in required_documents:
                 doc_name = req_doc["name"]
                 extraction_keys = extraction_key_mapping.get(doc_name, [])
@@ -298,28 +314,29 @@ async def get_queue_details(
                             present_value = section.get("present")
                             if present_value is True or present_value == "Yes" or present_value == "yes":
                                 found_present = True
-                                # If extraction says present, check if document actually exists
-                                doc = doc_by_type.get(doc_name)
-                                if doc:
-                                    # Document exists - use actual document status
-                                    if doc.status == DocumentStatus.COMPLETED:
-                                        req_doc["status"] = "completed"
-                                    elif doc.status in [DocumentStatus.PROCESSING, DocumentStatus.ANALYZING, DocumentStatus.REVIEWING]:
-                                        req_doc["status"] = "processing"
-                                    else:
-                                        req_doc["status"] = "missing"
+                                # If extraction says present, determine status based on document processing
+                                # Check if any documents are still processing
+                                has_processing_docs = any(
+                                    doc.status in [DocumentStatus.PROCESSING, DocumentStatus.ANALYZING, DocumentStatus.REVIEWING]
+                                    for doc in documents
+                                )
+                                all_completed = all(doc.status == DocumentStatus.COMPLETED for doc in documents)
+                                
+                                if all_completed and len(documents) > 0:
+                                    req_doc["status"] = "completed"
+                                elif has_processing_docs:
+                                    req_doc["status"] = "processing"
                                 else:
-                                    # Extraction says present but no document uploaded - might be in another document
-                                    # Keep current status
-                                    pass
+                                    # Extraction found it but documents might still be processing
+                                    req_doc["status"] = "processing"
+                                break
                             elif present_value is False or present_value == "No" or present_value == "no":
                                 # Explicitly marked as not present
-                                if not doc_by_type.get(doc_name):
-                                    req_doc["status"] = "missing"
+                                req_doc["status"] = "missing"
                                 break
                 
-                # If extraction data says not present and no document exists, mark as missing
-                if not found_present and not doc_by_type.get(doc_name):
+                # If extraction data says not present, mark as missing
+                if not found_present:
                     # Check if any extraction key exists and explicitly says not present
                     for extraction_key in extraction_keys:
                         if extraction_key in extracted_data:
@@ -329,6 +346,8 @@ async def get_queue_details(
                                 if present_value is False or present_value == "No" or present_value == "no":
                                     req_doc["status"] = "missing"
                                     break
+                    # If extraction key doesn't exist in extracted_data, it means extraction hasn't found it yet
+                    # Keep the current status (which should be "missing" if no document was uploaded)
         
         result.append({
             "id": str(donor.id),
