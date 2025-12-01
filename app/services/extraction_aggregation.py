@@ -322,7 +322,7 @@ class ExtractionAggregationService:
                     
                     Pages can be:
                     - simple integers (legacy)
-                    - citation dicts: {\"page\": int, \"document_id\": int, ...}
+                    - citation dicts: {"page": int, "document_id": int, ...}
                     
                     We preserve the original objects but deduplicate using a
                     normalized key so we don't rely on them being hashable.
@@ -333,7 +333,7 @@ class ExtractionAggregationService:
                     for p in list(existing_pages_raw or []) + list(new_pages_raw or []):
                         # Build a key that is hashable
                         if isinstance(p, dict):
-                            key = (p.get(\"page\"), p.get(\"document_id\"), p.get(\"source_document\"))  # type: ignore[assignment]
+                            key = (p.get("page"), p.get("document_id"), p.get("source_document"))  # type: ignore[assignment]
                         else:
                             key = p
                         
