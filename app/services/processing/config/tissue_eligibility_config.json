@@ -1,0 +1,44 @@
+{
+  "Femur": {
+    "description": "Analysis of femur bone tissue eligibility for transplantation",
+    "extraction_prompt": "Analyze the eligibility of femur bone tissue for transplantation based on donor information. Extract all relevant factors that affect femur bone eligibility including donor age, bone density measurements, bone disease history, physical condition, recovery timing, trauma history, and any other relevant factors.",
+    "sections": {
+      "Donor Age": "Age of the donor at time of donation. Extract the actual age value.",
+      "Bone Density": "Bone density measurements including T-scores, DEXA scan results, or any bone density assessments. Extract specific values if available.",
+      "Bone Disease History": "History of bone-related diseases such as osteoporosis, osteomalacia, metabolic bone disorders, or any conditions affecting bone health.",
+      "Physical Condition": "Physical assessment findings related to bone structure, fractures, deformities, or abnormalities.",
+      "Recovery Timing": "Time elapsed between death and tissue recovery. Extract specific time values.",
+      "Trauma History": "History of recent trauma, fractures, or surgical interventions affecting the femur bone.",
+      "Medical History": "Relevant medical history from records that may affect bone tissue eligibility.",
+      "Eligibility Assessment": "Overall assessment of femur bone eligibility based on all extracted factors. Provide a comprehensive summary."
+    },
+    "output_format": {
+      "status": "Eligible/Review Required/Ineligible",
+      "confidenceScore": "0-100",
+      "factors": "Array of factors with name, currentValue, requirement, impact, positiveImpact",
+      "description": "Detailed analysis summary"
+    }
+  },
+  "Skin & Soft Tissue": {
+    "description": "Analysis of skin and soft tissue eligibility for transplantation",
+    "extraction_prompt": "Analyze the eligibility of skin and soft tissue for transplantation based on donor information. Extract all relevant factors that affect skin tissue eligibility including donor age, skin condition, recovery site, recovery timing, tissue viability, vascularity, and any other relevant factors.",
+    "sections": {
+      "Donor Age": "Age of the donor at time of donation. Extract the actual age value.",
+      "Skin Condition": "Condition of the skin including lesions, scarring, infections, or abnormalities. Extract specific findings.",
+      "Recovery Site": "Location where skin tissue was recovered from (e.g., posterior trunk, anterior trunk, extremities). Extract specific location.",
+      "Recovery Timing": "Time elapsed between death and tissue recovery. Extract specific time values.",
+      "Tissue Viability": "Assessment of tissue viability including vascularity, blood supply, and tissue health indicators.",
+      "Physical Assessment": "Physical assessment findings related to skin condition, lesions, or abnormalities.",
+      "Medical History": "Relevant medical history from records that may affect skin tissue eligibility.",
+      "Eligibility Assessment": "Overall assessment of skin and soft tissue eligibility based on all extracted factors. Provide a comprehensive summary."
+    },
+    "output_format": {
+      "status": "Eligible/Review Required/Ineligible",
+      "confidenceScore": "0-100",
+      "factors": "Array of factors with name, currentValue, requirement, impact, positiveImpact",
+      "description": "Detailed analysis summary"
+    }
+  }
+}
+
+

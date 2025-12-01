@@ -266,13 +266,15 @@ class ExtractionAggregationService:
             )
             extraction_data["key_medical_findings"] = key_medical_findings
             
-            # Analyze tissue eligibility
+            # Analyze tissue eligibility using LLM
             donor_age = None
             if donor:
                 donor_age = donor.age
+            # Use existing LLM instance if available (from summary deduplication)
             tissue_eligibility = tissue_eligibility_service.analyze_tissue_eligibility(
                 extraction_data["extracted_data"],
-                donor_age
+                donor_age,
+                llm=llm_instance  # Reuse LLM instance from line 115
             )
             extraction_data["tissue_eligibility"] = tissue_eligibility
             
