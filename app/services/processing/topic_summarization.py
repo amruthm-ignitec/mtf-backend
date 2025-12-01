@@ -349,7 +349,7 @@ def parse_conditions(output):
     parsed_conditions = {}
 
     # Loop through each condition and parse its corresponding string
-    from ..utils.json_parser import safe_parse_llm_json, LLMResponseParseError
+    from .utils.json_parser import safe_parse_llm_json, LLMResponseParseError
     
     for condition, json_string in output.items():
         try:
@@ -614,7 +614,7 @@ def get_T3_results(t3_conditions, vectordb, t3_context, t3_instruction, t3_fewsh
             all_ret_docs = [(doc.metadata['page'], doc.page_content) for doc in ret_docs]
 
         try:
-            from ..utils.json_parser import safe_parse_llm_json, LLMResponseParseError
+            from .utils.json_parser import safe_parse_llm_json, LLMResponseParseError
             
             llm_result_dict = safe_parse_llm_json(
                 llm_result,

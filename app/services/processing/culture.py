@@ -2,8 +2,8 @@ import json
 import ast
 import time
 import logging
-from ..utils.json_parser import safe_parse_llm_json, LLMResponseParseError
-from ..utils.llm_wrapper import call_llm_with_retry, LLMCallError
+from .utils.json_parser import safe_parse_llm_json, LLMResponseParseError
+from .utils.llm_wrapper import call_llm_with_retry, LLMCallError
 
 logger = logging.getLogger(__name__)
 

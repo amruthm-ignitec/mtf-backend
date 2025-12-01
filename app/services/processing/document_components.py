@@ -8,7 +8,7 @@ import logging
 import ast
 import time
 from .topic_summarization import search_keywords, ts_llm_call_with_pause
-from ..utils.json_parser import safe_parse_llm_json, LLMResponseParseError
+from .utils.json_parser import safe_parse_llm_json, LLMResponseParseError
 
 logger = logging.getLogger(__name__)
 
