@@ -258,11 +258,7 @@ def _extract_tissue_eligibility_from_llm(
             "status": status,
             "confidenceScore": confidence_score,
             "factors": factors if isinstance(factors, list) else [],
-            "similarCases": {
-                "count": 0,  # Would be calculated from historical data
-                "successRate": 0.85,  # Would be calculated from historical data
-                "trend": "Stable"
-            },
+            "similarCases": None,  # Historical data not yet implemented
             "description": description
         }
         
@@ -277,11 +273,7 @@ def _extract_tissue_eligibility_from_llm(
             "status": "Review Required",
             "confidenceScore": 0,
             "factors": [],
-            "similarCases": {
-                "count": 0,
-                "successRate": 0.85,
-                "trend": "Stable"
-            },
+            "similarCases": None,
             "description": f"Error analyzing {tissue_name} eligibility: {str(e)}",
             "error": True,
             "error_type": "parse_error",
@@ -298,11 +290,7 @@ def _extract_tissue_eligibility_from_llm(
             "status": "Review Required",
             "confidenceScore": 0,
             "factors": [],
-            "similarCases": {
-                "count": 0,
-                "successRate": 0.85,
-                "trend": "Stable"
-            },
+            "similarCases": None,
             "description": f"Failed to analyze {tissue_name} eligibility due to LLM error: {str(e)}",
             "error": True,
             "error_type": "llm_error",
@@ -319,11 +307,7 @@ def _extract_tissue_eligibility_from_llm(
             "status": "Review Required",
             "confidenceScore": 0,
             "factors": [],
-            "similarCases": {
-                "count": 0,
-                "successRate": 0.85,
-                "trend": "Stable"
-            },
+            "similarCases": None,
             "description": f"Unexpected error analyzing {tissue_name} eligibility: {str(e)}",
             "error": True,
             "error_type": "unexpected_error",
@@ -376,11 +360,7 @@ class TissueEligibilityService:
                             "status": "Review Required",
                             "confidenceScore": 0,
                             "factors": [],
-                            "similarCases": {
-                                "count": 0,
-                                "successRate": 0.85,
-                                "trend": "Stable"
-                            },
+                            "similarCases": None,
                             "description": "LLM service not available for tissue eligibility analysis. Please check system configuration.",
                             "error": True,
                             "error_type": "llm_unavailable",
@@ -393,11 +373,7 @@ class TissueEligibilityService:
                             "status": "Review Required",
                             "confidenceScore": 0,
                             "factors": [],
-                            "similarCases": {
-                                "count": 0,
-                                "successRate": 0.85,
-                                "trend": "Stable"
-                            },
+                            "similarCases": None,
                             "description": "LLM service not available for tissue eligibility analysis. Please check system configuration.",
                             "error": True,
                             "error_type": "llm_unavailable",
