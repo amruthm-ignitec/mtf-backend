@@ -1,4 +1,4 @@
-﻿Topic,Level,T1_Type
+Topic,Level,T1_Type
 Medical History,T2,
 Mass,T2,
 Donor Information,T2,
@@ -7,6 +7,7 @@ Organ Transplant Recipient,T2,
 Lymph,T1,medical_prompt_conditions
 Travel,T1,done_or_not_prompt_conditions
 Sepsis,T1,medical_prompt_conditions
+Hypotension,T1,medical_prompt_conditions
 Autopsy,T1,done_or_not_prompt_conditions
 Jail,T1,was_or_not_prompt_conditions
 Blood Culture,T1,done_or_not_prompt_conditions
@@ -32,3 +33,60 @@ Infection,T1,medical_prompt_conditions
 Immunization,T1,done_or_not_prompt_conditions
 Autoimmune,T1,medical_prompt_conditions
 Cancer,T1,medical_prompt_conditions
+Stroke,T1,medical_prompt_conditions
+Seizure,T1,medical_prompt_conditions
+Epilepsy,T1,medical_prompt_conditions
+Neurodegeneration,T1,medical_prompt_conditions
+Alzheimer,T1,medical_prompt_conditions
+Parkinson,T1,medical_prompt_conditions
+Neurological Disorder,T1,medical_prompt_conditions
+Diabetes,T1,medical_prompt_conditions
+Diabetic Complications,T1,medical_prompt_conditions
+Metabolic Syndrome,T1,medical_prompt_conditions
+Metabolic Disorder,T1,medical_prompt_conditions
+COPD,T1,medical_prompt_conditions
+Chronic Obstructive Pulmonary Disease,T1,medical_prompt_conditions
+Pneumonia,T1,medical_prompt_conditions
+Respiratory Failure,T1,medical_prompt_conditions
+Asthma,T1,medical_prompt_conditions
+Respiratory Disease,T1,medical_prompt_conditions
+Kidney Disease,T1,medical_prompt_conditions
+Renal Failure,T1,medical_prompt_conditions
+Chronic Kidney Disease,T1,medical_prompt_conditions
+Acute Kidney Injury,T1,medical_prompt_conditions
+Nephritis,T1,medical_prompt_conditions
+Renal Disease,T1,medical_prompt_conditions
+Hypertension,T1,medical_prompt_conditions
+Cardiovascular Disease,T1,medical_prompt_conditions
+Heart Disease,T1,medical_prompt_conditions
+Myocardial Infarction,T1,medical_prompt_conditions
+Heart Failure,T1,medical_prompt_conditions
+Arrhythmia,T1,medical_prompt_conditions
+Liver Disease,T1,medical_prompt_conditions
+Hepatic Failure,T1,medical_prompt_conditions
+Cirrhosis,T1,medical_prompt_conditions
+Liver Cirrhosis,T1,medical_prompt_conditions
+Gastrointestinal Disease,T1,medical_prompt_conditions
+GI Disease,T1,medical_prompt_conditions
+Inflammatory Bowel Disease,T1,medical_prompt_conditions
+IBD,T1,medical_prompt_conditions
+Crohn Disease,T1,medical_prompt_conditions
+Ulcerative Colitis,T1,medical_prompt_conditions
+Thyroid Disorder,T1,medical_prompt_conditions
+Hypothyroidism,T1,medical_prompt_conditions
+Hyperthyroidism,T1,medical_prompt_conditions
+Thyroid Disease,T1,medical_prompt_conditions
+Osteoporosis,T1,medical_prompt_conditions
+Bone Disease,T1,medical_prompt_conditions
+Arthritis,T1,medical_prompt_conditions
+Rheumatoid Arthritis,T1,medical_prompt_conditions
+Osteoarthritis,T1,medical_prompt_conditions
+Anemia,T1,medical_prompt_conditions
+Blood Disorder,T1,medical_prompt_conditions
+Bleeding Disorder,T1,medical_prompt_conditions
+Coagulation Disorder,T1,medical_prompt_conditions
+Thrombosis,T1,medical_prompt_conditions
+Deep Vein Thrombosis,T1,medical_prompt_conditions
+DVT,T1,medical_prompt_conditions
+Pulmonary Embolism,T1,medical_prompt_conditions
+PE,T1,medical_prompt_conditions

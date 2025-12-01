@@ -85,6 +85,13 @@
   {
     "Referral Notes" : "Active Sepsis"
   },
+  "Hypotension" :
+  {
+    "Medical Records": "Blood pressure readings, hypotension diagnosis, low blood pressure, systolic blood pressure below 90 mmHg",
+    "DRAI": "History of hypotension or low blood pressure",
+    "Physical Assessment": "Blood pressure measurements showing hypotension, vital signs with low blood pressure",
+    "Miscellaneous Summary": "Any mention of hypotension, low blood pressure, or blood pressure readings indicating hypotension"
+  },
   "SARS" :
   {
     "Serology": "Test for COVID-19"

@@ -51,6 +51,8 @@
 
 "Sepsis" : "The CONDTIION RESULT should be POSITIVE if the donor had any history for sepsis in his/her lifetime. If there is no conclusive informationn regarding whether sepsis was diagnosed or not, the CONDITION RESULT should be UNKNOWN. Check the referral worksheet for this informationn. Also, review the miscellaneous sections, where sepsis-related informationn, such as sepsis scores, may be recorded. If sepsis scores are mentioned without a clear conclusion, mark the CONDITION RESULT as UNKNOWN. If a conclusion is present, the CONDITION RESULT should be POSITIVE or NEGATIVE based on that conclusion.",
 
+"Hypotension" : "The CONDITION RESULT should be POSITIVE if the donor had any history of hypotension, low blood pressure, or blood pressure readings indicating hypotension (systolic blood pressure consistently below 90 mmHg). Check medical records for blood pressure readings and hypotension diagnoses. Check physical assessment for vital signs showing low blood pressure. Check DRAI for history of hypotension. If hypotension is explicitly mentioned or if blood pressure readings consistently show systolic < 90 mmHg, mark as POSITIVE. If no mention of hypotension and blood pressure readings are normal, mark as NEGATIVE. If blood pressure readings are not available or unclear, mark as UNKNOWN.",
+
 "Cause of Death" : "The CONDITION RESULT should be YES if there is a clear cause of death. Check the ME CORONER/PATHOLOGY section as well as miscellaneous section for the actual cause of death. ICB stands for Intracerebral Bleeding and ICH stands for Intracranial Hemorrhage"
 
 }
