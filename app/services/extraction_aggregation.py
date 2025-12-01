@@ -315,6 +315,35 @@ class ExtractionAggregationService:
                 existing_data = donor_extraction.extraction_data
                 logger.info(f"Merging new extraction data with existing data for donor {donor_id}")
                 
+                # Helper to merge pages that may be ints or citation dicts
+                def _merge_pages_list(existing_pages_raw, new_pages_raw):
+                    """
+                    Merge pages from existing/new components.
+                    
+                    Pages can be:
+                    - simple integers (legacy)
+                    - citation dicts: {\"page\": int, \"document_id\": int, ...}
+                    
+                    We preserve the original objects but deduplicate using a
+                    normalized key so we don't rely on them being hashable.
+                    """
+                    merged_pages: list[Any] = []
+                    seen_keys: set[Any] = set()
+                    
+                    for p in list(existing_pages_raw or []) + list(new_pages_raw or []):
+                        # Build a key that is hashable
+                        if isinstance(p, dict):
+                            key = (p.get(\"page\"), p.get(\"document_id\"), p.get(\"source_document\"))  # type: ignore[assignment]
+                        else:
+                            key = p
+                        
+                        if key in seen_keys:
+                            continue
+                        seen_keys.add(key)
+                        merged_pages.append(p)
+                    
+                    return merged_pages
+                
                 # Merge extracted_data components
                 existing_extracted_data = existing_data.get("extracted_data", {})
                 new_extracted_data = extraction_data.get("extracted_data", {})
@@ -326,10 +355,11 @@ class ExtractionAggregationService:
                         # Component exists in both - merge them
                         existing_component = merged_extracted_data[component_key]
                         
-                        # Merge pages
-                        existing_pages = set(existing_component.get('pages', []))
-                        new_pages = set(new_component.get('pages', []))
-                        merged_pages = sorted(list(existing_pages | new_pages))
+                        # Merge pages (support both ints and citation dicts)
+                        merged_pages = _merge_pages_list(
+                            existing_component.get('pages', []),
+                            new_component.get('pages', [])
+                        )
                         
                         # Get confidence scores
                         existing_confidence = existing_component.get('confidence', 0.0) or 0.0
