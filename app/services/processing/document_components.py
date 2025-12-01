@@ -8,6 +8,7 @@ import logging
 import ast
 import time
 from .topic_summarization import search_keywords, ts_llm_call_with_pause
+from ..utils.json_parser import safe_parse_llm_json, LLMResponseParseError
 
 logger = logging.getLogger(__name__)
 
@@ -288,13 +289,34 @@ def extract_component_content(
         prompt = create_component_extraction_prompt(component_name, component_config, unique_page_info)
         response = ts_llm_call_with_pause(llm, component_name, prompt)
         
-        # Parse response
-        response_content = response.content.replace("`", "").replace("json", "").strip()
+        # Parse response using robust JSON parser
         try:
-            result = ast.literal_eval(response_content)
-        except:
-            # Try JSON parsing
-            result = json.loads(response_content)
+            result = safe_parse_llm_json(
+                response.content,
+                context=f"component extraction for {component_name}"
+            )
+            
+            # Validate structure
+            if not isinstance(result, dict):
+                raise LLMResponseParseError(
+                    f"Expected dictionary but got {type(result)}. "
+                    f"Context: component extraction for {component_name}"
+                )
+            
+        except LLMResponseParseError as e:
+            logger.error(f"Failed to parse component extraction result for {component_name}: {e}")
+            # Return error structure
+            return {
+                "component_name": component_name,
+                "error": True,
+                "error_type": "parse_error",
+                "error_message": str(e),
+                "raw_response_preview": response.content[:500] if hasattr(response, 'content') else str(response)[:500],
+                "summary": {},
+                "extracted_data": {},
+                "present": False,
+                "confidence": 0.0
+            }
         
         # Extract information
         summary = result.get("Summary", {})

@@ -349,16 +349,34 @@ def parse_conditions(output):
     parsed_conditions = {}
 
     # Loop through each condition and parse its corresponding string
+    from ..utils.json_parser import safe_parse_llm_json, LLMResponseParseError
+    
     for condition, json_string in output.items():
         try:
-            # Convert the JSON-like string to a dictionary using ast.literal_eval
-            parsed_conditions[condition] = ast.literal_eval(json_string)
+            # Convert the JSON-like string to a dictionary using robust JSON parser
+            parsed_conditions[condition] = safe_parse_llm_json(
+                json_string,
+                context=f"topic summarization for {condition}"
+            )
             parsed_conditions[condition] = lowercase_keys(parsed_conditions[condition])
-        except Exception as e:
+        except LLMResponseParseError as e:
             # Log the error and add it to the dictionary
             error_message = f"Error parsing {condition.upper()}: {e}"
             logger.error(error_message)
-            parsed_conditions[condition] = {"Error": error_message, "LLM Response": json_string}
+            parsed_conditions[condition] = {
+                "Error": error_message,
+                "error_type": "parse_error",
+                "LLM Response": json_string[:500]  # Limit response preview
+            }
+        except Exception as e:
+            # Log unexpected errors
+            error_message = f"Unexpected error parsing {condition.upper()}: {e}"
+            logger.error(error_message, exc_info=True)
+            parsed_conditions[condition] = {
+                "Error": error_message,
+                "error_type": "unexpected_error",
+                "LLM Response": json_string[:500]
+            }
 
     return parsed_conditions
 
@@ -596,8 +614,21 @@ def get_T3_results(t3_conditions, vectordb, t3_context, t3_instruction, t3_fewsh
             all_ret_docs = [(doc.metadata['page'], doc.page_content) for doc in ret_docs]
 
         try:
-            llm_result_dict = ast.literal_eval(llm_result)
+            from ..utils.json_parser import safe_parse_llm_json, LLMResponseParseError
+            
+            llm_result_dict = safe_parse_llm_json(
+                llm_result,
+                context=f"topic summarization for {topic}"
+            )
             llm_result_dict = lowercase_keys(llm_result_dict)
+            
+            # Validate required keys
+            if 'presence' not in llm_result_dict or 'pages' not in llm_result_dict:
+                raise LLMResponseParseError(
+                    f"Missing required keys 'presence' or 'pages' in response. "
+                    f"Context: topic summarization for {topic}"
+                )
+            
             decision_string = llm_result_dict['presence']
             pages_string = llm_result_dict['pages']
             # In future we need to create separate bucket for topics like DIF, COD etc. where very specific information is to be extracted as opposed to summarize. We'll call them T2.

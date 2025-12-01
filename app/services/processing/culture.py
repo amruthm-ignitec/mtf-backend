@@ -1,14 +1,18 @@
 import json
 import ast
 import time
+import logging
+from ..utils.json_parser import safe_parse_llm_json, LLMResponseParseError
+from ..utils.llm_wrapper import call_llm_with_retry, LLMCallError
+
+logger = logging.getLogger(__name__)
 
 
 def get_llm_response(llm, role, primary_instruction, donor_info, reminder_instruction):
     '''
-    Provides assessment with OpenAI API call
+    Provides assessment with OpenAI API call using retry logic and error handling.
     '''
-    try:
-        prompt = """{role}
+    prompt = """{role}
     Instruction: {primary_instruction}
 
     Do not extract: Culture results for blood, sputum, urine, stool, bronch
@@ -25,10 +29,20 @@ def get_llm_response(llm, role, primary_instruction, donor_info, reminder_instru
 
     {reminder_instruction} DO NOT return any other character or word (like ``` or 'json') but the required result JSON.
     AI Response: """.format(role=role, primary_instruction=primary_instruction, donor_info=donor_info, reminder_instruction=reminder_instruction)
-        response = llm.invoke(prompt)
+    
+    try:
+        response = call_llm_with_retry(
+            llm=llm,
+            prompt=prompt,
+            max_retries=3,
+            base_delay=1.0,
+            timeout=60,
+            context="culture extraction"
+        )
         return response
-    except Exception as e:
-        return e
+    except LLMCallError as e:
+        logger.error(f"LLM call failed for culture extraction: {e}")
+        raise
     
 
 def get_ms_categories(dc_info, subtissue_map, MS_MO_category_map):
@@ -67,9 +81,21 @@ def get_ms_categories(dc_info, subtissue_map, MS_MO_category_map):
 
             output_dc_info[subtissue] = {'Type': 'MS', 'MO_CAT': list(zip(mo_list, cat_list))}
 
-        elif subtissue in subtissue_map["CARDIAC"]:
+        elif subtissue in subtissue_map.get("CARDIAC", []):
             cat_list = ["NA"] * len(mo_list)
             output_dc_info[subtissue] = {'Type': 'CARDIAC', 'MO_CAT': list(zip(mo_list, cat_list))}
+        
+        elif subtissue in subtissue_map.get("OCULAR", []):
+            cat_list = ["NA"] * len(mo_list)
+            output_dc_info[subtissue] = {'Type': 'OCULAR', 'MO_CAT': list(zip(mo_list, cat_list))}
+        
+        elif subtissue in subtissue_map.get("SKIN", []):
+            cat_list = ["NA"] * len(mo_list)
+            output_dc_info[subtissue] = {'Type': 'SKIN', 'MO_CAT': list(zip(mo_list, cat_list))}
+        
+        elif subtissue in subtissue_map.get("COMPOSITE", []):
+            cat_list = ["NA"] * len(mo_list)
+            output_dc_info[subtissue] = {'Type': 'COMPOSITE', 'MO_CAT': list(zip(mo_list, cat_list))}
 
         else:
             cat_list = ["NA"] * len(mo_list)
@@ -171,12 +197,41 @@ def get_culture_results(llm, vectordb, disease_context, role, basic_instruction,
 
     collated_donor_info = get_collated_donor_info(retrieved_docs_dict[test_name])
     result = get_llm_response(llm, role[test_name], basic_instruction[test_name], collated_donor_info, reminder_instructions[test_name])
+    
     try:
-        final_result = ast.literal_eval(result.content.lower().replace("```", "").replace("json", "").strip())        
+        # Use robust JSON parsing
+        final_result = safe_parse_llm_json(
+            result.content,
+            context=f"culture extraction for {test_name}"
+        )
+        
+        # Validate structure (should be dict with tissue locations as keys)
+        if not isinstance(final_result, dict):
+            raise LLMResponseParseError(
+                f"Expected dictionary but got {type(final_result)}. "
+                f"Context: culture extraction"
+            )
+        
         final_result = remove_species(final_result)
         final_mapped_result = get_ms_categories(final_result, subtissue_map, MS_MO_category_map)
+        
+    except LLMResponseParseError as e:
+        logger.error(f"Failed to parse culture extraction result: {e}")
+        # Store error in structured format instead of string
+        final_mapped_result = {
+            "error": True,
+            "error_type": "parse_error",
+            "error_message": str(e),
+            "raw_response_preview": result.content[:500] if hasattr(result, 'content') else str(result)[:500]
+        }
     except Exception as e:
-        final_mapped_result = f"{e}\n------------\n{result}"
+        logger.error(f"Unexpected error in culture extraction: {e}", exc_info=True)
+        final_mapped_result = {
+            "error": True,
+            "error_type": "unexpected_error",
+            "error_message": str(e),
+            "raw_response_preview": result.content[:500] if hasattr(result, 'content') else str(result)[:500]
+        }
  
     output.append((final_mapped_result))
     

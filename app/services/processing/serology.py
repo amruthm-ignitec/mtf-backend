@@ -1,15 +1,19 @@
 import json
 import ast
 import time
+import logging
 
 from .culture import get_culture_results
+from ..utils.json_parser import safe_parse_llm_json, LLMResponseParseError
+from ..utils.llm_wrapper import call_llm_with_retry, LLMCallError
+
+logger = logging.getLogger(__name__)
 
 def get_llm_response_sero(llm, role, primary_instruction, donor_info, reminder_instructions):
     '''
-    Provides assessment with OpenAI API call
+    Provides assessment with OpenAI API call using retry logic and error handling.
     '''
-    try:
-        prompt = """{role}
+    prompt = """{role}
         Instruction: {primary_instruction}
 
         Key Tips:
@@ -35,16 +39,27 @@ def get_llm_response_sero(llm, role, primary_instruction, donor_info, reminder_i
 
         {reminder_instructions} DO NOT return any other character or word (like ``` or 'json') but the required result JSON.
         AI Response: """.format(role=role, primary_instruction=primary_instruction, donor_info=donor_info, reminder_instructions=reminder_instructions)
-        response = llm.invoke(prompt)
-        # print(response)
+    
+    try:
+        response = call_llm_with_retry(
+            llm=llm,
+            prompt=prompt,
+            max_retries=3,
+            base_delay=1.0,
+            timeout=60,
+            context="serology extraction"
+        )
         return response
-    except Exception as e:
-        return e
+    except LLMCallError as e:
+        logger.error(f"LLM call failed for serology extraction: {e}")
+        raise
 
 
 def reranking_serology(llm, retrieved_text_chunks):
-    try:
-        prompt = """You are provided with donor information that contain information about disease lab tests and its corresponding results from a donor chart. Your task is to carefully read the donor information and check whether the information is relevant to disease lab serology tests (e.g., SARS-CoV-2 Panther, GEL BLOOD TYPE B Rh, ABO/Rh, CMV Antibody, HIV 1&2/HCV/HBV NAT, Hepatitis B Core Total Ab,  etc.,) and its results (e.g., Positive, Negative, Non-Reactive, Reactive, Equivocal, Complete, O Positive etc.) related or not.
+    """
+    Rerank serology chunks for relevance using LLM with retry logic.
+    """
+    prompt = """You are provided with donor information that contain information about disease lab tests and its corresponding results from a donor chart. Your task is to carefully read the donor information and check whether the information is relevant to disease lab serology tests (e.g., SARS-CoV-2 Panther, GEL BLOOD TYPE B Rh, ABO/Rh, CMV Antibody, HIV 1&2/HCV/HBV NAT, Hepatitis B Core Total Ab,  etc.,) and its results (e.g., Positive, Negative, Non-Reactive, Reactive, Equivocal, Complete, O Positive etc.) related or not.
 
         If there are irrelevant donor information, say "NOT RELEVENT" and If there are relevant donor information say "RELEVANT".
 
@@ -64,11 +79,20 @@ def reranking_serology(llm, retrieved_text_chunks):
 
         Donor Information: {retrieved_text_chunks}
         AI response: """.format(retrieved_text_chunks=retrieved_text_chunks)
-        response = llm.invoke(prompt)
-        # print(response)
+    
+    try:
+        response = call_llm_with_retry(
+            llm=llm,
+            prompt=prompt,
+            max_retries=3,
+            base_delay=1.0,
+            timeout=30,  # Shorter timeout for reranking
+            context="serology reranking"
+        )
         return response
-    except Exception as e:
-        return e
+    except LLMCallError as e:
+        logger.error(f"LLM call failed for serology reranking: {e}")
+        raise
 
 
 def get_relevant_chunks(retrieved_text_chunks, extracted_results):
@@ -195,9 +219,37 @@ def get_serology_results(llm, vectordb, disease_context, role, basic_instruction
         # Pass individual chunk to LLM
         result = get_llm_response_sero(llm, role[test_name], basic_instruction[test_name], chunk, reminder_instructions[test_name])
         try:
-            llm_result = ast.literal_eval(result.content.lower().replace("```", "").replace("json", "").strip())
+            # Use robust JSON parsing
+            llm_result = safe_parse_llm_json(
+                result.content,
+                context=f"serology extraction for {test_name} (page {page_info})"
+            )
+            
+            # Validate structure (should be dict with test names as keys)
+            if not isinstance(llm_result, dict):
+                raise LLMResponseParseError(
+                    f"Expected dictionary but got {type(llm_result)}. "
+                    f"Context: serology extraction"
+                )
+            
+        except LLMResponseParseError as e:
+            logger.error(f"Failed to parse serology extraction result: {e}")
+            # Store error in structured format
+            llm_result = {
+                "error": True,
+                "error_type": "parse_error",
+                "error_message": str(e),
+                "raw_response_preview": result.content[:500] if hasattr(result, 'content') else str(result)[:500]
+            }
         except Exception as e:
-            llm_result = f"{e}\n------------\n{result}"
+            logger.error(f"Unexpected error in serology extraction: {e}", exc_info=True)
+            llm_result = {
+                "error": True,
+                "error_type": "unexpected_error",
+                "error_message": str(e),
+                "raw_response_preview": result.content[:500] if hasattr(result, 'content') else str(result)[:500]
+            }
+        
         llm_results.append((page_info, llm_result))
 
     sorted_results = sorted(llm_results, key=lambda x: int(x[0].replace('page:', '').strip()))
