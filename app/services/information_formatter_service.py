@@ -3,6 +3,7 @@ Service for formatting recovery and terminal information from extraction data.
 """
 import logging
 from typing import Dict, Any, Optional
+from app.services.value_standardization import ValueStandardization
 
 logger = logging.getLogger(__name__)
 
@@ -47,15 +48,34 @@ class InformationFormatterService:
             else:
                 recovery_info["recovery_window"] = "24 hours"  # Default
             
-            # Location - try to extract from various sources
+            # Location - extract from tissue recovery
             if tissue_recovery:
                 extracted = tissue_recovery.get("extracted_data", {})
-                # Look for location in extracted data
-                for key, value in extracted.items():
-                    if "location" in key.lower() or "hospital" in key.lower() or "facility" in key.lower():
-                        if value:
-                            recovery_info["location"] = str(value)
-                            break
+                summary = tissue_recovery.get("summary", {})
+                
+                # Check for Recovery_Location in extracted_data
+                recovery_location = extracted.get("Recovery_Location", {})
+                if isinstance(recovery_location, dict):
+                    recovery_info["location"] = (
+                        recovery_location.get("facility_name") or 
+                        recovery_location.get("hospital_name") or
+                        recovery_location.get("recovery_site") or
+                        recovery_location.get("facility_address")
+                    )
+                
+                # Check summary if not found
+                if not recovery_info["location"] and isinstance(summary, dict):
+                    location_summary = summary.get("Recovery Location", "")
+                    if location_summary:
+                        recovery_info["location"] = location_summary
+                
+                # Fallback: search for location keywords in extracted_data
+                if not recovery_info["location"]:
+                    for key, value in extracted.items():
+                        if "location" in key.lower() or "hospital" in key.lower() or "facility" in key.lower():
+                            if value:
+                                recovery_info["location"] = str(value)
+                                break
             
             # If not found, check medical records
             if not recovery_info["location"]:
@@ -148,36 +168,66 @@ class InformationFormatterService:
                 classifier = sepsis_topic.get("classifier", {})
                 category = classifier.get("category", "").lower() if isinstance(classifier, dict) else ""
                 
-                if decision == "positive" or category == "positive":
-                    terminal_info["sepsis"] = "Present"
-                elif decision == "negative" or category == "negative":
-                    terminal_info["sepsis"] = "None"
-                else:
-                    terminal_info["sepsis"] = "Unknown"
+                # Use standardized value conversion
+                decision_str = decision if decision else category
+                terminal_info["sepsis"] = ValueStandardization.standardize_present_status(decision_str)
+                
+                # If still unknown, check if it's explicitly negative
+                if terminal_info["sepsis"] == "Unknown":
+                    if decision == "negative" or category == "negative":
+                        terminal_info["sepsis"] = "None"
             else:
                 terminal_info["sepsis"] = "None"
             
-            # Hypotension - check medical records
-            medical_records = extracted_data.get("medical_records", {})
-            if medical_records:
-                extracted = medical_records.get("extracted_data", {})
-                admission_diagnoses = extracted.get("Admission_Diagnoses", [])
+            # Hypotension - from topics (preferred) or medical records (fallback)
+            if topics and "Hypotension" in topics:
+                hypotension_topic = topics["Hypotension"]
+                summary = hypotension_topic.get("summary", {})
+                decision = hypotension_topic.get("decision", "").lower()
+                classifier = hypotension_topic.get("classifier", {})
+                category = classifier.get("category", "").lower() if isinstance(classifier, dict) else ""
                 
-                if isinstance(admission_diagnoses, list):
-                    if any("hypotension" in str(diag).lower() for diag in admission_diagnoses):
-                        terminal_info["hypotension"] = "Present"
-                    else:
+                # Use standardized value conversion
+                decision_str = decision if decision else category
+                terminal_info["hypotension"] = ValueStandardization.standardize_present_status(decision_str)
+                
+                # If still unknown, check if it's explicitly negative
+                if terminal_info["hypotension"] == "Unknown":
+                    if decision == "negative" or category == "negative":
                         terminal_info["hypotension"] = "None"
-                else:
-                    # Check summary
-                    summary = medical_records.get("summary", {})
-                    if isinstance(summary, dict):
-                        admission = summary.get("Admission Information", "")
-                        if isinstance(admission, str):
-                            if "hypotension" in admission.lower():
+            else:
+                # Fallback: check medical records
+                medical_records = extracted_data.get("medical_records", {})
+                if medical_records:
+                    extracted = medical_records.get("extracted_data", {})
+                    
+                    # Check for hypotension_status in Vital Signs
+                    vital_signs = extracted.get("Vital_Signs", {})
+                    if isinstance(vital_signs, dict):
+                        hypotension_status = vital_signs.get("hypotension_status", "")
+                        if hypotension_status:
+                            terminal_info["hypotension"] = ValueStandardization.standardize_present_status(
+                                str(hypotension_status)
+                            )
+                    
+                    # Fallback: search in admission diagnoses
+                    if not terminal_info["hypotension"]:
+                        admission_diagnoses = extracted.get("Admission_Diagnoses", [])
+                        if isinstance(admission_diagnoses, list):
+                            if any("hypotension" in str(diag).lower() for diag in admission_diagnoses):
                                 terminal_info["hypotension"] = "Present"
                             else:
                                 terminal_info["hypotension"] = "None"
+                        else:
+                            # Check summary
+                            summary = medical_records.get("summary", {})
+                            if isinstance(summary, dict):
+                                admission = summary.get("Admission Information", "")
+                                if isinstance(admission, str):
+                                    if "hypotension" in admission.lower():
+                                        terminal_info["hypotension"] = "Present"
+                                    else:
+                                        terminal_info["hypotension"] = "None"
             
             if not terminal_info["hypotension"]:
                 terminal_info["hypotension"] = "None"  # Default
