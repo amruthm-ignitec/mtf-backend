@@ -58,12 +58,13 @@
     "Tissue Recovery Information": {
       "keywords": ["tissue recovery", "tissue recovery information", "recovery details", "tissue procurement"],
       "description": "Information about the tissue recovery process",
-      "extraction_prompt": "Extract all information about tissue recovery including tissues recovered, recovery procedures, timing, and any special handling requirements.",
+      "extraction_prompt": "Extract all information about tissue recovery including tissues recovered, recovery procedures, timing, special handling requirements, and recovery location details.",
       "sections": {
         "Tissues Recovered": "List of tissues that were recovered",
         "Recovery Procedures": "Procedures used during recovery",
         "Timing": "Time and duration of recovery",
-        "Special Handling": "Any special handling or storage requirements"
+        "Special Handling": "Any special handling or storage requirements",
+        "Recovery Location": "Location where recovery occurred including: facility_name (name of facility), facility_address (address), hospital_name (hospital name if applicable), recovery_site (specific recovery site)"
       }
     },
     "Plasma Dilution": {
@@ -91,24 +92,26 @@
     "Infectious Disease Testing": {
       "keywords": ["infectious disease testing", "disease testing", "infectious disease", "disease test results"],
       "description": "Results from infectious disease testing performed on the donor",
-      "extraction_prompt": "Extract all infectious disease test results including test names, dates, results, and any relevant laboratory information.",
+      "extraction_prompt": "Extract all infectious disease test results including test names, dates, results, laboratory information, and sample information. For each test, extract the test name, result, specimen date/time, specimen type, test method, and any comments. Also extract detailed laboratory information including laboratory name, address, phone, fax, FDA number, CLIA number, category, ASHI certification, and client information. Extract sample information including sample date, sample time, sample type, and report generation date.",
       "sections": {
-        "Test Results": "Individual test results with names and outcomes",
+        "Test Results": "Individual test results with names and outcomes. For each test, extract: Test_Result (or Test Result), Specimen_Date_Time (or Specimen Date-Time), Specimen_Type (or Specimen Type), Test_Method (or Test Method), and Comments (or Comment)",
         "Test Dates": "Dates when tests were performed",
-        "Laboratory Information": "Laboratory that performed the tests",
+        "Laboratory Information": "Detailed laboratory information including: testing_laboratory (laboratory name), laboratory_address (address), phone (phone number), fax (fax number), fda (FDA registration number), clia (CLIA certification number), category (laboratory category), ashi (ASHI certification if applicable), client (client name or identifier)",
+        "Sample Information": "Sample collection information including: sample_date (date when sample was collected), sample_time (time when sample was collected), sample_type_1 and sample_type_2 (types of samples collected), report_generated (date when report was generated)",
         "Additional Notes": "Any additional notes or comments about the tests"
       }
     },
     "Medical Records": {
       "keywords": ["medical records", "hospital records", "clinical records", "patient records"],
       "description": "Complete medical records from hospitals or healthcare facilities",
-      "extraction_prompt": "Extract comprehensive information from medical records including admission notes, discharge summaries, progress notes, laboratory results, imaging reports, and any other clinical documentation.",
+      "extraction_prompt": "Extract comprehensive information from medical records including admission notes, discharge summaries, progress notes, laboratory results, imaging reports, vital signs, and any other clinical documentation. Pay special attention to blood pressure readings and hypotension status.",
       "sections": {
-        "Admission Information": "Admission notes and initial assessments",
+        "Admission Information": "Admission notes and initial assessments including admission diagnoses (Admission_Diagnoses)",
         "Progress Notes": "Daily or periodic progress notes",
-        "Laboratory Results": "Laboratory test results",
+        "Laboratory Results": "Laboratory test results (Laboratory_Results) including WBC, Hemoglobin, Platelets, Creatinine, and other lab values",
         "Imaging Reports": "Radiology and imaging reports",
-        "Discharge Summary": "Discharge summary and final diagnoses"
+        "Discharge Summary": "Discharge summary and final diagnoses",
+        "Vital Signs": "Vital signs including blood pressure readings. Extract hypotension_status (Yes/No/Present/None) if hypotension is mentioned or if blood pressure readings indicate hypotension (systolic < 90 mmHg)"
       }
     }
   },
