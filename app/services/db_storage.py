@@ -34,27 +34,54 @@ class DBStorageService:
         try:
             count = 0
             # Culture data structure: {"result": [...], "citations": [...]}
-            # Each result item contains tissue location and microorganisms
+            # Can contain either:
+            # 1. Old format: [{tissue_location: [microorganisms]}, ...] for tissue cultures
+            # 2. New format: [{test_name, test_method, specimen_type, specimen_date, result, comments}, ...] for all culture types
             if isinstance(culture_data, dict) and 'result' in culture_data:
                 results = culture_data.get('result', [])
                 logger.info(f"Processing {len(results)} culture result items for document {document_id}")
                 
                 for result_item in results:
                     if isinstance(result_item, dict):
-                        # Extract tissue location and microorganisms
-                        for tissue_location, microorganisms in result_item.items():
-                            if isinstance(microorganisms, list):
-                                for microorganism in microorganisms:
-                                    if microorganism:  # Skip empty strings
-                                        culture_result = CultureResult(
-                                            document_id=document_id,
-                                            tissue_location=tissue_location,
-                                            microorganism=microorganism,
-                                            source_page=None,  # Can be extracted from citations if available
-                                            confidence=None
-                                        )
-                                        db.add(culture_result)
-                                        count += 1
+                        # Check if it's new format (has test_name or result field)
+                        if 'test_name' in result_item or 'result' in result_item:
+                            # New format: test_name, test_method, specimen_type, etc.
+                            culture_result = CultureResult(
+                                document_id=document_id,
+                                test_name=result_item.get('test_name'),
+                                test_method=result_item.get('test_method'),
+                                specimen_type=result_item.get('specimen_type'),
+                                specimen_date=result_item.get('specimen_date'),
+                                result=result_item.get('result'),
+                                comments=result_item.get('comments'),
+                                tissue_location=None,
+                                microorganism=None,
+                                source_page=None,  # Can be extracted from citations if available
+                                confidence=None
+                            )
+                            db.add(culture_result)
+                            count += 1
+                        else:
+                            # Old format: tissue_location and microorganisms
+                            for tissue_location, microorganisms in result_item.items():
+                                if isinstance(microorganisms, list):
+                                    for microorganism in microorganisms:
+                                        if microorganism:  # Skip empty strings
+                                            culture_result = CultureResult(
+                                                document_id=document_id,
+                                                tissue_location=tissue_location,
+                                                microorganism=microorganism,
+                                                test_name=None,
+                                                test_method=None,
+                                                specimen_type=None,
+                                                specimen_date=None,
+                                                result=None,
+                                                comments=None,
+                                                source_page=None,  # Can be extracted from citations if available
+                                                confidence=None
+                                            )
+                                            db.add(culture_result)
+                                            count += 1
             else:
                 logger.warning(f"Invalid culture_data format for document {document_id}: {type(culture_data)}. Expected dict with 'result' key.")
                 if isinstance(culture_data, dict):

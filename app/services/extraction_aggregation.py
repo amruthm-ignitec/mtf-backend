@@ -251,6 +251,143 @@ class ExtractionAggregationService:
                             # Sort by document_id, then page
                             unique_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)) if isinstance(x, dict) else (0, 0))
                             merged_serology["citations"] = unique_citations
+                
+                # Extract culture results from infectious_disease_testing component if culture_results table is empty
+                if component_key == "infectious_disease_testing" and component_info.get("present"):
+                    component_extracted_data = component_info.get("extracted_data", {})
+                    if component_extracted_data:
+                        # Check if we have culture results in the component data
+                        # Look for Test_Result, Test_Method, Specimen_Type, Specimen_Date_Time patterns
+                        culture_from_component = []
+                        citations_from_component = component_info.get("pages", [])
+                        
+                        # Culture test patterns
+                        culture_test_patterns = [
+                            "test_result", "test_method", "specimen_type", "specimen_date",
+                            "blood.*culture", "urine.*culture", "sputum.*culture", "stool.*culture"
+                        ]
+                        
+                        # Look for test result objects (Test_Result, Test_Result_1, etc.)
+                        test_result_keys = [key for key in component_extracted_data.keys() 
+                                          if key.lower().startswith('test_result') and component_extracted_data[key]]
+                        
+                        for test_key in test_result_keys:
+                            # Get the test result value
+                            test_result = component_extracted_data.get(test_key)
+                            if not test_result:
+                                continue
+                            
+                            # Extract related fields
+                            # Try to find corresponding Test_Method, Specimen_Type, Specimen_Date_Time
+                            key_index = test_key.replace('Test_Result', '').replace('test_result', '').strip('_')
+                            method_key = f"Test_Method{key_index}" if key_index else "Test_Method"
+                            specimen_type_key = f"Specimen_Type{key_index}" if key_index else "Specimen_Type"
+                            specimen_date_key = f"Specimen_Date_Time{key_index}" if key_index else "Specimen_Date_Time"
+                            comments_key = f"Comments{key_index}" if key_index else "Comments"
+                            
+                            # Also try with underscores and spaces
+                            method_key_alt = method_key.replace('_', ' ') if '_' in method_key else method_key.replace(' ', '_')
+                            specimen_type_key_alt = specimen_type_key.replace('_', ' ') if '_' in specimen_type_key else specimen_type_key.replace(' ', '_')
+                            specimen_date_key_alt = specimen_date_key.replace('_', ' ') if '_' in specimen_date_key else specimen_date_key.replace(' ', '_')
+                            comments_key_alt = comments_key.replace('_', ' ') if '_' in comments_key else comments_key.replace(' ', '_')
+                            
+                            test_method = (component_extracted_data.get(method_key) or 
+                                         component_extracted_data.get(method_key_alt) or 
+                                         component_extracted_data.get(f"Test Method{key_index}" if key_index else "Test Method") or
+                                         "")
+                            specimen_type = (component_extracted_data.get(specimen_type_key) or 
+                                           component_extracted_data.get(specimen_type_key_alt) or
+                                           component_extracted_data.get(f"Specimen Type{key_index}" if key_index else "Specimen Type") or
+                                           "")
+                            specimen_date = (component_extracted_data.get(specimen_date_key) or 
+                                           component_extracted_data.get(specimen_date_key_alt) or
+                                           component_extracted_data.get(f"Specimen Date-Time{key_index}" if key_index else "Specimen Date-Time") or
+                                           component_extracted_data.get(f"Specimen Date{key_index}" if key_index else "Specimen Date") or
+                                           "")
+                            comments = (component_extracted_data.get(comments_key) or 
+                                      component_extracted_data.get(comments_key_alt) or
+                                      component_extracted_data.get(f"Comment{key_index}" if key_index else "Comment") or
+                                      "")
+                            
+                            # Determine test name from specimen type or method
+                            test_name = ""
+                            if specimen_type:
+                                if "blood" in specimen_type.lower():
+                                    test_name = "Blood Culture"
+                                elif "urine" in specimen_type.lower():
+                                    test_name = "Urine Culture"
+                                elif "sputum" in specimen_type.lower():
+                                    test_name = "Sputum Culture"
+                                elif "stool" in specimen_type.lower():
+                                    test_name = "Stool Culture"
+                                else:
+                                    test_name = f"{specimen_type} Culture" if specimen_type else "Culture"
+                            elif test_method:
+                                test_name = test_method if "culture" in test_method.lower() else f"{test_method} Culture"
+                            else:
+                                test_name = "Culture"
+                            
+                            culture_from_component.append({
+                                "test_name": test_name,
+                                "test_method": str(test_method) if test_method else None,
+                                "specimen_type": str(specimen_type) if specimen_type else None,
+                                "specimen_date": str(specimen_date) if specimen_date else None,
+                                "result": str(test_result),
+                                "comments": str(comments) if comments else None
+                            })
+                        
+                        # If we found culture results in component and don't have any from database, use component data
+                        if culture_from_component and not merged_culture.get("result"):
+                            logger.info(f"Extracted {len(culture_from_component)} culture results from infectious_disease_testing component for donor {donor_id}")
+                            # Merge citations properly
+                            all_citations = merged_culture.get("citations", []) + citations_from_component
+                            unique_citations = []
+                            seen = set()
+                            for citation in all_citations:
+                                if isinstance(citation, dict) and "document_id" in citation and "page" in citation:
+                                    key = (citation["document_id"], citation["page"])
+                                    if key not in seen:
+                                        seen.add(key)
+                                        unique_citations.append(citation)
+                                else:
+                                    if citation not in seen:
+                                        seen.add(citation)
+                                        unique_citations.append(citation)
+                            # Sort by document_id, then page
+                            unique_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)) if isinstance(x, dict) else (0, 0))
+                            
+                            # Merge with existing (empty) culture results
+                            merged_culture = {
+                                "result": culture_from_component,
+                                "citations": unique_citations
+                            }
+                        elif culture_from_component and merged_culture.get("result"):
+                            # Merge component data with database results
+                            existing_results = merged_culture.get("result", [])
+                            # Add new results that don't already exist
+                            existing_test_names = {r.get("test_name") for r in existing_results if isinstance(r, dict) and r.get("test_name")}
+                            for culture_item in culture_from_component:
+                                if culture_item.get("test_name") not in existing_test_names:
+                                    existing_results.append(culture_item)
+                            merged_culture["result"] = existing_results
+                            
+                            # Merge citations properly
+                            all_citations = merged_culture.get("citations", []) + citations_from_component
+                            unique_citations = []
+                            seen = set()
+                            for citation in all_citations:
+                                if isinstance(citation, dict) and "document_id" in citation and "page" in citation:
+                                    key = (citation["document_id"], citation["page"])
+                                    if key not in seen:
+                                        seen.add(key)
+                                        unique_citations.append(citation)
+                                else:
+                                    if citation not in seen:
+                                        seen.add(citation)
+                                        unique_citations.append(citation)
+                            # Sort by document_id, then page
+                            unique_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)) if isinstance(x, dict) else (0, 0))
+                            merged_culture["citations"] = unique_citations
             
             # Add culture and serology results to extraction data
             # Always include them, even if empty, so frontend knows the structure

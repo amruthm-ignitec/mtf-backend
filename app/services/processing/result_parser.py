@@ -36,13 +36,34 @@ class ResultParser:
             formatted_results = []
             citations = []
             for result in results:
-                formatted_results.append({
-                    "tissue_location": result.tissue_location,
-                    "microorganism": result.microorganism,
-                    "source_page": result.source_page,
-                    "confidence": result.confidence,
-                    "document_id": result.document_id
-                })
+                # Check if it's new format (has test_name or result) or old format (tissue_location + microorganism)
+                if result.test_name or result.result:
+                    # New format: similar to serology
+                    culture_item = {
+                        "test_name": result.test_name,
+                        "result": result.result,
+                        "document_id": result.document_id
+                    }
+                    # Add optional fields if they exist
+                    if result.test_method:
+                        culture_item["test_method"] = result.test_method
+                    if result.specimen_type:
+                        culture_item["specimen_type"] = result.specimen_type
+                    if result.specimen_date:
+                        culture_item["specimen_date"] = result.specimen_date
+                    if result.comments:
+                        culture_item["comments"] = result.comments
+                    formatted_results.append(culture_item)
+                else:
+                    # Old format: tissue_location + microorganism
+                    formatted_results.append({
+                        "tissue_location": result.tissue_location,
+                        "microorganism": result.microorganism,
+                        "source_page": result.source_page,
+                        "confidence": result.confidence,
+                        "document_id": result.document_id
+                    })
+                
                 # Build citations with document_id
                 if result.source_page:
                     citations.append({
@@ -89,7 +110,15 @@ class ResultParser:
             formatted_results = {}
             citations = []
             for result in results:
-                formatted_results[result.test_name] = result.result
+                # Include method if available
+                if result.test_method:
+                    formatted_results[result.test_name] = {
+                        "result": result.result,
+                        "method": result.test_method
+                    }
+                else:
+                    # Legacy format: just result string for backward compatibility
+                    formatted_results[result.test_name] = result.result
                 # Build citations with document_id
                 if result.source_page:
                     citations.append({
