@@ -27,8 +27,17 @@ class CriticalFindingsService:
     # Critical topic conditions
     CRITICAL_TOPIC_CONDITIONS = ['HIV', 'Hepatitis']
     
-    # Reactive/Positive result patterns
+    # Reactive/Positive result patterns (must be standalone or clearly positive)
     POSITIVE_PATTERNS = ['reactive', 'positive', 'detected', 'confirmed']
+    
+    # Negative result patterns (exclude these - check these first)
+    # Order matters: more specific patterns first to avoid false matches
+    NEGATIVE_PATTERNS = [
+        'non-reactive', 'nonreactive', 'non reactive',
+        'negative', 'neg', 
+        'not detected', 'not reactive', 'no reaction',
+        'not positive', 'not confirmed'
+    ]
     
     @staticmethod
     def detect_critical_findings(donor_id: int, db: Session) -> List[Dict[str, Any]]:
@@ -67,7 +76,14 @@ class CriticalFindingsService:
                     # Check if this is a critical test and if result is positive/reactive
                     for critical_type, test_keywords in CriticalFindingsService.CRITICAL_SEROLOGY_TESTS.items():
                         if any(keyword in test_name_lower for keyword in test_keywords):
-                            if any(pattern in result_lower for pattern in CriticalFindingsService.POSITIVE_PATTERNS):
+                            # First check if result contains negative patterns - if so, skip (don't add to critical findings)
+                            # This ensures "Non-Reactive", "Negative", etc. are excluded even if they contain "reactive" as substring
+                            is_negative = any(pattern in result_lower for pattern in CriticalFindingsService.NEGATIVE_PATTERNS)
+                            
+                            # Only add to critical findings if:
+                            # 1. Result is NOT negative (e.g., not "Non-Reactive", "Negative", etc.)
+                            # 2. Result contains positive/reactive patterns (e.g., "Reactive", "Positive", "Detected")
+                            if not is_negative and any(pattern in result_lower for pattern in CriticalFindingsService.POSITIVE_PATTERNS):
                                 critical_findings.append({
                                     "type": critical_type,
                                     "severity": "CRITICAL",

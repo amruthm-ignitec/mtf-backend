@@ -233,12 +233,40 @@ def get_culture_results(llm, vectordb, disease_context, role, basic_instruction,
             "raw_response_preview": result.content[:500] if hasattr(result, 'content') else str(result)[:500]
         }
  
-    output.append((final_mapped_result))
+    # Convert final_mapped_result to the format expected by store_culture_results
+    # Format: {"result": [{tissue_location: [microorganisms]}, ...], "citations": [{"page": page_num}, ...]}
+    result_list = []
     
-    disease_level_res[test_name] = {"result": output, "citations": citations
-    }
-    output[0]['Citations'] = citations
-    final_mapped_result1 = output[0]
-
-    return result.content, final_mapped_result1
+    # Convert citations from list of integers to list of dicts (consistent with serology format)
+    formatted_citations = []
+    if citations:
+        seen_pages = set()
+        for page_num in citations:
+            if isinstance(page_num, int) and page_num not in seen_pages:
+                seen_pages.add(page_num)
+                formatted_citations.append({"page": page_num})
+    
+    # Skip if there's an error
+    if not isinstance(final_mapped_result, dict) or final_mapped_result.get("error"):
+        # Return empty structure with citations if error
+        culture_data = {
+            "result": [],
+            "citations": formatted_citations
+        }
+        logger.warning(f"Culture extraction error: {final_mapped_result.get('error_message', 'Unknown error')}")
+    else:
+        # Convert dict format {tissue_location: [microorganisms]} to list format [{tissue_location: [microorganisms]}, ...]
+        for tissue_location, microorganisms in final_mapped_result.items():
+            # Skip Citations key if present
+            if tissue_location != 'Citations' and tissue_location != 'citations':
+                result_list.append({tissue_location: microorganisms})
+        
+        culture_data = {
+            "result": result_list,
+            "citations": formatted_citations
+        }
+    
+    logger.info(f"Extracted {len(result_list)} culture tissue locations with microorganisms from {len(formatted_citations)} pages")
+    
+    return result.content, culture_data
   

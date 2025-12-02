@@ -186,12 +186,18 @@ class ExtractionAggregationService:
                             "anti-hbc", "anti-hcv", "anti-hiv", "pcr", "antigen", "antibody"
                         ]
                         
+                        # Import parsing function from serology module
+                        from app.services.processing.serology import parse_test_name_and_method
+                        
                         for key, value in component_extracted_data.items():
                             if value:  # Skip empty values
                                 key_lower = key.lower()
                                 # Check if key looks like a serology test name
                                 if any(pattern in key_lower for pattern in serology_test_patterns):
-                                    serology_from_component[key] = str(value)
+                                    # Parse test name to extract clean name and method
+                                    clean_test_name, test_method = parse_test_name_and_method(key)
+                                    # Store with clean test name (method is stored separately in DB, but for component extraction we just use clean name)
+                                    serology_from_component[clean_test_name] = str(value)
                         
                         # If we found serology results in component and don't have any from database, use component data
                         if serology_from_component and not merged_serology.get("result"):

@@ -9,6 +9,91 @@ from .utils.llm_wrapper import call_llm_with_retry, LLMCallError
 
 logger = logging.getLogger(__name__)
 
+
+def parse_test_name_and_method(full_test_name: str):
+    """
+    Parse a full test name to extract the test name and method separately.
+    
+    Args:
+        full_test_name: Full test name as extracted (e.g., "HCV II Antibody Abbott Alinity s CMIA")
+        
+    Returns:
+        Tuple of (test_name, test_method) where:
+        - test_name: Cleaned test name without method (e.g., "HCV II Antibody")
+        - test_method: Method/manufacturer name if found (e.g., "Abbott Alinity s CMIA")
+    """
+    if not full_test_name:
+        return full_test_name, ""
+    
+    # Common manufacturer patterns (order matters - more specific first)
+    manufacturer_patterns = [
+        # Specific combinations
+        (r'\s+(Grifols\s+Procleix\s+Ultrio\s+Elite\s+Assay\s+NAT)\s*$', 'Grifols Procleix Ultrio Elite Assay NAT'),
+        (r'\s+(Abbott\s+Alinity\s+s\s+CMIA)\s*$', 'Abbott Alinity s CMIA'),
+        (r'\s+(Abbott\s+Alinity\s+CMIA)\s*$', 'Abbott Alinity CMIA'),
+        (r'\s+(DiaSorin\s+Liaison\s+CMV\s+IgG\s+CLIA)\s*$', 'DiaSorin Liaison CMV IgG CLIA'),
+        (r'\s+(DiaSorin\s+Liaison\s+EBV\s+IgM\s+CLIA)\s*$', 'DiaSorin Liaison EBV IgM CLIA'),
+        (r'\s+(DiaSorin\s+Liaison\s+VCA\s+IgG\s+CLIA)\s*$', 'DiaSorin Liaison VCA IgG CLIA'),
+        (r'\s+(DiaSorin\s+Liaison\s+Toxo\s+IgG\s+II\s+CLIA)\s*$', 'DiaSorin Liaison Toxo IgG II CLIA'),
+        (r'\s+(Trinity\s+Biotech\s+CAPTIA\s+Syphilis-G)\s*$', 'Trinity Biotech CAPTIA Syphilis-G'),
+        (r'\s+(DiaSorin\s+Liaison)\s+', 'DiaSorin Liaison'),
+        (r'\s+(Trinity\s+Biotech)\s+', 'Trinity Biotech'),
+        (r'\s+(Abbott\s+Alinity)\s+', 'Abbott Alinity'),
+        (r'\s+(Grifols\s+Procleix)\s+', 'Grifols Procleix'),
+        (r'\s+(Roche)\s+', 'Roche'),
+        (r'\s+(Siemens)\s+', 'Siemens'),
+        (r'\s+(Bio-Rad)\s+', 'Bio-Rad'),
+        (r'\s+(Ortho)\s+', 'Ortho'),
+    ]
+    
+    # Method type patterns
+    method_patterns = [
+        (r'\s+(CMIA)\s*$', 'CMIA'),
+        (r'\s+(CLIA)\s*$', 'CLIA'),
+        (r'\s+(ELISA)\s*$', 'ELISA'),
+        (r'\s+(EIA)\s*$', 'EIA'),
+        (r'\s+(NAT)\s*$', 'NAT'),
+        (r'\s+(PCR)\s*$', 'PCR'),
+        (r'\s+(CAPTIA)\s*$', 'CAPTIA'),
+        (r'\s+(Assay)\s*$', 'Assay'),
+    ]
+    
+    import re
+    test_name = full_test_name
+    method_parts = []
+    
+    # Extract manufacturer patterns
+    for pattern, method_name in manufacturer_patterns:
+        match = re.search(pattern, test_name, re.IGNORECASE)
+        if match:
+            method_parts.append(method_name)
+            test_name = re.sub(pattern, ' ', test_name, flags=re.IGNORECASE)
+            break  # Only match one manufacturer
+    
+    # Extract method type patterns (if not already captured)
+    for pattern, method_name in method_patterns:
+        match = re.search(pattern, test_name, re.IGNORECASE)
+        if match and method_name not in ' '.join(method_parts):
+            method_parts.append(method_name)
+            test_name = re.sub(pattern, ' ', test_name, flags=re.IGNORECASE)
+    
+    # Clean up test name
+    test_name = re.sub(r'\s+', ' ', test_name).strip()
+    
+    # Handle duplicate test names (e.g., "CMV IgG DiaSorin Liaison CMV IgG CLIA")
+    words = test_name.split()
+    if len(words) > 4:
+        # Check if first part matches later part
+        first_part = ' '.join(words[:min(4, len(words)//2)]).lower()
+        second_part = ' '.join(words[len(words)//2:]).lower()
+        if first_part in second_part and len(first_part) > 5:
+            test_name = ' '.join(words[:min(4, len(words)//2)])
+    
+    # Combine method parts
+    test_method = ' '.join(method_parts).strip() if method_parts else ""
+    
+    return test_name or full_test_name, test_method
+
 def get_llm_response_sero(llm, role, primary_instruction, donor_info, reminder_instructions):
     '''
     Provides assessment with OpenAI API call using retry logic and error handling.
@@ -293,19 +378,35 @@ def get_serology_results(llm, vectordb, disease_context, role, basic_instruction
             
         final_results.append((new_test_name, result, page))
 
-    # Convert to proper format for storage: {"result": {test_name: result}, "citations": [...]}
+    # Convert to proper format for storage: {"result": {test_name: {"result": result, "method": method}}, "citations": [...]}
     result_dict = {}
     citations = []
     
-    for test_name, result, page in final_results:
+    for full_test_name, result, page in final_results:
+        # Parse test name to extract clean name and method
+        test_name, test_method = parse_test_name_and_method(full_test_name)
+        
         # Extract page number from page string (format: "page: X")
         try:
             page_num = int(page.split(":")[1].strip()) if ":" in page else int(page.replace("page:", "").strip())
         except (ValueError, IndexError):
             page_num = None
         
-        # Store result (just the result string, not the tuple)
-        result_dict[test_name] = result
+        # Store result with method information
+        # Structure: {test_name: {"result": result, "method": method}}
+        # If test_name already exists, merge methods if different
+        if test_name in result_dict:
+            existing = result_dict[test_name]
+            # If methods are different, combine them
+            if test_method and existing.get("method") and test_method != existing.get("method"):
+                existing["method"] = f"{existing.get('method')}, {test_method}"
+            elif test_method and not existing.get("method"):
+                existing["method"] = test_method
+        else:
+            result_dict[test_name] = {
+                "result": result,
+                "method": test_method if test_method else None
+            }
         
         # Build citations
         if page_num is not None:

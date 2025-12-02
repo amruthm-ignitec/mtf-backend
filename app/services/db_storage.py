@@ -37,6 +37,7 @@ class DBStorageService:
             # Each result item contains tissue location and microorganisms
             if isinstance(culture_data, dict) and 'result' in culture_data:
                 results = culture_data.get('result', [])
+                logger.info(f"Processing {len(results)} culture result items for document {document_id}")
                 
                 for result_item in results:
                     if isinstance(result_item, dict):
@@ -54,6 +55,10 @@ class DBStorageService:
                                         )
                                         db.add(culture_result)
                                         count += 1
+            else:
+                logger.warning(f"Invalid culture_data format for document {document_id}: {type(culture_data)}. Expected dict with 'result' key.")
+                if isinstance(culture_data, dict):
+                    logger.warning(f"Culture data keys: {list(culture_data.keys())}")
             
             db.commit()
             logger.info(f"Stored {count} culture results for document {document_id}")
@@ -80,15 +85,25 @@ class DBStorageService:
         try:
             count = 0
             # Serology data structure: {"result": {...}, "citations": [...]}
-            # Result is a dictionary of test_name: result pairs
+            # Result is a dictionary of test_name: {"result": result, "method": method} or test_name: result (legacy)
             if isinstance(serology_data, dict) and 'result' in serology_data:
                 results = serology_data.get('result', {})
                 
-                for test_name, result_value in results.items():
+                for test_name, result_data in results.items():
+                    # Handle both new format (dict with result and method) and legacy format (just result string)
+                    if isinstance(result_data, dict):
+                        result_value = result_data.get('result')
+                        test_method = result_data.get('method')
+                    else:
+                        # Legacy format: just a string result
+                        result_value = result_data
+                        test_method = None
+                    
                     if result_value:  # Skip empty/None results
                         serology_result = SerologyResult(
                             document_id=document_id,
                             test_name=test_name,
+                            test_method=test_method,
                             result=str(result_value),
                             source_page=None,  # Can be extracted from citations if available
                             confidence=None
