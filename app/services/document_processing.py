@@ -194,6 +194,109 @@ class DocumentProcessingService:
             # Store component results
             db_storage_service.store_component_results(document_id, components_results, db)
             
+            # Extract and store culture results from components (blood, urine, etc.)
+            # This complements the LLM-based tissue culture extraction
+            initial_components = components_results.get('initial_components', {})
+            if 'infectious_disease_testing' in initial_components:
+                component_info = initial_components['infectious_disease_testing']
+                if component_info.get("present"):
+                    component_extracted_data = component_info.get("extracted_data", {})
+                    if component_extracted_data:
+                        culture_from_components = []
+                        citations_from_component = component_info.get("pages", [])
+                        
+                        # Look for test result objects (Test_Result, Test_Result_1, etc.)
+                        test_result_keys = [key for key in component_extracted_data.keys() 
+                                          if key.lower().startswith('test_result') and component_extracted_data[key]]
+                        
+                        for test_key in test_result_keys:
+                            # Get the test result value
+                            test_result = component_extracted_data.get(test_key)
+                            if not test_result:
+                                continue
+                            
+                            # Extract related fields
+                            key_index = test_key.replace('Test_Result', '').replace('test_result', '').strip('_')
+                            method_key = f"Test_Method{key_index}" if key_index else "Test_Method"
+                            specimen_type_key = f"Specimen_Type{key_index}" if key_index else "Specimen_Type"
+                            specimen_date_key = f"Specimen_Date_Time{key_index}" if key_index else "Specimen_Date_Time"
+                            comments_key = f"Comments{key_index}" if key_index else "Comments"
+                            
+                            # Also try with underscores and spaces
+                            method_key_alt = method_key.replace('_', ' ') if '_' in method_key else method_key.replace(' ', '_')
+                            specimen_type_key_alt = specimen_type_key.replace('_', ' ') if '_' in specimen_type_key else specimen_type_key.replace(' ', '_')
+                            specimen_date_key_alt = specimen_date_key.replace('_', ' ') if '_' in specimen_date_key else specimen_date_key.replace(' ', '_')
+                            comments_key_alt = comments_key.replace('_', ' ') if '_' in comments_key else comments_key.replace(' ', '_')
+                            
+                            test_method = (component_extracted_data.get(method_key) or 
+                                         component_extracted_data.get(method_key_alt) or 
+                                         component_extracted_data.get(f"Test Method{key_index}" if key_index else "Test Method") or
+                                         "")
+                            specimen_type = (component_extracted_data.get(specimen_type_key) or 
+                                           component_extracted_data.get(specimen_type_key_alt) or
+                                           component_extracted_data.get(f"Specimen Type{key_index}" if key_index else "Specimen Type") or
+                                           "")
+                            specimen_date = (component_extracted_data.get(specimen_date_key) or 
+                                           component_extracted_data.get(specimen_date_key_alt) or
+                                           component_extracted_data.get(f"Specimen Date-Time{key_index}" if key_index else "Specimen Date-Time") or
+                                           component_extracted_data.get(f"Specimen Date{key_index}" if key_index else "Specimen Date") or
+                                           "")
+                            comments = (component_extracted_data.get(comments_key) or 
+                                      component_extracted_data.get(comments_key_alt) or
+                                      component_extracted_data.get(f"Comment{key_index}" if key_index else "Comment") or
+                                      "")
+                            
+                            # Determine test name from specimen type or method
+                            test_name = ""
+                            if specimen_type:
+                                if "blood" in specimen_type.lower():
+                                    test_name = "Blood Culture"
+                                elif "urine" in specimen_type.lower():
+                                    test_name = "Urine Culture"
+                                elif "sputum" in specimen_type.lower():
+                                    test_name = "Sputum Culture"
+                                elif "stool" in specimen_type.lower():
+                                    test_name = "Stool Culture"
+                                else:
+                                    test_name = f"{specimen_type} Culture" if specimen_type else "Culture"
+                            elif test_method:
+                                test_name = test_method if "culture" in test_method.lower() else f"{test_method} Culture"
+                            else:
+                                test_name = "Culture"
+                            
+                            culture_from_components.append({
+                                "test_name": test_name,
+                                "test_method": str(test_method) if test_method else None,
+                                "specimen_type": str(specimen_type) if specimen_type else None,
+                                "specimen_date": str(specimen_date) if specimen_date else None,
+                                "result": str(test_result),
+                                "comments": str(comments) if comments else None
+                            })
+                        
+                        # Store culture results from components if any were found
+                        if culture_from_components:
+                            logger.info(f"Extracted {len(culture_from_components)} culture results from components for document {document_id}")
+                            # Convert citations to proper format
+                            formatted_citations = []
+                            if citations_from_component:
+                                for citation in citations_from_component:
+                                    if isinstance(citation, dict) and "page" in citation:
+                                        formatted_citations.append({"page": citation["page"]})
+                                    elif isinstance(citation, (int, str)):
+                                        try:
+                                            page_num = int(citation) if isinstance(citation, str) else citation
+                                            formatted_citations.append({"page": page_num})
+                                        except (ValueError, TypeError):
+                                            pass
+                            
+                            culture_data_from_components = {
+                                "result": culture_from_components,
+                                "citations": formatted_citations
+                            }
+                            # Store additional culture results from components
+                            additional_count = db_storage_service.store_culture_results(document_id, culture_data_from_components, db)
+                            logger.info(f"Stored {additional_count} additional culture results from components for document {document_id}")
+            
             # Update progress: 80-100% - Completion
             document.progress = 90.0
             db.commit()
