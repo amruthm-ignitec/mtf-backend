@@ -305,7 +305,7 @@ def extract_component_content(
             
         except LLMResponseParseError as e:
             logger.error(f"Failed to parse component extraction result for {component_name}: {e}")
-            # Return error structure
+            # Return error structure - component not present, no pages
             return {
                 "component_name": component_name,
                 "error": True,
@@ -315,6 +315,8 @@ def extract_component_content(
                 "summary": {},
                 "extracted_data": {},
                 "present": False,
+                "pages": [],
+                "citations": [],
                 "confidence": 0.0
             }
         
@@ -322,6 +324,11 @@ def extract_component_content(
         summary = result.get("Summary", {})
         extracted_data = result.get("Extracted_Data", {})
         present = result.get("PRESENT", "Yes").lower() == "yes"
+        
+        # If component is not present, clear pages and citations
+        # Pages should only be populated when component is actually present
+        final_pages = pages if present else []
+        final_citations = pages if present else []
         
         # Build component info for confidence calculation
         component_info = {
@@ -331,32 +338,33 @@ def extract_component_content(
         }
         
         # Calculate confidence score
-        confidence = calculate_component_confidence(component_info, pages)
+        confidence = calculate_component_confidence(component_info, final_pages)
         
         return {
             "present": present,
-            "pages": pages,
+            "pages": final_pages,
             "summary": summary,
             "extracted_data": extracted_data,
-            "citations": pages,
+            "citations": final_citations,
             "confidence": confidence
         }
     except Exception as e:
         logger.error(f"Error extracting content for {component_name}: {e}")
-        # Calculate confidence even for error cases (will be low)
+        # On error, assume component is not present and clear pages
+        # This prevents showing dummy pages when extraction fails
         component_info = {
-            "present": len(pages) > 0,
+            "present": False,
             "summary": f"Error during extraction: {str(e)}",
             "extracted_data": {}
         }
-        confidence = calculate_component_confidence(component_info, pages)
+        confidence = calculate_component_confidence(component_info, [])
         
         return {
-            "present": len(pages) > 0,
-            "pages": pages,
+            "present": False,
+            "pages": [],
             "summary": f"Error during extraction: {str(e)}",
             "extracted_data": {},
-            "citations": pages,
+            "citations": [],
             "confidence": confidence
         }
 
