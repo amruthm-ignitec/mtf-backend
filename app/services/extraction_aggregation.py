@@ -609,23 +609,94 @@ class ExtractionAggregationService:
             from app.services.vector_conversion import vector_conversion_service
             
             async def run_vector_conversion_safely():
-                """Run vector conversion with error handling to prevent blocking main flow."""
+                """Run vector conversion with error handling and overall timeout to prevent blocking main flow."""
+                import asyncio
+                import os
+                import signal
+                
+                async def trigger_restart_async():
+                    """Trigger graceful backend restart when circuit breaker is triggered (async)."""
+                    logger.critical(
+                        f"CRITICAL: Vector conversion circuit breaker triggered - "
+                        f"{vector_conversion_service.consecutive_failures} consecutive failures. "
+                        f"Triggering backend restart to recover..."
+                    )
+                    # Give a short delay to allow current operations to complete
+                    await asyncio.sleep(2)
+                    # Send SIGTERM to current process for graceful shutdown
+                    # Process manager (systemd, supervisor, Docker, etc.) will restart it
+                    os.kill(os.getpid(), signal.SIGTERM)
+                
                 try:
+                    # Check circuit breaker - skip if too many consecutive failures
+                    if vector_conversion_service.consecutive_failures >= vector_conversion_service.circuit_breaker_threshold:
+                        logger.critical(
+                            f"CRITICAL: Circuit breaker open for vector conversion - "
+                            f"{vector_conversion_service.consecutive_failures} consecutive failures. "
+                            f"Triggering backend restart..."
+                        )
+                        # Trigger restart in background to avoid blocking
+                        asyncio.create_task(trigger_restart_async())
+                        return
+                    
                     logger.info(f"Starting vector conversion for donor {donor_id} (background task)")
                     # Create a new database session for the background task
                     from app.database.database import SessionLocal
                     background_db = SessionLocal()
                     try:
-                        success = await vector_conversion_service.convert_and_store_donor_vectors(donor_id, background_db)
+                        # Wrap entire vector conversion in an overall timeout (60 seconds max - very aggressive)
+                        # This ensures the background task itself doesn't run indefinitely
+                        # If it takes longer than 60s, we abort entirely
+                        success = await asyncio.wait_for(
+                            vector_conversion_service.convert_and_store_donor_vectors(donor_id, background_db, max_total_time=60.0),
+                            timeout=60.0  # 60 seconds maximum for entire vector conversion (very aggressive)
+                        )
                         if success:
                             logger.info(f"Successfully completed vector conversion for donor {donor_id}")
+                            # Reset circuit breaker on success
+                            vector_conversion_service.consecutive_failures = 0
                         else:
                             logger.warning(f"Vector conversion returned False for donor {donor_id}")
+                            vector_conversion_service.consecutive_failures += 1
+                            
+                            # Check if circuit breaker threshold reached - trigger restart
+                            if vector_conversion_service.consecutive_failures >= vector_conversion_service.circuit_breaker_threshold:
+                                logger.critical(
+                                    f"CRITICAL: Vector conversion circuit breaker threshold reached "
+                                    f"({vector_conversion_service.consecutive_failures} failures). "
+                                    f"Triggering backend restart..."
+                                )
+                                # Trigger restart in background
+                                asyncio.create_task(trigger_restart_async())
+                    except asyncio.TimeoutError:
+                        logger.warning(f"Vector conversion for donor {donor_id} exceeded overall 60-second timeout - aborting")
+                        vector_conversion_service.consecutive_failures += 1
+                        
+                        # Check if circuit breaker threshold reached - trigger restart
+                        if vector_conversion_service.consecutive_failures >= vector_conversion_service.circuit_breaker_threshold:
+                            logger.critical(
+                                f"CRITICAL: Vector conversion circuit breaker threshold reached after timeout "
+                                f"({vector_conversion_service.consecutive_failures} failures). "
+                                f"Triggering backend restart..."
+                            )
+                            # Trigger restart in background
+                            asyncio.create_task(trigger_restart_async())
                     finally:
                         background_db.close()
                 except Exception as e:
                     # Log error but don't raise - vector conversion failure shouldn't affect main processing
                     logger.error(f"Error in background vector conversion for donor {donor_id}: {e}", exc_info=True)
+                    vector_conversion_service.consecutive_failures += 1
+                    
+                    # Check if circuit breaker threshold reached - trigger restart
+                    if vector_conversion_service.consecutive_failures >= vector_conversion_service.circuit_breaker_threshold:
+                        logger.critical(
+                            f"CRITICAL: Vector conversion circuit breaker threshold reached after exception "
+                            f"({vector_conversion_service.consecutive_failures} failures). "
+                            f"Triggering backend restart..."
+                        )
+                        # Trigger restart in background
+                        asyncio.create_task(trigger_restart_async())
             
             # Create background task - don't await it
             # Store task reference to prevent "Task exception was never retrieved" warnings
