@@ -20,13 +20,60 @@ class VectorConversionService:
     def __init__(self):
         self.embeddings = None
     
-    async def _ensure_embeddings(self):
-        """Initialize embeddings if not already done."""
+    async def _ensure_embeddings(self, max_retries: int = 3, base_delay: float = 1.0):
+        """
+        Initialize embeddings if not already done, with exponential backoff retry on timeout.
+        
+        Args:
+            max_retries: Maximum number of retry attempts (default: 3)
+            base_delay: Base delay in seconds for exponential backoff (default: 1.0)
+        """
         if self.embeddings is None:
-            from app.services.processing.utils.llm_config import llm_setup
             import asyncio
-            loop = asyncio.get_event_loop()
-            _, self.embeddings = await loop.run_in_executor(None, llm_setup)
+            from app.services.processing.utils.llm_config import llm_setup
+            
+            logger.info("Initializing embeddings (llm_setup)...")
+            last_exception = None
+            
+            for attempt in range(max_retries):
+                try:
+                    loop = asyncio.get_event_loop()
+                    # Wrap llm_setup with timeout (30 seconds for initialization)
+                    _, self.embeddings = await asyncio.wait_for(
+                        loop.run_in_executor(None, llm_setup),
+                        timeout=30.0
+                    )
+                    logger.info("Successfully initialized embeddings")
+                    return  # Success - exit retry loop
+                    
+                except asyncio.TimeoutError as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        # Calculate exponential backoff delay: base_delay * 2^attempt
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(
+                            f"Embeddings initialization timed out after 30 seconds. "
+                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})"
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(
+                            f"Embeddings initialization timed out after {max_retries} attempts"
+                        )
+                        raise
+                        
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(
+                            f"Error initializing embeddings: {e}. "
+                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})"
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(f"Error initializing embeddings after {max_retries} attempts: {e}", exc_info=True)
+                        raise
     
     def _culture_to_text(self, culture_results: List[Dict]) -> str:
         """Convert culture results to searchable text."""
@@ -84,12 +131,18 @@ class VectorConversionService:
             True if successful, False otherwise
         """
         try:
+            logger.info(f"Starting vector conversion for donor {donor_id}")
+            
+            # Ensure embeddings are initialized
+            logger.debug(f"Ensuring embeddings are initialized for donor {donor_id}")
             await self._ensure_embeddings()
+            logger.debug(f"Embeddings initialized for donor {donor_id}")
             
             # Get all extraction results for this donor from database
             from app.models.document import Document, DocumentStatus
             from app.services.processing.result_parser import result_parser
             
+            logger.debug(f"Querying completed documents for donor {donor_id}")
             documents = db.query(Document).filter(
                 Document.donor_id == donor_id,
                 Document.status == DocumentStatus.COMPLETED
@@ -99,7 +152,10 @@ class VectorConversionService:
                 logger.info(f"No completed documents found for donor {donor_id}")
                 return False
             
+            logger.info(f"Found {len(documents)} completed documents for donor {donor_id}")
+            
             # Collect all results
+            logger.debug(f"Collecting extraction results for donor {donor_id}")
             all_culture = []
             all_serology = {}
             all_topics = {}
@@ -128,13 +184,23 @@ class VectorConversionService:
                         if key not in all_components['conditional_components']:
                             all_components['conditional_components'][key] = value
             
+            logger.debug(f"Collected results for donor {donor_id}: "
+                        f"culture={len(all_culture)}, serology={len(all_serology)}, "
+                        f"topics={len(all_topics)}, components={len(all_components.get('initial_components', {})) + len(all_components.get('conditional_components', {}))}")
+            
             # Delete existing vectors for this donor
-            db.query(DonorExtractionVector).filter(
+            logger.debug(f"Deleting existing vectors for donor {donor_id}")
+            deleted_count = db.query(DonorExtractionVector).filter(
                 DonorExtractionVector.donor_id == donor_id
             ).delete()
+            if deleted_count > 0:
+                logger.debug(f"Deleted {deleted_count} existing vectors for donor {donor_id}")
+            
+            vectors_created = 0
             
             # Convert and store culture
             if all_culture:
+                logger.debug(f"Processing culture results for donor {donor_id}")
                 culture_text = self._culture_to_text(all_culture)
                 if culture_text:
                     embedding = await self._generate_embedding(culture_text)
@@ -147,9 +213,12 @@ class VectorConversionService:
                             extraction_metadata={"results": all_culture}
                         )
                         db.add(vector)
+                        vectors_created += 1
+                        logger.debug(f"Created culture vector for donor {donor_id}")
             
             # Convert and store serology
             if all_serology:
+                logger.debug(f"Processing serology results for donor {donor_id}")
                 serology_text = self._serology_to_text(all_serology)
                 if serology_text:
                     embedding = await self._generate_embedding(serology_text)
@@ -162,10 +231,14 @@ class VectorConversionService:
                             extraction_metadata={"results": all_serology}
                         )
                         db.add(vector)
+                        vectors_created += 1
+                        logger.debug(f"Created serology vector for donor {donor_id}")
             
             # Convert and store topics (one per topic)
             import json
             topic_texts = self._topics_to_text(all_topics)
+            if topic_texts:
+                logger.debug(f"Processing {len(topic_texts)} topic results for donor {donor_id}")
             for topic_text in topic_texts:
                 embedding = await self._generate_embedding(topic_text)
                 if embedding:
@@ -177,9 +250,12 @@ class VectorConversionService:
                         extraction_metadata={"topics": all_topics}
                     )
                     db.add(vector)
+                    vectors_created += 1
+                    logger.debug(f"Created topic vector for donor {donor_id}")
             
             # Convert and store components
             if all_components.get('initial_components') or all_components.get('conditional_components'):
+                logger.debug(f"Processing component results for donor {donor_id}")
                 components_text = self._components_to_text(all_components)
                 if components_text:
                     embedding = await self._generate_embedding(components_text)
@@ -192,9 +268,12 @@ class VectorConversionService:
                             extraction_metadata={"components": all_components}
                         )
                         db.add(vector)
+                        vectors_created += 1
+                        logger.debug(f"Created component vector for donor {donor_id}")
             
+            logger.debug(f"Committing {vectors_created} vectors to database for donor {donor_id}")
             db.commit()
-            logger.info(f"Successfully stored extraction vectors for donor {donor_id}")
+            logger.info(f"Successfully stored {vectors_created} extraction vectors for donor {donor_id}")
             return True
             
         except Exception as e:
@@ -202,25 +281,75 @@ class VectorConversionService:
             db.rollback()
             return False
     
-    async def _generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text."""
+    async def _generate_embedding(self, text: str, max_retries: int = 3, base_delay: float = 1.0) -> List[float]:
+        """
+        Generate embedding for text with timeout protection and exponential backoff retry.
+        
+        Args:
+            text: Text to generate embedding for
+            max_retries: Maximum number of retry attempts on timeout (default: 3)
+            base_delay: Base delay in seconds for exponential backoff (default: 1.0)
+            
+        Returns:
+            Embedding vector or None if all retries fail
+        """
         try:
             if not self.embeddings:
                 await self._ensure_embeddings()
             
-            # Generate embedding
+            # Generate embedding with timeout (10 seconds per embedding call)
             import asyncio
+            logger.debug(f"Generating embedding for text (length: {len(text)} chars)")
             loop = asyncio.get_event_loop()
-            embedding = await loop.run_in_executor(
-                None,
-                lambda: self.embeddings.embed_query(text)
-            )
             
-            # Embeddings are now 3072 dimensions (text-embedding-3-large default)
-            # No truncation needed - database schema supports 3072 dimensions
-            return embedding
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    embedding = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            lambda: self.embeddings.embed_query(text)
+                        ),
+                        timeout=10.0
+                    )
+                    logger.debug(f"Successfully generated embedding (dimensions: {len(embedding) if embedding else 0})")
+                    
+                    # Embeddings are now 3072 dimensions (text-embedding-3-large default)
+                    # No truncation needed - database schema supports 3072 dimensions
+                    return embedding
+                    
+                except asyncio.TimeoutError as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        # Calculate exponential backoff delay: base_delay * 2^attempt
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(
+                            f"Embedding generation timed out after 10 seconds for text (length: {len(text)} chars). "
+                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})"
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(
+                            f"Embedding generation timed out after {max_retries} attempts "
+                            f"for text (length: {len(text)} chars)"
+                        )
+                        return None
+                        
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(
+                            f"Error generating embedding: {e}. "
+                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})"
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(f"Error generating embedding after {max_retries} attempts: {e}", exc_info=True)
+                        return None
+                        
         except Exception as e:
-            logger.error(f"Error generating embedding: {e}")
+            logger.error(f"Error generating embedding: {e}", exc_info=True)
             return None
 
 

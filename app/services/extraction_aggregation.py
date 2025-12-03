@@ -603,9 +603,41 @@ class ExtractionAggregationService:
             db.commit()
             logger.info(f"Successfully aggregated results for donor {donor_id}")
             
-            # Trigger vector conversion
+            # Trigger vector conversion as fire-and-forget task (non-blocking)
+            # Vector conversion is only used for similarity search and is not critical for main processing
+            import asyncio
             from app.services.vector_conversion import vector_conversion_service
-            await vector_conversion_service.convert_and_store_donor_vectors(donor_id, db)
+            
+            async def run_vector_conversion_safely():
+                """Run vector conversion with error handling to prevent blocking main flow."""
+                try:
+                    logger.info(f"Starting vector conversion for donor {donor_id} (background task)")
+                    # Create a new database session for the background task
+                    from app.database.database import SessionLocal
+                    background_db = SessionLocal()
+                    try:
+                        success = await vector_conversion_service.convert_and_store_donor_vectors(donor_id, background_db)
+                        if success:
+                            logger.info(f"Successfully completed vector conversion for donor {donor_id}")
+                        else:
+                            logger.warning(f"Vector conversion returned False for donor {donor_id}")
+                    finally:
+                        background_db.close()
+                except Exception as e:
+                    # Log error but don't raise - vector conversion failure shouldn't affect main processing
+                    logger.error(f"Error in background vector conversion for donor {donor_id}: {e}", exc_info=True)
+            
+            # Create background task - don't await it
+            # Store task reference to prevent "Task exception was never retrieved" warnings
+            task = asyncio.create_task(run_vector_conversion_safely())
+            # Add done callback to log any unhandled exceptions (shouldn't happen due to try-except, but safety net)
+            def log_task_exception(task):
+                try:
+                    task.result()  # This will raise if task had an exception
+                except Exception as e:
+                    logger.error(f"Unhandled exception in vector conversion task for donor {donor_id}: {e}", exc_info=True)
+            task.add_done_callback(log_task_exception)
+            logger.debug(f"Vector conversion task created for donor {donor_id} (running in background)")
             
             return True
             
