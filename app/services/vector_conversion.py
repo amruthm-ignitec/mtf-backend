@@ -19,13 +19,15 @@ class VectorConversionService:
     
     def __init__(self):
         self.embeddings = None
+        self.consecutive_failures = 0  # Track consecutive failures for circuit breaker
+        self.circuit_breaker_threshold = 1  # Skip vector conversion after 1 consecutive failure (very aggressive)
     
-    async def _ensure_embeddings(self, max_retries: int = 3, base_delay: float = 1.0):
+    async def _ensure_embeddings(self, max_retries: int = 1, base_delay: float = 1.0):
         """
         Initialize embeddings if not already done, with exponential backoff retry on timeout.
         
         Args:
-            max_retries: Maximum number of retry attempts (default: 3)
+            max_retries: Maximum number of retry attempts (default: 1 - very aggressive to prevent hanging)
             base_delay: Base delay in seconds for exponential backoff (default: 1.0)
         """
         if self.embeddings is None:
@@ -35,44 +37,44 @@ class VectorConversionService:
             logger.info("Initializing embeddings (llm_setup)...")
             last_exception = None
             
-            for attempt in range(max_retries):
+            for attempt in range(max_retries + 1):  # +1 because first attempt is not a retry
                 try:
                     loop = asyncio.get_event_loop()
-                    # Wrap llm_setup with timeout (30 seconds for initialization)
+                    # Wrap llm_setup with timeout (15 seconds for initialization - more aggressive)
                     _, self.embeddings = await asyncio.wait_for(
                         loop.run_in_executor(None, llm_setup),
-                        timeout=30.0
+                        timeout=15.0  # Reduced from 30s to 15s
                     )
                     logger.info("Successfully initialized embeddings")
                     return  # Success - exit retry loop
                     
                 except asyncio.TimeoutError as e:
                     last_exception = e
-                    if attempt < max_retries - 1:
+                    if attempt < max_retries:
                         # Calculate exponential backoff delay: base_delay * 2^attempt
                         delay = base_delay * (2 ** attempt)
                         logger.warning(
-                            f"Embeddings initialization timed out after 30 seconds. "
-                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})"
+                            f"Embeddings initialization timed out after 15 seconds. "
+                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries + 1})"
                         )
                         await asyncio.sleep(delay)
                     else:
                         logger.error(
-                            f"Embeddings initialization timed out after {max_retries} attempts"
+                            f"Embeddings initialization timed out after {max_retries + 1} attempts - aborting"
                         )
                         raise
                         
                 except Exception as e:
                     last_exception = e
-                    if attempt < max_retries - 1:
+                    if attempt < max_retries:
                         delay = base_delay * (2 ** attempt)
                         logger.warning(
                             f"Error initializing embeddings: {e}. "
-                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})"
+                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries + 1})"
                         )
                         await asyncio.sleep(delay)
                     else:
-                        logger.error(f"Error initializing embeddings after {max_retries} attempts: {e}", exc_info=True)
+                        logger.error(f"Error initializing embeddings after {max_retries + 1} attempts: {e}", exc_info=True)
                         raise
     
     def _culture_to_text(self, culture_results: List[Dict]) -> str:
@@ -119,24 +121,41 @@ class VectorConversionService:
         
         return ". ".join(texts)
     
-    async def convert_and_store_donor_vectors(self, donor_id: int, db: Session) -> bool:
+    async def convert_and_store_donor_vectors(self, donor_id: int, db: Session, max_total_time: float = 60.0) -> bool:
         """
         Convert extracted data to text, generate embeddings, and store in pgvector.
         
         Args:
             donor_id: ID of the donor
             db: Database session
+            max_total_time: Maximum total time in seconds for entire vector conversion (default: 60s = 1 minute)
             
         Returns:
             True if successful, False otherwise
         """
+        import asyncio
+        import time
+        
+        start_time = time.time()
+        
         try:
-            logger.info(f"Starting vector conversion for donor {donor_id}")
+            logger.info(f"Starting vector conversion for donor {donor_id} (max time: {max_total_time}s)")
             
-            # Ensure embeddings are initialized
+            # Ensure embeddings are initialized with timeout check
             logger.debug(f"Ensuring embeddings are initialized for donor {donor_id}")
+            elapsed = time.time() - start_time
+            if elapsed >= max_total_time:
+                logger.warning(f"Vector conversion for donor {donor_id} aborted: exceeded max time before starting")
+                return False
+            
             await self._ensure_embeddings()
             logger.debug(f"Embeddings initialized for donor {donor_id}")
+            
+            # Check timeout after initialization
+            elapsed = time.time() - start_time
+            if elapsed >= max_total_time:
+                logger.warning(f"Vector conversion for donor {donor_id} aborted: exceeded max time after initialization")
+                return False
             
             # Get all extraction results for this donor from database
             from app.models.document import Document, DocumentStatus
@@ -200,6 +219,11 @@ class VectorConversionService:
             
             # Convert and store culture
             if all_culture:
+                elapsed = time.time() - start_time
+                if elapsed >= max_total_time:
+                    logger.warning(f"Vector conversion for donor {donor_id} aborted: exceeded max time before culture processing")
+                    return False
+                    
                 logger.debug(f"Processing culture results for donor {donor_id}")
                 culture_text = self._culture_to_text(all_culture)
                 if culture_text:
@@ -218,6 +242,11 @@ class VectorConversionService:
             
             # Convert and store serology
             if all_serology:
+                elapsed = time.time() - start_time
+                if elapsed >= max_total_time:
+                    logger.warning(f"Vector conversion for donor {donor_id} aborted: exceeded max time before serology processing")
+                    return False
+                    
                 logger.debug(f"Processing serology results for donor {donor_id}")
                 serology_text = self._serology_to_text(all_serology)
                 if serology_text:
@@ -239,7 +268,16 @@ class VectorConversionService:
             topic_texts = self._topics_to_text(all_topics)
             if topic_texts:
                 logger.debug(f"Processing {len(topic_texts)} topic results for donor {donor_id}")
-            for topic_text in topic_texts:
+            for idx, topic_text in enumerate(topic_texts):
+                elapsed = time.time() - start_time
+                if elapsed >= max_total_time:
+                    logger.warning(f"Vector conversion for donor {donor_id} aborted: exceeded max time at topic {idx+1}/{len(topic_texts)}")
+                    # Commit what we have so far
+                    if vectors_created > 0:
+                        db.commit()
+                        logger.info(f"Partially completed: stored {vectors_created} vectors for donor {donor_id} before timeout")
+                    return False
+                    
                 embedding = await self._generate_embedding(topic_text)
                 if embedding:
                     vector = DonorExtractionVector(
@@ -255,6 +293,15 @@ class VectorConversionService:
             
             # Convert and store components
             if all_components.get('initial_components') or all_components.get('conditional_components'):
+                elapsed = time.time() - start_time
+                if elapsed >= max_total_time:
+                    logger.warning(f"Vector conversion for donor {donor_id} aborted: exceeded max time before component processing")
+                    # Commit what we have so far
+                    if vectors_created > 0:
+                        db.commit()
+                        logger.info(f"Partially completed: stored {vectors_created} vectors for donor {donor_id} before timeout")
+                    return False
+                    
                 logger.debug(f"Processing component results for donor {donor_id}")
                 components_text = self._components_to_text(all_components)
                 if components_text:
@@ -281,13 +328,13 @@ class VectorConversionService:
             db.rollback()
             return False
     
-    async def _generate_embedding(self, text: str, max_retries: int = 3, base_delay: float = 1.0) -> List[float]:
+    async def _generate_embedding(self, text: str, max_retries: int = 1, base_delay: float = 1.0) -> List[float]:
         """
         Generate embedding for text with timeout protection and exponential backoff retry.
         
         Args:
             text: Text to generate embedding for
-            max_retries: Maximum number of retry attempts on timeout (default: 3)
+            max_retries: Maximum number of retry attempts on timeout (default: 1 - very aggressive to prevent hanging)
             base_delay: Base delay in seconds for exponential backoff (default: 1.0)
             
         Returns:
@@ -297,20 +344,20 @@ class VectorConversionService:
             if not self.embeddings:
                 await self._ensure_embeddings()
             
-            # Generate embedding with timeout (10 seconds per embedding call)
+            # Generate embedding with timeout (5 seconds per embedding call - very aggressive)
             import asyncio
             logger.debug(f"Generating embedding for text (length: {len(text)} chars)")
             loop = asyncio.get_event_loop()
             
             last_exception = None
-            for attempt in range(max_retries):
+            for attempt in range(max_retries + 1):  # +1 because first attempt is not a retry
                 try:
                     embedding = await asyncio.wait_for(
                         loop.run_in_executor(
                             None,
                             lambda: self.embeddings.embed_query(text)
                         ),
-                        timeout=10.0
+                        timeout=5.0  # Reduced from 10s to 5s - more aggressive
                     )
                     logger.debug(f"Successfully generated embedding (dimensions: {len(embedding) if embedding else 0})")
                     
@@ -320,32 +367,32 @@ class VectorConversionService:
                     
                 except asyncio.TimeoutError as e:
                     last_exception = e
-                    if attempt < max_retries - 1:
+                    if attempt < max_retries:
                         # Calculate exponential backoff delay: base_delay * 2^attempt
                         delay = base_delay * (2 ** attempt)
                         logger.warning(
-                            f"Embedding generation timed out after 10 seconds for text (length: {len(text)} chars). "
-                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})"
+                            f"Embedding generation timed out after 5 seconds for text (length: {len(text)} chars). "
+                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries + 1})"
                         )
                         await asyncio.sleep(delay)
                     else:
                         logger.error(
-                            f"Embedding generation timed out after {max_retries} attempts "
-                            f"for text (length: {len(text)} chars)"
+                            f"Embedding generation timed out after {max_retries + 1} attempts "
+                            f"for text (length: {len(text)} chars) - aborting"
                         )
                         return None
                         
                 except Exception as e:
                     last_exception = e
-                    if attempt < max_retries - 1:
+                    if attempt < max_retries:
                         delay = base_delay * (2 ** attempt)
                         logger.warning(
                             f"Error generating embedding: {e}. "
-                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})"
+                            f"Retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries + 1})"
                         )
                         await asyncio.sleep(delay)
                     else:
-                        logger.error(f"Error generating embedding after {max_retries} attempts: {e}", exc_info=True)
+                        logger.error(f"Error generating embedding after {max_retries + 1} attempts: {e}", exc_info=True)
                         return None
                         
         except Exception as e:
