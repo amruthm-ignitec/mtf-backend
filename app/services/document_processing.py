@@ -279,14 +279,45 @@ class DocumentProcessingService:
                             
                             # Create culture entries for each parsed result
                             for parsed_item in parsed_results:
-                                # Extract result value from parsed item
-                                result_value = (
-                                    parsed_item.get('Result') or 
-                                    parsed_item.get('result') or 
-                                    parsed_item.get('Test_Result') or
-                                    parsed_item.get('test_result') or
-                                    str(parsed_item.get('result', ''))
-                                )
+                                # Check if parsed_item is actually a dict with structured data
+                                # If it's just a simple dict with 'result' key, extract that
+                                # Otherwise, extract all fields from the parsed dict
+                                
+                                if not isinstance(parsed_item, dict):
+                                    # Skip non-dict items
+                                    continue
+                                
+                                # Extract result value from parsed item - try multiple key variations
+                                # The result might be in 'Result', 'result', 'Test_Result', etc.
+                                result_value = None
+                                
+                                # Try common result key variations
+                                for key in ['Result', 'result', 'Test_Result', 'test_result', 'Test Result']:
+                                    if key in parsed_item:
+                                        result_value = parsed_item[key]
+                                        break
+                                
+                                # If result_value is still a dict or list, it means the structure is nested
+                                # Try to extract the actual result string from it
+                                if isinstance(result_value, dict):
+                                    # Nested dict - try to extract result string
+                                    result_value = result_value.get('Result') or result_value.get('result') or str(result_value)
+                                elif isinstance(result_value, list) and len(result_value) > 0:
+                                    # If it's a list, take the first item if it's a string, otherwise convert
+                                    first_item = result_value[0]
+                                    result_value = first_item if isinstance(first_item, str) else str(first_item)
+                                
+                                # Clean up result_value - remove quotes if it's a string representation
+                                if isinstance(result_value, str):
+                                    result_value = result_value.strip()
+                                    # Remove surrounding quotes if present
+                                    if (result_value.startswith("'") and result_value.endswith("'")) or \
+                                       (result_value.startswith('"') and result_value.endswith('"')):
+                                        result_value = result_value[1:-1]
+                                
+                                # If we still don't have a result value, set to empty string
+                                if not result_value:
+                                    result_value = ""
                                 
                                 # Extract additional fields from parsed item if available
                                 parsed_test_name = (
@@ -299,6 +330,7 @@ class DocumentProcessingService:
                                     parsed_item.get('Test_Method') or 
                                     parsed_item.get('test_method') or 
                                     parsed_item.get('Test Method') or
+                                    parsed_item.get('Test_Method') or
                                     None
                                 )
                                 parsed_specimen_type = (
@@ -314,12 +346,14 @@ class DocumentProcessingService:
                                     parsed_item.get('Specimen Date-Time') or
                                     parsed_item.get('Specimen_Date') or
                                     parsed_item.get('specimen_date') or
+                                    parsed_item.get('Specimen Date') or
                                     None
                                 )
                                 parsed_comments = (
                                     parsed_item.get('Comments') or 
                                     parsed_item.get('comments') or 
                                     parsed_item.get('Comment') or
+                                    parsed_item.get('comment') or
                                     None
                                 )
                                 
@@ -332,31 +366,35 @@ class DocumentProcessingService:
                                 # Determine test name from parsed item, specimen type, or method
                                 test_name = ""
                                 if parsed_test_name:
-                                    test_name = parsed_test_name
+                                    test_name = str(parsed_test_name).strip()
                                 elif final_specimen_type:
-                                    if "blood" in final_specimen_type.lower():
+                                    specimen_lower = str(final_specimen_type).lower()
+                                    if "blood" in specimen_lower:
                                         test_name = "Blood Culture"
-                                    elif "urine" in final_specimen_type.lower():
+                                    elif "urine" in specimen_lower:
                                         test_name = "Urine Culture"
-                                    elif "sputum" in final_specimen_type.lower():
+                                    elif "sputum" in specimen_lower:
                                         test_name = "Sputum Culture"
-                                    elif "stool" in final_specimen_type.lower():
+                                    elif "stool" in specimen_lower:
                                         test_name = "Stool Culture"
                                     else:
                                         test_name = f"{final_specimen_type} Culture" if final_specimen_type else "Culture"
                                 elif final_test_method:
-                                    test_name = final_test_method if "culture" in final_test_method.lower() else f"{final_test_method} Culture"
+                                    method_lower = str(final_test_method).lower()
+                                    test_name = final_test_method if "culture" in method_lower else f"{final_test_method} Culture"
                                 else:
                                     test_name = "Culture"
                                 
-                                culture_from_components.append({
-                                    "test_name": test_name,
-                                    "test_method": str(final_test_method) if final_test_method else None,
-                                    "specimen_type": str(final_specimen_type) if final_specimen_type else None,
-                                    "specimen_date": str(final_specimen_date) if final_specimen_date else None,
-                                    "result": str(result_value) if result_value else "",
-                                    "comments": str(final_comments) if final_comments else None
-                                })
+                                # Only add if we have at least a result value or test_name
+                                if result_value or parsed_test_name:
+                                    culture_from_components.append({
+                                        "test_name": test_name,
+                                        "test_method": str(final_test_method) if final_test_method else None,
+                                        "specimen_type": str(final_specimen_type) if final_specimen_type else None,
+                                        "specimen_date": str(final_specimen_date) if final_specimen_date else None,
+                                        "result": str(result_value) if result_value else "",
+                                        "comments": str(final_comments) if final_comments else None
+                                    })
                         
                         # Store culture results from components if any were found
                         if culture_from_components:
