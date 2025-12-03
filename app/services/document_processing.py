@@ -434,7 +434,7 @@ class DocumentProcessingService:
             }
             document.processing_result = json.dumps(summary_result)
             
-            # Mark as completed
+            # Mark as completed and commit to release main session early
             document.status = DocumentStatus.COMPLETED
             document.progress = 100.0
             db.commit()
@@ -442,20 +442,58 @@ class DocumentProcessingService:
             
             logger.info(f"Document {document_id} processing completed successfully")
             
-            # Trigger aggregation service
+            # Store donor_id before closing main session
+            donor_id = document.donor_id
+            
+            # Close main session to release connection back to pool
+            # This prevents connection pool exhaustion during aggregation
+            db.close()
+            
+            # Trigger aggregation service with separate session
+            # This ensures aggregation doesn't block the main processing flow
             from app.services.extraction_aggregation import extraction_aggregation_service
-            await extraction_aggregation_service.aggregate_donor_results(document.donor_id, db)
+            from app.database.database import SessionLocal
+            
+            # Create new session specifically for aggregation
+            agg_db = SessionLocal()
+            try:
+                await extraction_aggregation_service.aggregate_donor_results(donor_id, agg_db)
+            except Exception as agg_error:
+                # Log aggregation error but don't fail document processing
+                # Aggregation can be retried on next document completion
+                logger.error(f"Error aggregating results for donor {donor_id}: {agg_error}", exc_info=True)
+            finally:
+                agg_db.close()
             
         except Exception as e:
             logger.error(f"Error processing document {document_id}: {e}", exc_info=True)
             
             # Update document status to failed
+            # Only update if db session is still open (exception occurred before we closed it)
             if document:
-                document.status = DocumentStatus.FAILED
-                document.error_message = f"Processing failed: {str(e)}"
-                document.progress = 100.0
-                db.commit()
-                db.refresh(document)
+                try:
+                    # Check if session is still active
+                    if db.is_active:
+                        document.status = DocumentStatus.FAILED
+                        document.error_message = f"Processing failed: {str(e)}"
+                        document.progress = 100.0
+                        db.commit()
+                        db.refresh(document)
+                    else:
+                        # Session was closed, create new one for error update
+                        from app.database.database import SessionLocal
+                        error_db = SessionLocal()
+                        try:
+                            error_document = error_db.query(Document).filter(Document.id == document_id).first()
+                            if error_document:
+                                error_document.status = DocumentStatus.FAILED
+                                error_document.error_message = f"Processing failed: {str(e)}"
+                                error_document.progress = 100.0
+                                error_db.commit()
+                        finally:
+                            error_db.close()
+                except Exception as update_error:
+                    logger.error(f"Failed to update document {document_id} status to FAILED: {update_error}", exc_info=True)
         
         finally:
             # Clean up temporary file

@@ -4,9 +4,11 @@ Merges results and stores in DonorExtraction table.
 """
 import json
 import logging
+import asyncio
 from typing import Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.models.document import Document, DocumentStatus
 from app.models.donor_extraction import DonorExtraction
 from app.models.culture_result import CultureResult
@@ -49,6 +51,7 @@ class ExtractionAggregationService:
     async def aggregate_donor_results(donor_id: int, db: Session) -> bool:
         """
         Aggregate extraction results from all completed documents for a donor.
+        Uses PostgreSQL advisory locks to prevent concurrent aggregation for the same donor.
         
         Args:
             donor_id: ID of the donor
@@ -57,6 +60,31 @@ class ExtractionAggregationService:
         Returns:
             True if successful, False otherwise
         """
+        # Acquire advisory lock to prevent concurrent aggregation for same donor
+        # This prevents race conditions and deadlocks when multiple documents complete simultaneously
+        lock_acquired = False
+        for attempt in range(3):
+            try:
+                # Try to acquire advisory lock (waits if another process has it)
+                # Lock is automatically released when transaction commits/rolls back
+                db.execute(func.pg_advisory_xact_lock(donor_id))
+                lock_acquired = True
+                logger.debug(f"Acquired advisory lock for donor {donor_id} aggregation (attempt {attempt + 1})")
+                break
+            except Exception as e:
+                if attempt < 2:
+                    # Exponential backoff: 0.5s, 1s
+                    delay = 0.5 * (2 ** attempt)
+                    logger.debug(f"Could not acquire lock for donor {donor_id} (attempt {attempt + 1}/3), retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+                else:
+                    logger.warning(f"Could not acquire advisory lock for donor {donor_id} after 3 attempts: {e}")
+                    return False
+        
+        if not lock_acquired:
+            logger.warning(f"Failed to acquire advisory lock for donor {donor_id}, skipping aggregation")
+            return False
+        
         try:
             # Get all completed documents for this donor
             documents = db.query(Document).filter(

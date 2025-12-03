@@ -63,8 +63,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_WINDOW: int = 60  # seconds
     
     # Database Connection Pool
-    DB_POOL_SIZE: int = 10
-    DB_MAX_OVERFLOW: int = 20
+    # Increased to handle concurrent document processing + aggregation + vector conversion
+    # 20 base + 30 overflow = 50 total connections
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 30
     DB_POOL_TIMEOUT: int = 30
     DB_POOL_RECYCLE: int = 3600
     
