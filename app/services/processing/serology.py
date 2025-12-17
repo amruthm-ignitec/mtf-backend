@@ -101,6 +101,8 @@ def get_llm_response_sero(llm, role, primary_instruction, donor_info, reminder_i
     prompt = """{role}
         Instruction: {primary_instruction}
 
+        CRITICAL: Extract information ONLY from the provided donor document. Do not use information from other donors, documents, or your training data. Only extract data that is explicitly present in the provided donor information below.
+
         Key Tips:
         - ABO/Rh or ABO-Rh is one single test also, if ABO and Rh seem to be present in different lines, you should combine and their corresponding results as well.
         - Exclude all non-relevant details such as administrative information and collection procedures.
@@ -145,6 +147,8 @@ def reranking_serology(llm, retrieved_text_chunks):
     Rerank serology chunks for relevance using LLM with retry logic.
     """
     prompt = """You are provided with donor information that contain information about disease lab tests and its corresponding results from a donor chart. Your task is to carefully read the donor information and check whether the information is relevant to disease lab serology tests (e.g., SARS-CoV-2 Panther, GEL BLOOD TYPE B Rh, ABO/Rh, CMV Antibody, HIV 1&2/HCV/HBV NAT, Hepatitis B Core Total Ab,  etc.,) and its results (e.g., Positive, Negative, Non-Reactive, Reactive, Equivocal, Complete, O Positive etc.) related or not.
+
+        CRITICAL: Base your assessment ONLY on the provided donor information below. Do not use information from other donors, documents, or your training data.
 
         If there are irrelevant donor information, say "NOT RELEVANT" and If there are relevant donor information say "RELEVANT".
 

@@ -132,10 +132,11 @@ class InformationFormatterService:
             topics: Dictionary containing topic summarization results
             
         Returns:
-            Dictionary with cause of death, hypotension, and sepsis status
+            Dictionary with cause of death, time of death, hypotension, and sepsis status
         """
         terminal_info = {
             "cause_of_death": None,
+            "time_of_death": None,
             "hypotension": None,
             "sepsis": None
         }
@@ -159,6 +160,97 @@ class InformationFormatterService:
                             if isinstance(value, str) and len(value) > 5:
                                 terminal_info["cause_of_death"] = value
                                 break
+                    
+                    # Try to extract date/time of death from Cause of Death summary
+                    # Look for common date/time patterns in the summary
+                    import re
+                    for key, value in summary.items():
+                        if isinstance(value, str):
+                            # Look for date/time patterns (e.g., "01/15/2024 14:30", "2024-01-15", "January 15, 2024")
+                            date_patterns = [
+                                r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',  # MM/DD/YYYY or MM-DD-YYYY
+                                r'\d{4}[/-]\d{1,2}[/-]\d{1,2}',  # YYYY-MM-DD
+                                r'[A-Za-z]+\s+\d{1,2},?\s+\d{4}',  # January 15, 2024
+                                r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+\d{1,2}:\d{2}',  # Date with time
+                            ]
+                            for pattern in date_patterns:
+                                matches = re.findall(pattern, value)
+                                if matches:
+                                    terminal_info["time_of_death"] = matches[0]
+                                    break
+                            if terminal_info["time_of_death"]:
+                                break
+                    
+                    # Also check "Clinical Course" section which may contain death date/time
+                    if not terminal_info["time_of_death"] and "Clinical Course" in summary:
+                        clinical_course = summary["Clinical Course"]
+                        if isinstance(clinical_course, str):
+                            import re
+                            date_patterns = [
+                                r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',  # MM/DD/YYYY
+                                r'\d{4}[/-]\d{1,2}[/-]\d{1,2}',  # YYYY-MM-DD
+                                r'[A-Za-z]+\s+\d{1,2},?\s+\d{4}',  # January 15, 2024
+                                r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+\d{1,2}:\d{2}',  # Date with time
+                            ]
+                            for pattern in date_patterns:
+                                matches = re.findall(pattern, clinical_course)
+                                if matches:
+                                    terminal_info["time_of_death"] = matches[0]
+                                    break
+            
+            # Fallback: Check medical records for date/time of death
+            if not terminal_info["time_of_death"]:
+                medical_records = extracted_data.get("medical_records", {})
+                if medical_records:
+                    extracted = medical_records.get("extracted_data", {})
+                    summary = medical_records.get("summary", {})
+                    
+                    # Check for date/time in admission information or discharge summary
+                    if isinstance(summary, dict):
+                        admission_info = summary.get("Admission Information", "")
+                        discharge_summary = summary.get("Discharge Summary", "")
+                        
+                        for text in [admission_info, discharge_summary]:
+                            if isinstance(text, str):
+                                import re
+                                # Look for date/time patterns
+                                date_patterns = [
+                                    r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+\d{1,2}:\d{2}',  # Date with time
+                                    r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',  # Date only
+                                    r'\d{4}[/-]\d{1,2}[/-]\d{1,2}',  # YYYY-MM-DD
+                                ]
+                                for pattern in date_patterns:
+                                    matches = re.findall(pattern, text)
+                                    if matches:
+                                        # Prefer date with time if available
+                                        time_matches = [m for m in matches if ':' in m]
+                                        if time_matches:
+                                            terminal_info["time_of_death"] = time_matches[0]
+                                        else:
+                                            terminal_info["time_of_death"] = matches[0]
+                                        break
+                                if terminal_info["time_of_death"]:
+                                    break
+                    
+                    # Check extracted_data for date/time fields
+                    if not terminal_info["time_of_death"]:
+                        for key, value in extracted.items():
+                            key_lower = str(key).lower()
+                            if any(term in key_lower for term in ["death", "expired", "deceased", "died"]):
+                                if isinstance(value, str):
+                                    import re
+                                    date_patterns = [
+                                        r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s+\d{1,2}:\d{2}',
+                                        r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',
+                                        r'\d{4}[/-]\d{1,2}[/-]\d{1,2}',
+                                    ]
+                                    for pattern in date_patterns:
+                                        matches = re.findall(pattern, value)
+                                        if matches:
+                                            terminal_info["time_of_death"] = matches[0]
+                                            break
+                                    if terminal_info["time_of_death"]:
+                                        break
             
             # Sepsis - from topics
             if topics and "Sepsis" in topics:

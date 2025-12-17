@@ -15,6 +15,8 @@ def get_llm_response(llm, role, primary_instruction, donor_info, reminder_instru
     prompt = """{role}
     Instruction: {primary_instruction}
 
+    CRITICAL: Extract information ONLY from the provided donor document. Do not use information from other donors, documents, or your training data. Only extract data that is explicitly present in the provided donor information below.
+
     Do not extract: Culture results for blood, sputum, urine, stool, bronch
 
     Relevant donor information: {donor_info}
@@ -117,6 +119,8 @@ def remove_species(dc_info):
 def reranking_culture(llm, retrieved_text_chunk):
 
     prompt = """You are provided with donor information that may contain results for Culture tests for various tissues (like Recovery cultures, pre-processing cultures, postprocessing vivigen, cardiac processing filters, etc.) and microorganisms that may be present within these tissues. Your task is to carefully read the donor information and check whether the information is relevant to such Culture tests.
+
+    CRITICAL: Base your assessment ONLY on the provided donor information below. Do not use information from other donors, documents, or your training data.
 
     - If there are culture test results for subtissues like recovery culture, preprocessing culture, vivigen preprocessing, postprocessing vivigen, postprocessing skin, cardiac disinfect filter, cardiac processing represntative samples, etc say "RELEVANT".
     - DO NOT OVERSEE test results for cardiac processing filters, postprocessing vivigen, aortoiliac processing filter, aortoiliac processing representative sample, cardiac disinfect filter, cardiac endpoint representative sample, cardiac representative sample, cardiac represntative filter, postprocessing skin, etc. These are also culture tests. If results for such sub-tissues are present, say "RELEVANT".

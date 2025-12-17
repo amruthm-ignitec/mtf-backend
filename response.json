@@ -1,0 +1,490 @@
+{
+    "donor_id": "MTF-4",
+    "case_id": "MTF-481",
+    "processing_timestamp": "2025-12-03T12:23:45.368453",
+    "processing_duration_seconds": 0,
+    "extracted_data": {
+        "infectious_disease_testing": {
+            "present": true,
+            "pages": [
+                {
+                    "document_id": 305,
+                    "page": 2
+                }
+            ],
+            "summary": {
+                "Test Results": "The donor underwent infectious disease testing, including molecular identification and blood culture gram stain. Detected results include Staphylococcus epidermidis, Staphylococcus species, and mecA/C. A positive blood culture was identified with Gram-positive cocci in clusters. Final report confirmed Staphylococcus coagulase-negative.",
+                "Test Dates": "Tests were performed on 5/9/2025, 5/10/2025, and 5/11/2025.",
+                "Laboratory Information": "No laboratory information was provided in the document.",
+                "Sample Information": "Sample was collected on 5/9/2025 at 07:30:00 EDT. No additional sample types or report generation dates were provided.",
+                "Additional Notes": "Results were called to and read back by Pharmacist Alisha A on 5/10/2025 at 07:48:23 EDT by Carrie G."
+            },
+            "extracted_data": {
+                "Test_Results": [
+                    {
+                        "Test_Name": "Molecular ID - Staphylococcus epidermidis",
+                        "Test_Result": "Detected",
+                        "Specimen_Date_Time": "5/9/2025 07:30:00 EDT",
+                        "Specimen_Type": "Blood",
+                        "Test_Method": "Molecular ID",
+                        "Comments": null
+                    },
+                    {
+                        "Test_Name": "Molecular ID - Staphylococcus species",
+                        "Test_Result": "Detected",
+                        "Specimen_Date_Time": "5/9/2025 07:30:00 EDT",
+                        "Specimen_Type": "Blood",
+                        "Test_Method": "Molecular ID",
+                        "Comments": null
+                    },
+                    {
+                        "Test_Name": "Molecular ID - mecA/C",
+                        "Test_Result": "Detected",
+                        "Specimen_Date_Time": "5/9/2025 07:30:00 EDT",
+                        "Specimen_Type": "Blood",
+                        "Test_Method": "Molecular ID",
+                        "Comments": null
+                    },
+                    {
+                        "Test_Name": "Blood Culture Gram Stain",
+                        "Test_Result": "Positive Blood Culture - Gram Positive Cocci in Clusters",
+                        "Specimen_Date_Time": "5/10/2025 07:48:31 EDT",
+                        "Specimen_Type": "Blood",
+                        "Test_Method": "Gram Stain",
+                        "Comments": "Results called to and read back by Pharmacist Alisha A on 5/10/2025 at 07:48:23 EDT by Carrie G."
+                    },
+                    {
+                        "Test_Name": "Final Report",
+                        "Test_Result": "Staphylococcus coagulase negative",
+                        "Specimen_Date_Time": "5/11/2025 08:35:00 EDT",
+                        "Specimen_Type": "Blood",
+                        "Test_Method": "Final Report",
+                        "Comments": null
+                    }
+                ],
+                "Test_Dates": [
+                    "5/9/2025",
+                    "5/10/2025",
+                    "5/11/2025"
+                ],
+                "Laboratory_Information": {
+                    "testing_laboratory": null,
+                    "laboratory_address": null,
+                    "phone": null,
+                    "fax": null,
+                    "fda": null,
+                    "clia": null,
+                    "category": null,
+                    "ashi": null,
+                    "client": null
+                },
+                "Sample_Information": {
+                    "sample_date": "5/9/2025",
+                    "sample_time": "07:30:00 EDT",
+                    "sample_type_1": "Blood",
+                    "sample_type_2": null,
+                    "report_generated": null
+                },
+                "Additional_Notes": "Results were called to and read back by Pharmacist Alisha A on 5/10/2025 at 07:48:23 EDT by Carrie G."
+            },
+            "confidence": 89.99999999999999,
+            "document_id": 305
+        },
+        "donor_information": {
+            "present": false,
+            "pages": [],
+            "summary": {
+                "Name": "",
+                "Age": "",
+                "Gender": "",
+                "Date of Birth": "",
+                "Other Demographics": ""
+            },
+            "extracted_data": {},
+            "confidence": 17.599999999999998,
+            "document_id": 305
+        },
+        "medical_records": {
+            "present": true,
+            "pages": [
+                {
+                    "document_id": 305,
+                    "page": 2
+                }
+            ],
+            "summary": {
+                "Admission Information": "",
+                "Progress Notes": "",
+                "Laboratory Results": "Blood culture results indicate positive findings for Gram-positive cocci in clusters. Staphylococcus epidermidis and Staphylococcus species were detected, along with mecA/C gene. Final report confirmed Staphylococcus coagulase-negative.",
+                "Imaging Reports": "",
+                "Discharge Summary": "",
+                "Vital Signs": ""
+            },
+            "extracted_data": {
+                "Blood_Culture_Result": "Positive",
+                "Organisms_Detected": [
+                    "Staphylococcus epidermidis",
+                    "Staphylococcus species"
+                ],
+                "Gene_Detected": "mecA/C",
+                "Gram_Stain_Result": "Gram-positive cocci in clusters",
+                "Final_Report": "Staphylococcus coagulase-negative"
+            },
+            "confidence": 89.99999999999999,
+            "document_id": 305
+        },
+        "donor_risk_assessment_interview": {
+            "present": false,
+            "pages": [],
+            "summary": {
+                "Medical History": "",
+                "Social History": "",
+                "Risk Factors": "",
+                "Additional Information": ""
+            },
+            "extracted_data": {},
+            "confidence": 19.25,
+            "document_id": 305
+        },
+        "tissue_recovery_information": {
+            "present": false,
+            "pages": [],
+            "summary": {
+                "Tissues Recovered": "",
+                "Recovery Procedures": "",
+                "Timing": "",
+                "Special Handling": "",
+                "Recovery Location": ""
+            },
+            "extracted_data": {},
+            "confidence": 22.249999999999996,
+            "document_id": 305
+        },
+        "medical_records_review_summary": {
+            "present": true,
+            "pages": [
+                {
+                    "document_id": 305,
+                    "page": 2
+                }
+            ],
+            "summary": {
+                "Diagnoses": "Staphylococcus epidermidis infection, Staphylococcus species infection, mecA/C gene detection, Gram-positive cocci in clusters identified in blood culture.",
+                "Procedures": "Blood culture and Gram stain performed on 5/10/2025.",
+                "Medications": "No medications documented in the provided records.",
+                "Significant History": "No significant medical history documented in the provided records."
+            },
+            "extracted_data": {
+                "Diagnoses": [
+                    "Staphylococcus epidermidis infection",
+                    "Staphylococcus species infection",
+                    "mecA/C gene detection",
+                    "Gram-positive cocci in clusters identified in blood culture"
+                ],
+                "Procedures": [
+                    "Blood culture performed on 5/10/2025",
+                    "Gram stain performed on 5/10/2025"
+                ],
+                "Medications": [],
+                "Significant History": []
+            },
+            "confidence": 70.0,
+            "document_id": 305
+        },
+        "authorization_for_tissue_donation": {
+            "present": false,
+            "pages": [],
+            "summary": {
+                "Authorizer": "",
+                "Date": "",
+                "Type": "",
+                "Conditions": ""
+            },
+            "extracted_data": {},
+            "confidence": 14.000000000000002,
+            "document_id": 305
+        },
+        "physical_assessment": {
+            "present": false,
+            "pages": [],
+            "summary": {
+                "Vital Signs": "",
+                "Body Measurements": "",
+                "Physical Findings": "",
+                "General Appearance": ""
+            },
+            "extracted_data": {},
+            "confidence": 19.25,
+            "document_id": 305
+        },
+        "donor_log_in_information_packet": {
+            "present": true,
+            "pages": [
+                {
+                    "document_id": 305,
+                    "page": 2
+                }
+            ],
+            "summary": {
+                "Identification": "Ascension #: 000602025129002331, AMEL149",
+                "Timestamps": "Log-in timestamps include: 5/9/2025 07:30:00 EDT, 5/10/2025 07:48:31 EDT, 5/11/2025 08:35:00 EDT",
+                "Administrative Details": "Dose Wt: 92.000 kg (05/13/2025), Advance Directive: No - Patient declines, Loc: FLT 5S ICU; 503; 1, Isolation: <No Data Available>, Primary Insurance: MCR - MEDICARE PA..., HealthELife: No, XDocs: (18) New"
+            },
+            "extracted_data": {
+                "Ascension_Number": "000602025129002331",
+                "AMEL_Code": "AMEL149",
+                "Log_In_Timestamps": [
+                    "5/9/2025 07:30:00 EDT",
+                    "5/10/2025 07:48:31 EDT",
+                    "5/11/2025 08:35:00 EDT"
+                ],
+                "Dose_Weight": "92.000 kg",
+                "Advance_Directive": "No - Patient declines",
+                "Location": "FLT 5S ICU; 503; 1",
+                "Isolation": "<No Data Available>",
+                "Primary_Insurance": "MCR - MEDICARE PA...",
+                "HealthELife": "No",
+                "XDocs": "(18) New"
+            },
+            "confidence": 89.99999999999999,
+            "document_id": 305
+        },
+        "plasma_dilution": {
+            "present": false,
+            "pages": [],
+            "summary": {
+                "Dilution Factor": "",
+                "Volumes": "",
+                "Procedures": "",
+                "Measurements": ""
+            },
+            "extracted_data": {},
+            "confidence": 16.4,
+            "document_id": 305
+        }
+    },
+    "conditional_documents": {},
+    "validation": {
+        "critical_findings": [],
+        "has_critical_findings": false,
+        "automatic_rejection": false
+    },
+    "compliance_status": null,
+    "document_summary": {
+        "total_documents_processed": 1,
+        "total_pages_processed": 0,
+        "extraction_methods_used": [
+            "culture",
+            "serology",
+            "topics",
+            "components"
+        ]
+    },
+    "culture_results": {
+        "result": [
+            {
+                "test_name": "Molecular ID - Staphylococcus epidermidis",
+                "test_method": "Molecular ID",
+                "specimen_type": "Blood",
+                "specimen_date": "5/9/2025 07:30:00 EDT",
+                "result": "Detected",
+                "comments": null
+            },
+            {
+                "test_name": "Molecular ID - Staphylococcus species",
+                "test_method": "Molecular ID",
+                "specimen_type": "Blood",
+                "specimen_date": "5/9/2025 07:30:00 EDT",
+                "result": "Detected",
+                "comments": null
+            },
+            {
+                "test_name": "Molecular ID - mecA/C",
+                "test_method": "Molecular ID",
+                "specimen_type": "Blood",
+                "specimen_date": "5/9/2025 07:30:00 EDT",
+                "result": "Detected",
+                "comments": null
+            },
+            {
+                "test_name": "Blood Culture Gram Stain",
+                "test_method": "Gram Stain",
+                "specimen_type": "Blood",
+                "specimen_date": "5/10/2025 07:48:31 EDT",
+                "result": "Positive Blood Culture - Gram Positive Cocci in Clusters",
+                "comments": "Results called to and read back by Pharmacist Alisha A on 5/10/2025 at 07:48:23 EDT by Carrie G."
+            },
+            {
+                "test_name": "Final Report",
+                "test_method": "Final Report",
+                "specimen_type": "Blood",
+                "specimen_date": "5/11/2025 08:35:00 EDT",
+                "result": "Staphylococcus coagulase negative",
+                "comments": null
+            }
+        ],
+        "citations": [
+            {
+                "document_id": 305,
+                "page": 2
+            }
+        ]
+    },
+    "serology_results": {
+        "result": {},
+        "citations": []
+    },
+    "key_medical_findings": {
+        "tissue_quality": {
+            "status": "Unknown",
+            "description": "Physical assessment data not available"
+        },
+        "bone_density": null,
+        "cardiovascular_health": {
+            "status": "No significant findings",
+            "description": "No cardiovascular disease history noted"
+        },
+        "medical_history": {
+            "status": "Available",
+            "description": "No significant medical history documented in the provided records."
+        }
+    },
+    "tissue_eligibility": [
+        {
+            "id": "femur",
+            "name": "Femur",
+            "category": "Musculoskeletal",
+            "status": "Ineligible",
+            "confidenceScore": 45,
+            "factors": [
+                {
+                    "name": "Donor Age",
+                    "currentValue": "65 years",
+                    "requirement": "Donor age should ideally be under 60 years for optimal bone quality, but donors up to 70 years may be considered based on other factors.",
+                    "impact": -10,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Bone Density",
+                    "currentValue": "Not Available",
+                    "requirement": "Bone density should be within normal range (T-score > -1.0) or minimally osteopenic (T-score between -1.0 and -2.5).",
+                    "impact": -20,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Bone Disease History",
+                    "currentValue": "Not Available",
+                    "requirement": "No history of significant bone diseases such as osteoporosis, osteomalacia, or metabolic bone disorders.",
+                    "impact": -15,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Physical Condition",
+                    "currentValue": "Not Available",
+                    "requirement": "No fractures, deformities, or abnormalities in the femur bone.",
+                    "impact": -10,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Recovery Timing",
+                    "currentValue": "Not Available",
+                    "requirement": "Tissue recovery should ideally occur within 24 hours of death to ensure optimal tissue quality.",
+                    "impact": -15,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Trauma History",
+                    "currentValue": "Not Available",
+                    "requirement": "No recent trauma, fractures, or surgical interventions affecting the femur bone.",
+                    "impact": -10,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Medical History",
+                    "currentValue": "Staphylococcus epidermidis infection, Staphylococcus species infection, mecA/C gene detection, Gram-positive cocci in clusters identified in blood culture.",
+                    "requirement": "No active or recent systemic infections that could compromise tissue safety.",
+                    "impact": -30,
+                    "positiveImpact": false
+                }
+            ],
+            "similarCases": null,
+            "description": "The donor's femur bone tissue is deemed ineligible for transplantation based on the provided data. Key factors contributing to this determination include the presence of systemic infections (Staphylococcus epidermidis and Staphylococcus species with mecA/C gene detection), which pose a significant risk to tissue safety. Additionally, critical information such as bone density measurements, physical condition of the femur, recovery timing, and trauma history is unavailable, further reducing confidence in the tissue's eligibility. The donor's age of 65 years is slightly above the optimal range for bone donation, which also negatively impacts eligibility. Overall, the combination of these factors results in a confidence score of 45, well below the threshold for eligibility. Further review or additional data would not likely change the outcome due to the critical nature of the infection-related findings."
+        },
+        {
+            "id": "skin_&_soft_tissue",
+            "name": "Skin & Soft Tissue",
+            "category": "Integumentary",
+            "status": "Ineligible",
+            "confidenceScore": 40,
+            "factors": [
+                {
+                    "name": "Donor Age",
+                    "currentValue": "65 years",
+                    "requirement": "Donor age should typically be within acceptable range (e.g., 18-70 years) for skin and soft tissue donation.",
+                    "impact": 10,
+                    "positiveImpact": true
+                },
+                {
+                    "name": "Skin Condition",
+                    "currentValue": "Not Available",
+                    "requirement": "Skin should be free of lesions, scarring, infections, or abnormalities.",
+                    "impact": -20,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Recovery Site",
+                    "currentValue": "Not Available",
+                    "requirement": "Recovery site should be documented and appropriate for transplantation (e.g., posterior trunk, anterior trunk, extremities).",
+                    "impact": -10,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Recovery Timing",
+                    "currentValue": "Not Available",
+                    "requirement": "Recovery timing should be within acceptable limits (e.g., <24 hours post-mortem) to ensure tissue viability.",
+                    "impact": -20,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Tissue Viability",
+                    "currentValue": "Not Available",
+                    "requirement": "Tissue should demonstrate adequate vascularity, blood supply, and health indicators.",
+                    "impact": -20,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Physical Assessment",
+                    "currentValue": "Not Available",
+                    "requirement": "Physical assessment should confirm the absence of lesions, abnormalities, or contraindications.",
+                    "impact": -10,
+                    "positiveImpact": false
+                },
+                {
+                    "name": "Medical History",
+                    "currentValue": "Staphylococcus epidermidis infection, Staphylococcus species infection, mecA/C gene detection, Gram-positive cocci in clusters identified in blood culture.",
+                    "requirement": "Donor should be free of systemic infections or conditions that may compromise tissue safety.",
+                    "impact": -30,
+                    "positiveImpact": false
+                }
+            ],
+            "similarCases": null,
+            "description": "The donor is deemed ineligible for skin and soft tissue transplantation based on the provided data. While the donor's age (65 years) falls within the acceptable range, several critical factors negatively impact eligibility. The donor's medical history indicates systemic infections (Staphylococcus epidermidis and Staphylococcus species with mecA/C gene detection), which is a significant contraindication for tissue donation. Additionally, key information such as skin condition, recovery site, recovery timing, and tissue viability is not available, further reducing confidence in the tissue's suitability. The absence of a documented physical assessment and recovery details also raises concerns. Given these findings, the overall confidence score is 40, and the donor is classified as ineligible for transplantation. Further review or additional data would be required to reassess eligibility, but the presence of systemic infections is a critical exclusion criterion."
+        }
+    ],
+    "recovery_information": {
+        "recovery_window": "24 hours",
+        "location": null,
+        "consent_status": null
+    },
+    "terminal_information": {
+        "cause_of_death": null,
+        "hypotension": "None",
+        "sepsis": "None"
+    },
+    "critical_lab_values": {
+        "WBC": null,
+        "Hemoglobin": null,
+        "Platelets": null,
+        "Creatinine": null
+    }
+}

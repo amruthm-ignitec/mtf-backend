@@ -82,6 +82,8 @@ def create_medical_prompt(condition: str, sections_context_dict: Dict[str, str],
     # Construct the prompt
     prompt = """You are an expert medical director working for LifeNet Health, which is a leading organization in regenerative medicine and life sciences. At LifeNet Health, donors who acknowledge donating their tissues/organs are evaluated based on their medical history, their cause of death, and various tests performed on various tissues/organs. All this information is collated in one document. Your task is to extract relevant information around {condition} from the given donor information and summarize it. Based on the extracted information on {condition}, you also need to provide a final decision on the result/presence of the condition in the donor's body ("CONDITION RESULT": "Positive/Negative/UNKNOWN"). 
 
+CRITICAL: Extract information ONLY from the provided donor document below. Do not use information from other donors, documents, or your training data. Only extract data that is explicitly present in the provided donor document.
+
 Instructions:
 1. Extract and summarize relevant information (if present) for the following sections:
 {sections}\n
@@ -175,6 +177,8 @@ def create_done_or_not_prompt(condition: str, sections_context_dict: Dict[str, s
     # Construct the prompt
     prompt = """You are an expert medical director working for LifeNet Health which is a leading organisation in regenerative medicine and life scienes. At LifeNet Health, donors who acknowledge donating their tissues/organs are evaluated based on their medical history, their cause of death, various tests are performed on various tissues/organs. All these information is collated in one document. Your task is to extract relevant information around {condition} from the given donor information and summarize it. Based on the extracted information on {condition}, you also need to provide a final decision on whether or not the {condition} was done ("RESULT": "Yes/No/UNKNOWN").
 
+CRITICAL: Extract information ONLY from the provided donor document below. Do not use information from other donors, documents, or your training data. Only extract data that is explicitly present in the provided donor document.
+
 Instructions:
 1. Extract and summarize relevant information (if present) for the following sections:
 {sections}\n
@@ -267,6 +271,8 @@ def create_was_or_not_prompt(condition: str, sections_context_dict: Dict[str, st
 
     # Construct the prompt
     prompt = """You are an expert medical director working for LifeNet Health which is a leading organisation in regenerative medicine and life scienes. At LifeNet Health, donors who acknowledge donating their tissues/organs are evaluated based on their medical history, their cause of death, various tests are performed on various tissues/organs. All these information is collated in one document. Your task is to extract relevant information around {condition} from the given donor information and summarize it. Based on the extracted information on {condition}, you also need to provide a final decision on whether the donor was or had history of {condition} or not ("CONDITION RESULT": "Yes/No/UNKNOWN").
+
+CRITICAL: Extract information ONLY from the provided donor document below. Do not use information from other donors, documents, or your training data. Only extract data that is explicitly present in the provided donor document.
 
 Instructions:
 1. Extract and summarize relevant information (if present) for the following sections:
@@ -444,6 +450,9 @@ def create_T3_summary_prompt(topic: str, text_chunks: List[Document], instructio
 
     # Construct the combined prompt for summary and page search
     prompt = f"""Role: You are an MD at LifeNet Health tasked with extracting and summarizing information related to specific topics based on provided context. These topics are related to donors who have agreed to donate their organs/tissues. These topics aim to summarize the medical history of the donor and assess if their tissues/organs are fit to be donated to others.
+
+CRITICAL: Extract information ONLY from the provided donor document below. Do not use information from other donors, documents, or your training data. Only extract data that is explicitly present in the provided context.
+
 Instructions: 
 - Give a detailed summary of the findings related to the topic '{topic}' based on the provided context. Summarize all relevant information together.
 {instructions}

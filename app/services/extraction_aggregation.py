@@ -96,6 +96,15 @@ class ExtractionAggregationService:
                 logger.info(f"No completed documents found for donor {donor_id}")
                 return False
             
+            # Validation: Ensure all documents belong to the same donor (defense in depth)
+            for document in documents:
+                if document.donor_id != donor_id:
+                    logger.error(
+                        f"CRITICAL: Document {document.id} has donor_id {document.donor_id} "
+                        f"but expected {donor_id}. Skipping aggregation to prevent data contamination."
+                    )
+                    return False
+            
             logger.info(f"Aggregating results from {len(documents)} documents for donor {donor_id}")
             
             # Collect results from all documents

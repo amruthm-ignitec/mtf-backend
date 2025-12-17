@@ -187,6 +187,8 @@ def create_component_extraction_prompt(
     
     prompt = f"""You are an expert medical director working for LifeNet Health, which is a leading organization in regenerative medicine and life sciences. Your task is to extract and summarize information from the {component_name} section of a donor chart document.
 
+CRITICAL: Extract information ONLY from the provided donor document below. Do not use information from other donors, documents, or your training data. Only extract data that is explicitly present in the provided donor document.
+
 Component Description: {description}
 
 {extraction_prompt}
@@ -215,6 +217,7 @@ Key Tips:
 - If the component is not present or not found, set "PRESENT" to "No" and return empty summaries
 - Be thorough in extracting structured data where applicable
 - Maintain accuracy of all extracted information
+- Only use information explicitly present in the provided donor document above
 
 AI Response:"""
     
