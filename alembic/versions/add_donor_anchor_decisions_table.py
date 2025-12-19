@@ -35,22 +35,28 @@ def upgrade() -> None:
     # Ensure pgvector extension is enabled
     op.execute("CREATE EXTENSION IF NOT EXISTS vector;")
     
-    # Create enums using raw SQL to avoid conflicts
-    conn.execute(sa.text("""
-        DO $$ BEGIN
-            CREATE TYPE anchoroutcome AS ENUM ('accepted', 'rejected');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
+    # Check if enums exist before creating them
+    # Check for anchoroutcome enum
+    enum_check = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM pg_type WHERE typname = 'anchoroutcome'
+        )
     """))
     
-    conn.execute(sa.text("""
-        DO $$ BEGIN
-            CREATE TYPE outcomesource AS ENUM ('batch_import', 'manual_approval', 'predicted');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
+    if not enum_check.scalar():
+        # Create anchoroutcome enum
+        conn.execute(sa.text("CREATE TYPE anchoroutcome AS ENUM ('accepted', 'rejected');"))
+    
+    # Check for outcomesource enum
+    enum_check2 = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM pg_type WHERE typname = 'outcomesource'
+        )
     """))
+    
+    if not enum_check2.scalar():
+        # Create outcomesource enum
+        conn.execute(sa.text("CREATE TYPE outcomesource AS ENUM ('batch_import', 'manual_approval', 'predicted');"))
     
     # Create donor_anchor_decisions table
     op.create_table('donor_anchor_decisions',
@@ -66,8 +72,18 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id')
     )
     
-    # Add vector column using raw SQL (pgvector)
-    op.execute("ALTER TABLE donor_anchor_decisions ADD COLUMN parameter_embedding vector(3072);")
+    # Add vector column using raw SQL (pgvector) - check if column exists first
+    column_check = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = 'donor_anchor_decisions' 
+            AND column_name = 'parameter_embedding'
+        )
+    """))
+    
+    if not column_check.scalar():
+        op.execute("ALTER TABLE donor_anchor_decisions ADD COLUMN parameter_embedding vector(3072);")
     
     # Create indexes
     op.create_index(op.f('ix_donor_anchor_decisions_id'), 'donor_anchor_decisions', ['id'], unique=False)
