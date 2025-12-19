@@ -762,6 +762,64 @@ class ExtractionAggregationService:
             db.commit()
             logger.info(f"Successfully aggregated results for donor {donor_id}")
             
+            # Trigger prediction after aggregation (fire-and-forget, non-blocking)
+            # This is completely optional and failures won't affect main processing
+            try:
+                async def run_prediction_safely():
+                    """Run prediction with error handling to prevent blocking main flow."""
+                    try:
+                        from app.services.donor_prediction_service import donor_prediction_service
+                        from app.services.anchor_database_service import anchor_database_service
+                        from app.models.donor_anchor_decision import OutcomeSource, AnchorOutcome
+                        from app.database.database import SessionLocal
+                        
+                        logger.info(f"Starting prediction for donor {donor_id} (background task)")
+                        background_db = SessionLocal()
+                        try:
+                            # Get prediction
+                            prediction = await donor_prediction_service.predict_donor_outcome(
+                                donor_id=donor_id,
+                                db=background_db
+                            )
+                            
+                            if prediction and prediction.get("predicted_outcome"):
+                                # Store prediction in anchor database
+                                predicted_outcome = AnchorOutcome.ACCEPTED if prediction["predicted_outcome"] == "accepted" else AnchorOutcome.REJECTED
+                                
+                                await anchor_database_service.create_anchor_decision(
+                                    donor_id=donor_id,
+                                    outcome=predicted_outcome,
+                                    outcome_source=OutcomeSource.PREDICTED,
+                                    db=background_db
+                                )
+                                logger.info(f"Prediction stored for donor {donor_id}: {prediction['predicted_outcome']} (confidence: {prediction.get('confidence', 0):.1%})")
+                            else:
+                                logger.debug(f"No prediction generated for donor {donor_id}: {prediction.get('reasoning', 'Unknown reason') if prediction else 'No prediction returned'}")
+                        except Exception as inner_e:
+                            logger.warning(f"Error in prediction task for donor {donor_id}: {inner_e}", exc_info=True)
+                        finally:
+                            try:
+                                background_db.close()
+                            except:
+                                pass
+                    except Exception as outer_e:
+                        logger.warning(f"Error setting up prediction task for donor {donor_id}: {outer_e}", exc_info=True)
+                
+                # Start prediction task (non-blocking) - only if event loop is available
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.create_task(run_prediction_safely())
+                    else:
+                        # No running event loop, skip prediction (it's optional)
+                        logger.debug(f"No event loop available for prediction, skipping (donor {donor_id})")
+                except RuntimeError:
+                    # No event loop at all, skip prediction (it's optional)
+                    logger.debug(f"No event loop available for prediction, skipping (donor {donor_id})")
+            except Exception as e:
+                # Even if setting up the task fails, don't affect main processing
+                logger.warning(f"Could not schedule prediction task for donor {donor_id}: {e}", exc_info=True)
+            
             # Trigger vector conversion as fire-and-forget task (non-blocking)
             # Vector conversion is only used for similarity search and is not critical for main processing
             import asyncio

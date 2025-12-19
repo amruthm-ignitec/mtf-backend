@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Optional, BinaryIO
+from typing import Optional, BinaryIO, List
 from datetime import datetime, timedelta
 from azure.storage.blob import BlobServiceClient, BlobClient, BlobSasPermissions
 from azure.storage.blob import generate_blob_sas, generate_account_sas, AccountSasPermissions
@@ -194,6 +194,119 @@ class AzureBlobService:
             return None
         except Exception as e:
             logger.error(f"Unexpected error generating SAS URL for {filename}: {e}")
+            return None
+    
+    def list_blobs_by_prefix(self, prefix: str) -> List[str]:
+        """
+        List all blobs with a given prefix (simulates folder listing).
+        
+        Args:
+            prefix: The prefix to filter blobs (e.g., "DNC/" or "DNC/donor_001/")
+            
+        Returns:
+            List of blob names matching the prefix
+        """
+        if not self.enabled:
+            logger.warning("Azure Blob Storage not enabled, cannot list blobs")
+            return []
+        
+        try:
+            container_client = self.blob_service_client.get_container_client(self.container_name)
+            blob_list = container_client.list_blobs(name_starts_with=prefix)
+            
+            blob_names = [blob.name for blob in blob_list]
+            logger.debug(f"Found {len(blob_names)} blobs with prefix '{prefix}'")
+            return blob_names
+            
+        except AzureError as e:
+            logger.error(f"Error listing blobs with prefix '{prefix}': {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error listing blobs with prefix '{prefix}': {e}")
+            return []
+    
+    def list_folders(self, prefix: str = "") -> List[str]:
+        """
+        List "folders" (blob name prefixes ending with '/') within a given prefix.
+        Extracts folder structure from blob names.
+        
+        Args:
+            prefix: The prefix to search within (e.g., "" for root, "DNC/" for DNC folder)
+            
+        Returns:
+            List of folder names (e.g., ["DNC/", "Compliant/", "DNC/donor_001/"])
+        """
+        if not self.enabled:
+            logger.warning("Azure Blob Storage not enabled, cannot list folders")
+            return []
+        
+        try:
+            # List all blobs with the prefix
+            blob_names = self.list_blobs_by_prefix(prefix)
+            
+            folders = set()
+            
+            for blob_name in blob_names:
+                # Remove prefix to get relative path
+                if prefix:
+                    if blob_name.startswith(prefix):
+                        relative_path = blob_name[len(prefix):]
+                    else:
+                        continue
+                else:
+                    relative_path = blob_name
+                
+                # Extract folder structure
+                if '/' in relative_path:
+                    # Get the first folder level
+                    first_folder = relative_path.split('/')[0]
+                    folder_name = (prefix + first_folder + '/') if prefix else (first_folder + '/')
+                    folders.add(folder_name)
+            
+            folders_list = sorted(list(folders))
+            logger.debug(f"Found {len(folders_list)} folders with prefix '{prefix}'")
+            return folders_list
+            
+        except AzureError as e:
+            logger.error(f"Error listing folders with prefix '{prefix}': {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error listing folders with prefix '{prefix}': {e}")
+            return []
+    
+    async def download_blob_to_memory(self, blob_name: str) -> Optional[bytes]:
+        """
+        Download blob content to memory.
+        
+        Args:
+            blob_name: The name/path of the blob to download
+            
+        Returns:
+            Blob content as bytes if successful, None if failed
+        """
+        if not self.enabled:
+            logger.warning(f"Azure Blob Storage not enabled, cannot download blob: {blob_name}")
+            return None
+        
+        try:
+            blob_client = self.blob_service_client.get_blob_client(
+                container=self.container_name,
+                blob=blob_name
+            )
+            
+            if not blob_client.exists():
+                logger.warning(f"Blob not found: {blob_name}")
+                return None
+            
+            blob_data = blob_client.download_blob().readall()
+            logger.debug(f"Downloaded blob {blob_name}, size: {len(blob_data)} bytes")
+            return blob_data
+            
+        except AzureError as e:
+            logger.error(f"Error downloading blob '{blob_name}': {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error downloading blob '{blob_name}': {e}")
             return None
 
 # Global instance
