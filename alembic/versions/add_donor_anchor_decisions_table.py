@@ -58,36 +58,24 @@ def upgrade() -> None:
         # Create outcomesource enum
         conn.execute(sa.text("CREATE TYPE outcomesource AS ENUM ('batch_import', 'manual_approval', 'predicted');"))
     
-    # Create donor_anchor_decisions table
-    op.create_table('donor_anchor_decisions',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('donor_id', sa.Integer(), nullable=False),
-        sa.Column('outcome', sa.Enum('accepted', 'rejected', name='anchoroutcome', create_type=False), nullable=False),
-        sa.Column('outcome_source', sa.Enum('batch_import', 'manual_approval', 'predicted', name='outcomesource', create_type=False), nullable=False),
-        sa.Column('parameter_snapshot', postgresql.JSON(astext_type=sa.Text()), nullable=False),
-        sa.Column('similarity_threshold_used', sa.Float(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['donor_id'], ['donors.id'], ),
-        sa.PrimaryKeyConstraint('id')
-    )
+    # Create donor_anchor_decisions table using raw SQL to avoid SQLAlchemy enum creation issues
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS donor_anchor_decisions (
+            id SERIAL PRIMARY KEY,
+            donor_id INTEGER NOT NULL REFERENCES donors(id),
+            outcome anchoroutcome NOT NULL,
+            outcome_source outcomesource NOT NULL,
+            parameter_snapshot JSONB NOT NULL,
+            similarity_threshold_used FLOAT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+            updated_at TIMESTAMP WITH TIME ZONE,
+            parameter_embedding vector(3072)
+        );
+    """)
     
-    # Add vector column using raw SQL (pgvector) - check if column exists first
-    column_check = conn.execute(sa.text("""
-        SELECT EXISTS (
-            SELECT 1 FROM information_schema.columns 
-            WHERE table_schema = 'public' 
-            AND table_name = 'donor_anchor_decisions' 
-            AND column_name = 'parameter_embedding'
-        )
-    """))
-    
-    if not column_check.scalar():
-        op.execute("ALTER TABLE donor_anchor_decisions ADD COLUMN parameter_embedding vector(3072);")
-    
-    # Create indexes
-    op.create_index(op.f('ix_donor_anchor_decisions_id'), 'donor_anchor_decisions', ['id'], unique=False)
-    op.create_index(op.f('ix_donor_anchor_decisions_donor_id'), 'donor_anchor_decisions', ['donor_id'], unique=False)
+    # Create indexes (table already created with vector column above)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_donor_anchor_decisions_id ON donor_anchor_decisions(id);")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_donor_anchor_decisions_donor_id ON donor_anchor_decisions(donor_id);")
     
     # Create vector similarity index
     op.execute("""
