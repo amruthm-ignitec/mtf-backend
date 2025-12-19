@@ -55,25 +55,56 @@ def upgrade() -> None:
     """))
     
     if not result.scalar():
-        op.create_table('documents',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('filename', sa.String(), nullable=False),
-        sa.Column('original_filename', sa.String(), nullable=False),
-        sa.Column('file_size', sa.Integer(), nullable=False),
-        sa.Column('file_type', sa.String(), nullable=False),
-        sa.Column('document_type', sa.Enum('MEDICAL_HISTORY', 'SEROLOGY_REPORT', 'LAB_RESULTS', 'RECOVERY_CULTURES', 'CONSENT_FORM', 'DEATH_CERTIFICATE', 'OTHER', name='documenttype', create_type=False), nullable=True),
-        sa.Column('status', sa.Enum('UPLOADED', 'PROCESSING', 'ANALYZING', 'REVIEWING', 'COMPLETED', 'FAILED', 'REJECTED', name='documentstatus', create_type=False), nullable=True),
-        sa.Column('azure_blob_url', sa.String(), nullable=True),
-        sa.Column('processing_result', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('donor_id', sa.Integer(), nullable=False),
-        sa.Column('uploaded_by', sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(['donor_id'], ['donors.id'], ),
-        sa.ForeignKeyConstraint(['uploaded_by'], ['users.id'], ),
-        sa.PrimaryKeyConstraint('id')
-        )
-        op.create_index(op.f('ix_documents_id'), 'documents', ['id'], unique=False)
+        # Create enums if they don't exist (needed before creating table)
+        # Check for documenttype enum
+        enum_check1 = conn.execute(sa.text("""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_type WHERE typname = 'documenttype'
+            )
+        """))
+        
+        if not enum_check1.scalar():
+            conn.execute(sa.text("""
+                CREATE TYPE documenttype AS ENUM (
+                    'MEDICAL_HISTORY', 'SEROLOGY_REPORT', 'LAB_RESULTS', 
+                    'RECOVERY_CULTURES', 'CONSENT_FORM', 'DEATH_CERTIFICATE', 'OTHER'
+                );
+            """))
+        
+        # Check for documentstatus enum
+        enum_check2 = conn.execute(sa.text("""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_type WHERE typname = 'documentstatus'
+            )
+        """))
+        
+        if not enum_check2.scalar():
+            conn.execute(sa.text("""
+                CREATE TYPE documentstatus AS ENUM (
+                    'UPLOADED', 'PROCESSING', 'ANALYZING', 'REVIEWING', 
+                    'COMPLETED', 'FAILED', 'REJECTED'
+                );
+            """))
+        
+        # Create documents table using raw SQL to avoid SQLAlchemy enum creation issues
+        op.execute("""
+            CREATE TABLE documents (
+                id SERIAL PRIMARY KEY,
+                filename VARCHAR NOT NULL,
+                original_filename VARCHAR NOT NULL,
+                file_size INTEGER NOT NULL,
+                file_type VARCHAR NOT NULL,
+                document_type documenttype,
+                status documentstatus,
+                azure_blob_url VARCHAR,
+                processing_result TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                updated_at TIMESTAMP WITH TIME ZONE,
+                donor_id INTEGER NOT NULL REFERENCES donors(id),
+                uploaded_by INTEGER NOT NULL REFERENCES users(id)
+            );
+        """)
+        op.execute("CREATE INDEX IF NOT EXISTS ix_documents_id ON documents(id);")
 
 
 def downgrade() -> None:

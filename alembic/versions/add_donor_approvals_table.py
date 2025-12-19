@@ -32,42 +32,42 @@ def upgrade() -> None:
         # Table already exists, skip migration
         return
     
-    # Create enums using raw SQL to avoid conflicts
-    conn.execute(sa.text("""
-        DO $$ BEGIN
-            CREATE TYPE approvalstatus AS ENUM ('approved', 'rejected', 'pending');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
+    # Check if enums exist before creating them
+    enum_check1 = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM pg_type WHERE typname = 'approvalstatus'
+        )
     """))
     
-    conn.execute(sa.text("""
-        DO $$ BEGIN
-            CREATE TYPE approvaltype AS ENUM ('document', 'donor_summary');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
+    if not enum_check1.scalar():
+        conn.execute(sa.text("CREATE TYPE approvalstatus AS ENUM ('approved', 'rejected', 'pending');"))
+    
+    enum_check2 = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM pg_type WHERE typname = 'approvaltype'
+        )
     """))
     
-    # Create donor_approvals table
-    op.create_table('donor_approvals',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('donor_id', sa.Integer(), nullable=False),
-        sa.Column('document_id', sa.Integer(), nullable=True),
-        sa.Column('approval_type', sa.Enum('document', 'donor_summary', name='approvaltype', create_type=False), nullable=False),
-        sa.Column('status', sa.Enum('approved', 'rejected', 'pending', name='approvalstatus', create_type=False), nullable=False),
-        sa.Column('comment', sa.Text(), nullable=False),
-        sa.Column('approved_by', sa.Integer(), nullable=False),
-        sa.Column('checklist_data', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['donor_id'], ['donors.id'], ),
-        sa.ForeignKeyConstraint(['document_id'], ['documents.id'], ),
-        sa.ForeignKeyConstraint(['approved_by'], ['users.id'], ),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_donor_approvals_id'), 'donor_approvals', ['id'], unique=False)
-    op.create_index(op.f('ix_donor_approvals_donor_id'), 'donor_approvals', ['donor_id'], unique=False)
+    if not enum_check2.scalar():
+        conn.execute(sa.text("CREATE TYPE approvaltype AS ENUM ('document', 'donor_summary');"))
+    
+    # Create donor_approvals table using raw SQL to avoid SQLAlchemy enum creation issues
+    op.execute("""
+        CREATE TABLE donor_approvals (
+            id SERIAL PRIMARY KEY,
+            donor_id INTEGER NOT NULL REFERENCES donors(id),
+            document_id INTEGER REFERENCES documents(id),
+            approval_type approvaltype NOT NULL,
+            status approvalstatus NOT NULL,
+            comment TEXT NOT NULL,
+            approved_by INTEGER NOT NULL REFERENCES users(id),
+            checklist_data TEXT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+            updated_at TIMESTAMP WITH TIME ZONE
+        );
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_donor_approvals_id ON donor_approvals(id);")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_donor_approvals_donor_id ON donor_approvals(donor_id);")
 
 
 def downgrade() -> None:

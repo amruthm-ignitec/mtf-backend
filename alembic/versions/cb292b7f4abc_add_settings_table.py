@@ -19,15 +19,6 @@ depends_on = None
 def upgrade() -> None:
     conn = op.get_bind()
     
-    # Create settingtype enum if it doesn't exist (idempotent)
-    conn.execute(sa.text("""
-        DO $$ BEGIN
-            CREATE TYPE settingtype AS ENUM ('OPENAI_API_KEY', 'OPENAI_EMBEDDING_MODEL', 'OPENAI_SUMMARIZATION_MODEL', 'AZURE_API_KEY', 'AZURE_ENDPOINT', 'AZURE_DEPLOYMENT_ID', 'GOOGLE_API_KEY', 'GOOGLE_PROJECT_ID', 'ANTHROPIC_API_KEY');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
-    """))
-    
     # Check if settings table exists before creating (idempotent)
     result = conn.execute(sa.text("""
         SELECT EXISTS (
@@ -38,18 +29,36 @@ def upgrade() -> None:
     """))
     
     if not result.scalar():
-        op.create_table('settings',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('key', sa.Enum('OPENAI_API_KEY', 'OPENAI_EMBEDDING_MODEL', 'OPENAI_SUMMARIZATION_MODEL', 'AZURE_API_KEY', 'AZURE_ENDPOINT', 'AZURE_DEPLOYMENT_ID', 'GOOGLE_API_KEY', 'GOOGLE_PROJECT_ID', 'ANTHROPIC_API_KEY', name='settingtype', create_type=False), nullable=False),
-        sa.Column('value', sa.Text(), nullable=True),
-        sa.Column('is_encrypted', sa.Boolean(), nullable=True),
-        sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.PrimaryKeyConstraint('id')
-        )
-        op.create_index(op.f('ix_settings_id'), 'settings', ['id'], unique=False)
-        op.create_index(op.f('ix_settings_key'), 'settings', ['key'], unique=True)
+        # Check if settingtype enum exists before creating
+        enum_check = conn.execute(sa.text("""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_type WHERE typname = 'settingtype'
+            )
+        """))
+        
+        if not enum_check.scalar():
+            conn.execute(sa.text("""
+                CREATE TYPE settingtype AS ENUM (
+                    'OPENAI_API_KEY', 'OPENAI_EMBEDDING_MODEL', 'OPENAI_SUMMARIZATION_MODEL', 
+                    'AZURE_API_KEY', 'AZURE_ENDPOINT', 'AZURE_DEPLOYMENT_ID', 
+                    'GOOGLE_API_KEY', 'GOOGLE_PROJECT_ID', 'ANTHROPIC_API_KEY'
+                );
+            """))
+        
+        # Create settings table using raw SQL to avoid SQLAlchemy enum creation issues
+        op.execute("""
+            CREATE TABLE settings (
+                id SERIAL PRIMARY KEY,
+                key settingtype NOT NULL,
+                value TEXT,
+                is_encrypted BOOLEAN,
+                description TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                updated_at TIMESTAMP WITH TIME ZONE
+            );
+        """)
+        op.execute("CREATE INDEX IF NOT EXISTS ix_settings_id ON settings(id);")
+        op.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_settings_key ON settings(key);")
 
 
 def downgrade() -> None:
