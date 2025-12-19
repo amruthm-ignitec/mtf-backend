@@ -272,6 +272,18 @@ async def batch_process_folders(skip_existing: bool = False):
         print(f"Found {total} donor folders to process")
         print()
         
+        # Safety confirmation for large batches
+        if total > 10:
+            print("⚠️  WARNING: Large batch detected!")
+            print(f"   This will process {total} donors with {sum(len(f['documents']) for f in all_donor_folders)} documents")
+            print("   This may take a significant amount of time.")
+            print("   Consider using --skip-existing to skip already processed donors.")
+            print()
+            response = input("Continue? (yes/no): ")
+            if response.lower() not in ['yes', 'y']:
+                print("Aborted by user.")
+                return
+        
         # Process each donor folder
         successful = 0
         failed = 0
