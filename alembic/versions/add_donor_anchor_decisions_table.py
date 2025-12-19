@@ -32,6 +32,20 @@ def upgrade() -> None:
         # Table already exists, skip migration
         return
     
+    # Check if prerequisite table (donors) exists
+    donors_check = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'donors'
+        )
+    """))
+    
+    if not donors_check.scalar():
+        # Donors table doesn't exist - this migration requires it
+        # This should not happen in normal migration flow, but we check for safety
+        raise Exception("Prerequisite table 'donors' does not exist. Please run earlier migrations first.")
+    
     # Ensure pgvector extension is enabled
     op.execute("CREATE EXTENSION IF NOT EXISTS vector;")
     
