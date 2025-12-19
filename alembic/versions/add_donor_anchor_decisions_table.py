@@ -1,7 +1,7 @@
 """Add donor anchor decisions table
 
 Revision ID: add_donor_anchor_decisions
-Revises: add_donor_approvals
+Revises: add_culture_fields
 Create Date: 2025-01-XX XX:XX:XX.XXXXXX
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'add_donor_anchor_decisions'
-down_revision = 'add_donor_approvals'
+down_revision = 'add_culture_fields'  # Updated to point to the actual latest migration
 branch_labels = None
 depends_on = None
 
