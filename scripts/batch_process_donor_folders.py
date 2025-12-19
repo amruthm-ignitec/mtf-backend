@@ -107,41 +107,50 @@ async def process_donor_folder(
         else:
             logger.info(f"Using existing donor: {donor_folder_name} (ID: {donor.id})")
         
-        # Download and upload documents
+        # Create document records (use existing blobs, don't re-upload)
         document_ids = []
         for doc_blob_name in documents:
             full_blob_name = f"{parent_folder}{donor_folder_name}/{doc_blob_name}"
             
-            # Download blob
-            blob_content = await azure_blob_service.download_blob_to_memory(full_blob_name)
-            if not blob_content:
-                logger.error(f"Failed to download {full_blob_name}")
+            # Verify blob exists before creating document record
+            blob_exists = False
+            try:
+                blob_client = azure_blob_service.blob_service_client.get_blob_client(
+                    container=azure_blob_service.container_name,
+                    blob=full_blob_name
+                )
+                blob_exists = blob_client.exists()
+            except Exception as e:
+                logger.warning(f"Error checking blob existence for {full_blob_name}: {e}")
+            
+            if not blob_exists:
+                logger.error(f"Blob does not exist: {full_blob_name}")
                 continue
+            
+            # Generate blob URL directly (don't download and re-upload)
+            blob_url = f"https://{azure_blob_service.account_name}.blob.core.windows.net/{azure_blob_service.container_name}/{full_blob_name}"
+            
+            # Get blob size for file_size field
+            try:
+                blob_properties = blob_client.get_blob_properties()
+                file_size = blob_properties.size
+            except Exception as e:
+                logger.warning(f"Could not get blob size for {full_blob_name}, using 0: {e}")
+                file_size = 0
             
             # Create document record
             import uuid
             unique_filename = f"{uuid.uuid4()}_{doc_blob_name}"
             
-            # Upload to Azure (if not already there, or use existing blob)
-            azure_url = await azure_blob_service.upload_file(
-                file_content=blob_content,
-                filename=full_blob_name,  # Keep original path structure
-                content_type="application/pdf"
-            )
-            
-            if not azure_url:
-                logger.error(f"Failed to upload {full_blob_name}")
-                continue
-            
-            # Create document record
+            # Create document record pointing to existing blob
             document = Document(
                 filename=unique_filename,
                 original_filename=doc_blob_name,
-                file_size=len(blob_content),
+                file_size=file_size,
                 file_type="application/pdf",
                 document_type=None,
                 status=DocumentStatus.UPLOADED,
-                azure_blob_url=azure_url,
+                azure_blob_url=blob_url,
                 donor_id=donor.id,
                 uploaded_by=admin_user_id
             )
@@ -149,7 +158,7 @@ async def process_donor_folder(
             db.commit()
             db.refresh(document)
             document_ids.append(document.id)
-            logger.info(f"  Uploaded document: {doc_blob_name} (ID: {document.id})")
+            logger.info(f"  Created document record for existing blob: {doc_blob_name} (ID: {document.id})")
         
         if not document_ids:
             logger.error(f"No documents uploaded for {donor_folder_name}")

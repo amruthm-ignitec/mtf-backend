@@ -38,37 +38,37 @@ class PDFService:
                 logger.warning("Azure Blob Storage not enabled, cannot download file")
                 return None
             
-            # Use provided filename if available (more reliable than parsing URL)
-            if blob_filename:
-                blob_name = blob_filename
-                logger.debug(f"Using provided blob filename: {blob_name}")
-            else:
-                # Extract blob name from URL if filename not provided
-                # URL format: https://account.blob.core.windows.net/container/blobname
-                # Extract blob name from URL path
-                url_parts = blob_url.split('/')
-                if len(url_parts) >= 4:
-                    # Find container name and blob name
-                    container_idx = -1
-                    for i, part in enumerate(url_parts):
-                        if part == azure_blob_service.container_name:
-                            container_idx = i
-                            break
-                    if container_idx >= 0 and container_idx + 1 < len(url_parts):
-                        # Extract blob name and URL-decode it (handles %20 for spaces, etc.)
-                        encoded_blob_name = '/'.join(url_parts[container_idx + 1:]).split('?')[0]
-                        blob_name = unquote(encoded_blob_name)
-                        logger.debug(f"Extracted and decoded blob name from URL: {blob_name}")
-                    else:
-                        # Fallback: use last part of URL
-                        encoded_blob_name = blob_url.split('/')[-1].split('?')[0]
-                        blob_name = unquote(encoded_blob_name)
-                        logger.debug(f"Using fallback blob name extraction: {blob_name}")
+            # Extract blob name from URL (blob_filename parameter is the database filename, not the blob path)
+            # URL format: https://account.blob.core.windows.net/container/blobname
+            # Extract blob name from URL path
+            url_parts = blob_url.split('/')
+            blob_name = None
+            
+            if len(url_parts) >= 4:
+                # Find container name and blob name
+                container_idx = -1
+                for i, part in enumerate(url_parts):
+                    if part == azure_blob_service.container_name:
+                        container_idx = i
+                        break
+                if container_idx >= 0 and container_idx + 1 < len(url_parts):
+                    # Extract blob name and URL-decode it (handles %20 for spaces, etc.)
+                    encoded_blob_name = '/'.join(url_parts[container_idx + 1:]).split('?')[0]
+                    blob_name = unquote(encoded_blob_name)
+                    logger.debug(f"Extracted and decoded blob name from URL: {blob_name}")
                 else:
                     # Fallback: use last part of URL
                     encoded_blob_name = blob_url.split('/')[-1].split('?')[0]
                     blob_name = unquote(encoded_blob_name)
                     logger.debug(f"Using fallback blob name extraction: {blob_name}")
+            else:
+                # Fallback: use last part of URL
+                encoded_blob_name = blob_url.split('/')[-1].split('?')[0]
+                blob_name = unquote(encoded_blob_name)
+                logger.debug(f"Using fallback blob name extraction: {blob_name}")
+            
+            if not blob_name:
+                raise ValueError(f"Could not extract blob name from URL: {blob_url}")
             
             # Download blob content
             blob_client = azure_blob_service.blob_service_client.get_blob_client(
