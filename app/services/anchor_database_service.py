@@ -56,24 +56,63 @@ class AnchorDatabaseService:
                 db.add(existing)
             
             # Create parameter snapshot
+            logger.info(f"Creating parameter snapshot for donor {donor_id}...")
             snapshot = parameter_snapshot_service.create_parameter_snapshot(donor_id, db)
             if not snapshot:
                 logger.error(f"Failed to create parameter snapshot for donor {donor_id}")
                 return None
             
             existing.parameter_snapshot = snapshot
+            logger.info(f"Parameter snapshot created for donor {donor_id}")
             
             # Generate embedding from snapshot
             # Convert snapshot to text representation for embedding
+            logger.info(f"Converting parameter snapshot to text for donor {donor_id}...")
             snapshot_text = _snapshot_to_text(snapshot)
-            embedding = await vector_conversion_service._generate_embedding(snapshot_text)
+            logger.info(f"Generating embedding for donor {donor_id} anchor decision (text length: {len(snapshot_text)} chars)...")
+            
+            # Pre-initialize embeddings to avoid hanging during generation
+            import asyncio
+            embeddings_initialized = False
+            try:
+                logger.debug(f"Ensuring embeddings are initialized before generating embedding for donor {donor_id}...")
+                await asyncio.wait_for(
+                    vector_conversion_service._ensure_embeddings(),
+                    timeout=20.0  # 20 second timeout for initialization
+                )
+                embeddings_initialized = True
+                logger.debug(f"Embeddings initialized, proceeding with embedding generation for donor {donor_id}")
+            except asyncio.TimeoutError:
+                logger.error(f"Embeddings initialization timed out after 20 seconds for donor {donor_id}, storing without embedding")
+                embeddings_initialized = False
+            except Exception as e:
+                logger.warning(f"Error initializing embeddings for donor {donor_id}: {e}, will attempt embedding generation anyway")
+                embeddings_initialized = False
+            
+            # Generate embedding with timeout wrapper to prevent hanging
+            embedding = None
+            if embeddings_initialized or vector_conversion_service.embeddings is not None:
+                try:
+                    embedding = await asyncio.wait_for(
+                        vector_conversion_service._generate_embedding(snapshot_text),
+                        timeout=30.0  # 30 second timeout for embedding generation
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(f"Embedding generation timed out after 30 seconds for donor {donor_id}, storing without embedding")
+                    embedding = None
+                except Exception as e:
+                    logger.error(f"Error generating embedding for donor {donor_id}: {e}", exc_info=True)
+                    embedding = None
+            else:
+                logger.warning(f"Embeddings not initialized, skipping embedding generation for donor {donor_id}")
             
             if embedding:
                 existing.parameter_embedding = embedding
-                logger.debug(f"Generated embedding for donor {donor_id} anchor decision")
+                logger.info(f"Successfully generated embedding for donor {donor_id} anchor decision")
             else:
                 logger.warning(f"Failed to generate embedding for donor {donor_id}, storing without embedding")
             
+            logger.info(f"Committing anchor decision for donor {donor_id}...")
             db.commit()
             db.refresh(existing)
             

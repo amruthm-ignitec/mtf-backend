@@ -195,14 +195,17 @@ async def process_donor_folder(
         # Wait for aggregation to complete
         logger.info(f"  Waiting for aggregation to complete for {donor_folder_name}...")
         await ExtractionAggregationService.aggregate_donor_results(donor.id, db)
+        logger.info(f"  Aggregation completed for {donor_folder_name}")
         
         # Create anchor decision
+        logger.info(f"  Creating anchor decision for {donor_folder_name}...")
         anchor_decision = await anchor_database_service.create_anchor_decision(
             donor_id=donor.id,
             outcome=outcome,
             outcome_source=OutcomeSource.BATCH_IMPORT,
             db=db
         )
+        logger.info(f"  Anchor decision creation completed for {donor_folder_name}")
         
         if anchor_decision:
             logger.info(f"✓ Successfully processed {donor_folder_name} - Outcome: {outcome.value}")
