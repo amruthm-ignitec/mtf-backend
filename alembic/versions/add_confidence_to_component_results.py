@@ -17,8 +17,21 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add confidence column to component_results table
-    op.add_column('component_results', sa.Column('confidence', sa.Float(), nullable=True))
+    conn = op.get_bind()
+    
+    # Check if column already exists
+    column_check = conn.execute(sa.text("""
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = 'component_results' 
+            AND column_name = 'confidence'
+        )
+    """))
+    
+    if not column_check.scalar():
+        # Add confidence column to component_results table
+        op.add_column('component_results', sa.Column('confidence', sa.Float(), nullable=True))
 
 
 def downgrade() -> None:
