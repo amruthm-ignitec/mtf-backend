@@ -268,6 +268,13 @@ async def batch_process_folders(skip_existing: bool = False):
                     "documents": documents
                 })
         
+        # TEMPORARY: Limit to 1 donor for testing
+        TEST_MODE = True  # Set to False to process all donors
+        if TEST_MODE:
+            all_donor_folders = all_donor_folders[:1]
+            print("🧪 TEST MODE: Processing only 1 donor for testing")
+            print()
+        
         total = len(all_donor_folders)
         print(f"Found {total} donor folders to process")
         print()
