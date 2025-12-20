@@ -465,8 +465,32 @@ class DocumentProcessingService:
             finally:
                 agg_db.close()
             
+        except asyncio.TimeoutError as e:
+            logger.error(f"Document {document_id} processing timed out: {e}", exc_info=True)
+            # Timeout is handled by worker wrapper, but we should still mark it here if possible
+            if document:
+                try:
+                    if db.is_active:
+                        document.status = DocumentStatus.FAILED
+                        document.error_message = f"Processing timed out: {str(e)}"
+                        document.progress = 100.0
+                        db.commit()
+                except Exception as update_error:
+                    logger.error(f"Failed to update document {document_id} after timeout: {update_error}", exc_info=True)
+            raise  # Re-raise so worker can handle it
         except Exception as e:
             logger.error(f"Error processing document {document_id}: {e}", exc_info=True)
+            
+            # Check if it's an LLM-related error
+            error_str = str(e).lower()
+            is_llm_error = any(keyword in error_str for keyword in [
+                'timeout', 'rate limit', 'api error', 'llm', 'openai', 'connection'
+            ])
+            
+            error_message = f"Processing failed: {str(e)}"
+            if is_llm_error:
+                error_message = f"LLM/API error during processing: {str(e)}. Document will be retried."
+                logger.warning(f"LLM-related error for document {document_id}, will be retried")
             
             # Update document status to failed
             # Only update if db session is still open (exception occurred before we closed it)
@@ -475,7 +499,7 @@ class DocumentProcessingService:
                     # Check if session is still active
                     if db.is_active:
                         document.status = DocumentStatus.FAILED
-                        document.error_message = f"Processing failed: {str(e)}"
+                        document.error_message = error_message
                         document.progress = 100.0
                         db.commit()
                         db.refresh(document)
@@ -487,7 +511,7 @@ class DocumentProcessingService:
                             error_document = error_db.query(Document).filter(Document.id == document_id).first()
                             if error_document:
                                 error_document.status = DocumentStatus.FAILED
-                                error_document.error_message = f"Processing failed: {str(e)}"
+                                error_document.error_message = error_message
                                 error_document.progress = 100.0
                                 error_db.commit()
                         finally:

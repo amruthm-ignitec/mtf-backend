@@ -73,8 +73,11 @@ class Settings(BaseSettings):
     # Background Worker Configuration (asyncio-based)
     WORKER_ENABLED: bool = True
     WORKER_POLL_INTERVAL: int = 5  # seconds between queue polls
-    WORKER_MAX_CONCURRENT: int = 3  # max documents processed simultaneously
+    WORKER_MAX_CONCURRENT: int = 1  # max documents processed simultaneously (set to 1 for sequential processing)
     WORKER_MAX_RETRIES: int = 3  # max retry attempts for failed documents
+    WORKER_DOCUMENT_DELAY_SECONDS: int = 120  # delay in seconds after processing each document (default: 2 minutes)
+    WORKER_DOCUMENT_TIMEOUT_SECONDS: int = 1800  # overall timeout for document processing in seconds (30 minutes)
+    WORKER_DOCUMENT_TIMEOUT_SECONDS: int = 1800  # overall timeout for document processing (30 minutes)
     
     # Summary Deduplication
     ENABLE_SUMMARY_DEDUPLICATION: bool = True  # Enable LLM-based summary deduplication

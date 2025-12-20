@@ -124,6 +124,55 @@ class QueueService:
         except Exception as e:
             logger.error(f"Error getting processing count: {e}")
             return 0
+    
+    @staticmethod
+    async def reset_stuck_documents(db: Session) -> int:
+        """
+        Reset documents that are stuck in PROCESSING/ANALYZING/REVIEWING status.
+        This happens when the server restarts while documents are being processed.
+        Resets them back to UPLOADED so they can be retried.
+        
+        Args:
+            db: Database session
+            
+        Returns:
+            Number of documents reset
+        """
+        try:
+            from datetime import datetime, timedelta
+            from sqlalchemy import update
+            
+            # Reset documents that are in processing states
+            # These were likely interrupted by server restart
+            result = db.execute(
+                update(Document)
+                .where(
+                    Document.status.in_([
+                        DocumentStatus.PROCESSING,
+                        DocumentStatus.ANALYZING,
+                        DocumentStatus.REVIEWING
+                    ])
+                )
+                .values(
+                    status=DocumentStatus.UPLOADED,
+                    progress=0.0,
+                    error_message=None
+                )
+            )
+            
+            count = result.rowcount
+            db.commit()
+            
+            if count > 0:
+                logger.info(f"Reset {count} stuck document(s) back to UPLOADED status for retry")
+            else:
+                logger.info("No stuck documents found to reset")
+            
+            return count
+        except Exception as e:
+            logger.error(f"Error resetting stuck documents: {e}")
+            db.rollback()
+            return 0
 
 
 # Global instance

@@ -95,15 +95,66 @@ class DocumentWorker:
                 pass
     
     async def _process_document(self, document_id: int):
-        """Process a single document."""
+        """Process a single document with timeout and extensive error handling."""
         db_gen = get_db()
         db = next(db_gen)
         try:
             logger.info(f"Processing document {document_id}")
-            await document_processing_service.process_document(document_id, db)
-            logger.info(f"Completed processing document {document_id}")
+            
+            # Wrap processing in timeout to prevent indefinite hangs
+            timeout_seconds = settings.WORKER_DOCUMENT_TIMEOUT_SECONDS
+            try:
+                await asyncio.wait_for(
+                    document_processing_service.process_document(document_id, db),
+                    timeout=timeout_seconds
+                )
+                logger.info(f"Completed processing document {document_id}")
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"Document {document_id} processing timed out after {timeout_seconds} seconds. "
+                    f"Marking as FAILED and resetting to UPLOADED for retry."
+                )
+                # Mark as failed and reset to UPLOADED for retry
+                try:
+                    from app.models.document import Document, DocumentStatus
+                    document = db.query(Document).filter(Document.id == document_id).first()
+                    if document:
+                        document.status = DocumentStatus.FAILED
+                        document.error_message = f"Processing timed out after {timeout_seconds} seconds. Will be retried."
+                        document.progress = 100.0
+                        db.commit()
+                        
+                        # Reset to UPLOADED so it can be retried
+                        document.status = DocumentStatus.UPLOADED
+                        document.progress = 0.0
+                        document.error_message = None
+                        db.commit()
+                        logger.info(f"Reset document {document_id} to UPLOADED for retry after timeout")
+                except Exception as reset_error:
+                    logger.error(f"Error resetting document {document_id} after timeout: {reset_error}", exc_info=True)
+                    db.rollback()
+            except Exception as e:
+                logger.error(f"Error processing document {document_id}: {e}", exc_info=True)
+                # Try to mark as failed
+                try:
+                    from app.models.document import Document, DocumentStatus
+                    document = db.query(Document).filter(Document.id == document_id).first()
+                    if document:
+                        document.status = DocumentStatus.FAILED
+                        document.error_message = f"Processing failed: {str(e)}"
+                        document.progress = 100.0
+                        db.commit()
+                except Exception as update_error:
+                    logger.error(f"Error updating document {document_id} status: {update_error}", exc_info=True)
+                    db.rollback()
+            
+            # Add delay after processing to prevent server overload
+            delay_seconds = settings.WORKER_DOCUMENT_DELAY_SECONDS
+            if delay_seconds > 0:
+                logger.info(f"Waiting {delay_seconds} seconds before processing next document...")
+                await asyncio.sleep(delay_seconds)
         except Exception as e:
-            logger.error(f"Error processing document {document_id}: {e}", exc_info=True)
+            logger.error(f"Unexpected error in _process_document for document {document_id}: {e}", exc_info=True)
         finally:
             try:
                 db.close()

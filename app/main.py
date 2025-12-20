@@ -88,6 +88,21 @@ async def startup_event():
         logger.error(f"Database initialization failed: {e}")
         raise
     
+    # Reset stuck documents (documents that were processing when server restarted)
+    try:
+        from app.database.database import SessionLocal
+        from app.services.queue_service import queue_service
+        db = SessionLocal()
+        try:
+            reset_count = await queue_service.reset_stuck_documents(db)
+            if reset_count > 0:
+                logger.info(f"Reset {reset_count} document(s) that were stuck in processing state")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error resetting stuck documents: {e}")
+        # Don't raise - continue with startup even if reset fails
+    
     # Start background worker
     try:
         await start_worker()

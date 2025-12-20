@@ -164,17 +164,58 @@ async def process_donor_folder(
             logger.error(f"No documents uploaded for {donor_folder_name}")
             return False
         
-        # Process documents directly
-        for doc_id in document_ids:
+        # Process documents directly (one by one, with timeout and error handling)
+        delay_seconds = settings.WORKER_DOCUMENT_DELAY_SECONDS
+        timeout_seconds = settings.WORKER_DOCUMENT_TIMEOUT_SECONDS
+        
+        for idx, doc_id in enumerate(document_ids, 1):
             document = db.query(Document).filter(Document.id == doc_id).first()
             if document:
                 # Mark as processing
                 marked = await queue_service.mark_document_processing(doc_id, db)
                 if marked:
-                    # Process document directly
-                    logger.info(f"  Processing document {doc_id}...")
-                    await document_processing_service.process_document(doc_id, db)
-                    logger.info(f"  Completed document {doc_id}")
+                    # Process document directly with timeout
+                    logger.info(f"  Processing document {doc_id} ({idx}/{len(document_ids)})...")
+                    try:
+                        await asyncio.wait_for(
+                            document_processing_service.process_document(doc_id, db),
+                            timeout=timeout_seconds
+                        )
+                        logger.info(f"  ✓ Completed document {doc_id}")
+                    except asyncio.TimeoutError:
+                        logger.error(
+                            f"  ✗ Document {doc_id} timed out after {timeout_seconds} seconds. "
+                            f"Marking as FAILED and continuing with next document."
+                        )
+                        # Mark as failed
+                        try:
+                            failed_doc = db.query(Document).filter(Document.id == doc_id).first()
+                            if failed_doc:
+                                failed_doc.status = DocumentStatus.FAILED
+                                failed_doc.error_message = f"Processing timed out after {timeout_seconds} seconds during batch processing"
+                                failed_doc.progress = 100.0
+                                db.commit()
+                        except Exception as update_error:
+                            logger.error(f"  Error updating document {doc_id} status after timeout: {update_error}")
+                            db.rollback()
+                    except Exception as e:
+                        logger.error(f"  ✗ Error processing document {doc_id}: {e}", exc_info=True)
+                        # Mark as failed
+                        try:
+                            failed_doc = db.query(Document).filter(Document.id == doc_id).first()
+                            if failed_doc:
+                                failed_doc.status = DocumentStatus.FAILED
+                                failed_doc.error_message = f"Processing failed: {str(e)}"
+                                failed_doc.progress = 100.0
+                                db.commit()
+                        except Exception as update_error:
+                            logger.error(f"  Error updating document {doc_id} status: {update_error}")
+                            db.rollback()
+                    
+                    # Add delay after processing each document (except the last one)
+                    if idx < len(document_ids) and delay_seconds > 0:
+                        logger.info(f"  Waiting {delay_seconds} seconds before processing next document...")
+                        await asyncio.sleep(delay_seconds)
                 else:
                     logger.warning(f"  Could not mark document {doc_id} as processing")
         
