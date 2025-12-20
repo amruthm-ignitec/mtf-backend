@@ -822,7 +822,6 @@ class ExtractionAggregationService:
             
             # Trigger vector conversion as fire-and-forget task (non-blocking)
             # Vector conversion is only used for similarity search and is not critical for main processing
-            import asyncio
             from app.services.vector_conversion import vector_conversion_service
             
             async def run_vector_conversion_safely():
