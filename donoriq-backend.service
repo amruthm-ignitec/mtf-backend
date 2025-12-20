@@ -1,0 +1,37 @@
+[Unit]
+Description=DonorIQ Backend API Service
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=notify
+User=donoriq_backvm
+Group=donoriq_backvm
+WorkingDirectory=/home/donoriq_backvm/mtf-backend
+Environment="PATH=/home/donoriq_backvm/mtf-backend/venv/bin"
+EnvironmentFile=/home/donoriq_backvm/mtf-backend/.env
+
+# Start command
+ExecStart=/home/donoriq_backvm/mtf-backend/venv/bin/gunicorn app.main:app \
+    -w 4 \
+    -k uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:8000 \
+    --timeout 300 \
+    --access-logfile /home/donoriq_backvm/mtf-backend/logs/access.log \
+    --error-logfile /home/donoriq_backvm/mtf-backend/logs/error.log \
+    --log-level info
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
