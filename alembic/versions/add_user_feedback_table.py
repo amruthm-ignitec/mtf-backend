@@ -1,7 +1,7 @@
 """add_user_feedback_table
 
 Revision ID: add_user_feedback
-Revises: add_donor_approvals
+Revises: add_donor_anchor_decisions
 Create Date: 2025-01-XX XX:XX:XX.XXXXXX
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_user_feedback'
-down_revision = 'add_donor_approvals'
+down_revision = 'add_donor_anchor_decisions'
 branch_labels = None
 depends_on = None
 
