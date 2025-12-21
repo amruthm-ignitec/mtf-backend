@@ -12,3 +12,4 @@ from .donor_extraction import DonorExtraction
 from .document_chunk import DocumentChunk
 from .donor_extraction_vector import DonorExtractionVector
 from .donor_anchor_decision import DonorAnchorDecision, AnchorOutcome, OutcomeSource
+from .user_feedback import UserFeedback
