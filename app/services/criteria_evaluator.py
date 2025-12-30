@@ -301,21 +301,35 @@ class CriteriaEvaluator:
                 if not evaluations:
                     continue
                 
-                # Find blocking criteria (unacceptable)
-                blocking_criteria = []
-                md_discretion_criteria = []
+                # Find blocking criteria (unacceptable) and MD discretion criteria
+                # Use dictionaries to deduplicate by criterion_name
+                blocking_criteria_dict = {}
+                md_discretion_criteria_dict = {}
                 
                 for eval_obj in evaluations:
+                    criterion_name = eval_obj.criterion_name
+                    
+                    # For duplicates, prefer UNACCEPTABLE over MD_DISCRETION, and MD_DISCRETION over ACCEPTABLE
                     if eval_obj.evaluation_result == EvaluationResult.UNACCEPTABLE:
-                        blocking_criteria.append({
-                            'criterion_name': eval_obj.criterion_name,
+                        # Always use UNACCEPTABLE if found (most severe)
+                        blocking_criteria_dict[criterion_name] = {
+                            'criterion_name': criterion_name,
                             'reasoning': eval_obj.evaluation_reasoning
-                        })
+                        }
+                        # Remove from MD discretion if it was there
+                        md_discretion_criteria_dict.pop(criterion_name, None)
                     elif eval_obj.evaluation_result == EvaluationResult.MD_DISCRETION:
-                        md_discretion_criteria.append({
-                            'criterion_name': eval_obj.criterion_name,
-                            'reasoning': eval_obj.evaluation_reasoning
-                        })
+                        # Only add to MD discretion if not already in blocking criteria
+                        if criterion_name not in blocking_criteria_dict:
+                            md_discretion_criteria_dict[criterion_name] = {
+                                'criterion_name': criterion_name,
+                                'reasoning': eval_obj.evaluation_reasoning
+                            }
+                    # ACCEPTABLE results are ignored (don't add to either list)
+                
+                # Convert dictionaries to lists
+                blocking_criteria = list(blocking_criteria_dict.values())
+                md_discretion_criteria = list(md_discretion_criteria_dict.values())
                 
                 # Determine overall status
                 if blocking_criteria:
