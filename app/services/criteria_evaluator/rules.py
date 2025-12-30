@@ -82,7 +82,7 @@ def evaluate_cancer_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate cancer criteria."""
-    cancer_type = extracted_data.get('cancer_type', '').lower()
+    cancer_type = (extracted_data.get('cancer_type') or '').lower()
     diagnosis_date = extracted_data.get('diagnosis_date')
     treatment = extracted_data.get('treatment', '')
     recurrence = extracted_data.get('recurrence', False)
@@ -781,7 +781,7 @@ def evaluate_autoimmune_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Autoimmune diseases criteria."""
-    autoimmune_type = extracted_data.get('autoimmune_disease_type', '').lower()
+    autoimmune_type = (extracted_data.get('autoimmune_disease_type') or '').lower()
     skin_manifestations = extracted_data.get('skin_manifestations', False)
     tissue_type = extracted_data.get('tissue_type', '')
     
@@ -875,7 +875,7 @@ def evaluate_bone_disease_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Bone Disease criteria."""
-    bone_disease_type = extracted_data.get('bone_disease_type', '').lower()
+    bone_disease_type = (extracted_data.get('bone_disease_type') or '').lower()
     tissue_type = extracted_data.get('tissue_type', '')
     
     unacceptable_bone_diseases = ['osteomalacia', 'metabolic_bone_disease', 'osteoporosis']
@@ -1148,7 +1148,7 @@ def evaluate_fracture_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Fracture criteria."""
-    fracture_type = extracted_data.get('fracture_type', '').lower()
+    fracture_type = (extracted_data.get('fracture_type') or '').lower()
     
     if 'open' in fracture_type:
         return {
@@ -1800,7 +1800,7 @@ def evaluate_osteomyelitis_criteria(
     prior_age_14_males = extracted_data.get('prior_age_14_males', False)
     no_treatment_10_years = extracted_data.get('no_treatment_10_years', False)
     osteomyelitis_other_history = extracted_data.get('osteomyelitis_other_history', False)
-    gender = donor_info.get('gender', '').lower()
+    gender = (donor_info.get('gender') or '').lower()
     
     if osteomyelitis_other_history:
         return {
@@ -1835,7 +1835,7 @@ def evaluate_perianal_condyloma_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Perianal condyloma criteria."""
-    male_donor = donor_info.get('gender', '').lower() == 'male'
+    male_donor = (donor_info.get('gender') or '').lower() == 'male'
     anal_intercourse_evidence = extracted_data.get('anal_intercourse_evidence', False)
     
     if male_donor and anal_intercourse_evidence:
@@ -2015,7 +2015,7 @@ def evaluate_rheumatic_fever_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Rheumatic Fever criteria."""
-    pericardium_tissue_donor = extracted_data.get('tissue_type', '').lower() == 'pericardium'
+    pericardium_tissue_donor = (extracted_data.get('tissue_type') or '').lower() == 'pericardium'
     rheumatic_fever = extracted_data.get('rheumatic_fever', False)
     bacterial_endocarditis = extracted_data.get('bacterial_endocarditis', False)
     semilunar_valvular_heart_disease = extracted_data.get('semilunar_valvular_heart_disease', False)
@@ -2062,7 +2062,7 @@ def evaluate_std_sti_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Sexually Transmitted Diseases (STDs) or Sexually Transmitted infections (STIs) criteria."""
-    std_sti_type = extracted_data.get('std_sti_type', '').lower()
+    std_sti_type = (extracted_data.get('std_sti_type') or '').lower()
     treated_within_12_months = extracted_data.get('treated_within_12_months', False)
     std_sti_other = extracted_data.get('std_sti_other', False)
     std_sti_history_more_than_12_months = extracted_data.get('std_sti_history_more_than_12_months', False)

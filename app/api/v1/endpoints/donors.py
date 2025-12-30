@@ -161,17 +161,9 @@ async def get_queue_details(
     donors = db.query(Donor).all()
     result = []
     
-    # Load Initial Paperwork Case Checklist from config
-    component_config = load_component_config()
-    initial_components = component_config.get("initial_components", {})
-    
-    # Get required document types from Initial Paperwork Case Checklist
-    # These are the component names from the config
-    REQUIRED_DOC_TYPES = list(initial_components.keys()) if initial_components else []
-    
-    # If config is not available, fall back to empty list (will show no required docs)
-    if not REQUIRED_DOC_TYPES:
-        logger.warning("No initial components found in config. Missing documents will not be determined from checklist.")
+    # Document components config was removed during cleanup
+    # Using empty list for required document types
+    REQUIRED_DOC_TYPES = []
     
     for donor in donors:
         # Get all documents for this donor
