@@ -12,9 +12,15 @@ from app.database.database import Base
 from app.core.config import settings
 
 # Import all models to ensure they're registered with SQLAlchemy
-from app.models.user import User
-from app.models.donor import Donor
-from app.models.document import Document
+# Import from __init__.py to get all models
+from app.models import (
+    User, Donor, Document,
+    Setting, DonorApproval, DocumentChunk,
+    LaboratoryResult, CriteriaEvaluation, DonorEligibility,
+    # Legacy models (will be removed after migration)
+    CultureResult, SerologyResult, TopicResult, ComponentResult,
+    DonorExtraction, DonorExtractionVector, DonorAnchorDecision
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
