@@ -140,7 +140,6 @@ class DocumentProcessingService:
             # Load minimal prompt components for lab test extraction
             logger.info("Loading prompt components...")
             import json
-            import os
             config_dir = os.path.join(os.path.dirname(__file__), 'processing', 'config')
             
             with open(os.path.join(config_dir, 'role.json'), 'r') as f:
