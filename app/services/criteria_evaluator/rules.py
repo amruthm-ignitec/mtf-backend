@@ -3,12 +3,56 @@ Evaluation rule functions for each criterion type.
 Each function evaluates extracted data and lab results against acceptance criteria rules.
 """
 import logging
+import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from app.models.criteria_evaluation import EvaluationResult
 from app.models.laboratory_result import LaboratoryResult, TestType
 
 logger = logging.getLogger(__name__)
+
+
+def is_positive_test_result(result: str) -> bool:
+    """
+    Check if a test result indicates a positive/reactive result.
+    Properly handles negative results like "Non-Reactive", "Not Detected", etc.
+    
+    Args:
+        result: The test result string
+        
+    Returns:
+        True if result is positive/reactive, False if negative or unclear
+    """
+    if not result:
+        return False
+    
+    result_lower = result.lower().strip()
+    
+    # First check for explicit negative indicators (these take precedence)
+    negative_patterns = [
+        r'\bnon[- ]?reactive\b',
+        r'\bnot detected\b',
+        r'\bnot[- ]?detected\b',
+        r'\bnegative\b',
+        r'\bneg\b',
+    ]
+    
+    for pattern in negative_patterns:
+        if re.search(pattern, result_lower):
+            return False
+    
+    # Then check for positive indicators (only if not negative)
+    positive_patterns = [
+        r'\bpositive\b',
+        r'\breactive\b',  # Only matches if not preceded by "non"
+        r'\bdetected\b',  # Only matches if not preceded by "not"
+    ]
+    
+    for pattern in positive_patterns:
+        if re.search(pattern, result_lower):
+            return True
+    
+    return False
 
 
 def evaluate_age_criteria(
@@ -166,8 +210,7 @@ def evaluate_hiv_criteria(
     
     # Check for positive/reactive results
     for test in hiv_tests:
-        result_lower = test.result.lower()
-        if any(positive in result_lower for positive in ['positive', 'reactive', 'detected']):
+        if is_positive_test_result(test.result):
             return {
                 'result': EvaluationResult.UNACCEPTABLE,
                 'reasoning': f"Positive HIV test result: {test.test_name} = {test.result}"
@@ -252,8 +295,7 @@ def evaluate_hepatitis_criteria(
     
     # Check for positive/reactive results
     for test in hep_tests:
-        result_lower = test.result.lower()
-        if any(positive in result_lower for positive in ['positive', 'reactive', 'detected']):
+        if is_positive_test_result(test.result):
             return {
                 'result': EvaluationResult.UNACCEPTABLE,
                 'reasoning': f"Positive hepatitis test result: {test.test_name} = {test.result}"
@@ -552,8 +594,7 @@ def evaluate_syphilis_criteria(
                      if lr.test_type == TestType.SEROLOGY and 'syphilis' in lr.test_name.lower()]
     
     for test in syphilis_tests:
-        result_lower = test.result.lower()
-        if any(positive in result_lower for positive in ['positive', 'reactive', 'detected']):
+        if is_positive_test_result(test.result):
             return {
                 'result': EvaluationResult.UNACCEPTABLE,
                 'reasoning': f"Positive syphilis test result: {test.test_name} = {test.result}"
@@ -577,8 +618,7 @@ def evaluate_htlv_criteria(
                   if lr.test_type == TestType.SEROLOGY and 'htlv' in lr.test_name.lower()]
     
     for test in htlv_tests:
-        result_lower = test.result.lower()
-        if any(positive in result_lower for positive in ['positive', 'reactive', 'detected']):
+        if is_positive_test_result(test.result):
             return {
                 'result': EvaluationResult.UNACCEPTABLE,
                 'reasoning': f"Positive HTLV I/II test result: {test.test_name} = {test.result}"
@@ -607,8 +647,7 @@ def evaluate_west_nile_virus_criteria(
                  if lr.test_type == TestType.SEROLOGY and 'west nile' in lr.test_name.lower()]
     
     for test in wnv_tests:
-        result_lower = test.result.lower()
-        if any(positive in result_lower for positive in ['positive', 'reactive', 'detected']):
+        if is_positive_test_result(test.result):
             if days_since_test <= 120:
                 return {
                     'result': EvaluationResult.UNACCEPTABLE,
