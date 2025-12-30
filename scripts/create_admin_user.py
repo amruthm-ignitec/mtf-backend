@@ -28,16 +28,25 @@ def create_admin_user():
             print("✅ Admin user already exists")
             return
         
-        # Create admin user
-        admin_user = User(
-            email="admin@donoriq.com",
-            hashed_password=hash_password("admin123"),
-            full_name="System Administrator",
-            role=UserRole.ADMIN.value,  # Use .value to ensure lowercase 'admin' is used
-            is_active=True
-        )
+        # Create admin user using raw SQL to avoid enum conversion issues
+        import sqlalchemy as sa
+        result = db.execute(sa.text("""
+            INSERT INTO users (email, hashed_password, full_name, role, is_active)
+            VALUES (:email, :hashed_password, :full_name, :role, :is_active)
+            ON CONFLICT (email) DO NOTHING
+            RETURNING id
+        """), {
+            "email": "admin@donoriq.com",
+            "hashed_password": hash_password("admin123"),
+            "full_name": "System Administrator",
+            "role": "admin",  # Use lowercase string directly
+            "is_active": True
+        })
         
-        db.add(admin_user)
+        if result.rowcount == 0:
+            print("✅ Admin user already exists")
+            return
+        
         db.commit()
         print("✅ Admin user created successfully!")
         print("📧 Email: admin@donoriq.com")
