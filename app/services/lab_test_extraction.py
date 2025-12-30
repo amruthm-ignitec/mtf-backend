@@ -62,15 +62,41 @@ def extract_required_serology_tests(
             test_names_to_extract.append(test['test_name'])
             test_names_to_extract.extend(test.get('aliases', []))
         
-        # Retrieve relevant chunks from vector database
-        # Use a query that searches for serology-related content
-        query = "serology test results infectious disease screening blood typing"
-        retriever = vectordb.as_retriever(search_type='similarity', search_kwargs={'k': 10})
-        retrieved_docs = retriever.invoke(query)
+        # Retrieve relevant chunks using multiple targeted queries
+        # This ensures we capture all serology results even if they're formatted differently
+        queries = [
+            "serology test results SEROLOGY RESULTS infectious disease screening",
+            "HIV test results HIV-1 HIV-2 antibody NAT",
+            "Hepatitis B HBsAg HBV test results",
+            "Hepatitis C HCV antibody NAT test results",
+            "Syphilis RPR VDRL TPPA test results",
+            "HTLV West Nile Virus WNV test results",
+            "blood typing ABO Rh blood group"
+        ]
+        
+        all_retrieved_docs = []
+        retriever = vectordb.as_retriever(search_type='similarity', search_kwargs={'k': 15})
+        
+        for query in queries:
+            retrieved_docs = retriever.invoke(query)
+            all_retrieved_docs.extend(retrieved_docs)
+        
+        # Deduplicate by page and content
+        seen = set()
+        unique_docs = []
+        for doc in all_retrieved_docs:
+            doc_key = (doc.metadata.get('page'), doc.page_content[:100])  # Use first 100 chars as key
+            if doc_key not in seen:
+                seen.add(doc_key)
+                unique_docs.append(doc)
+        
+        retrieved_docs = unique_docs[:25]  # Limit to top 25 unique chunks
         
         if not retrieved_docs:
-            logger.info(f"No relevant chunks found for serology extraction in document {document_id}")
+            logger.warning(f"No relevant chunks found for serology extraction in document {document_id}")
             return 0
+        
+        logger.info(f"Retrieved {len(retrieved_docs)} unique chunks for serology extraction in document {document_id}")
         
         # Build donor info context from retrieved chunks
         donor_info = "\n".join([
@@ -78,22 +104,54 @@ def extract_required_serology_tests(
             for doc in retrieved_docs
         ])
         
-        # Get role, instruction, and reminder for serology
+        # Get role and reminder for serology
         role = role_dict.get('Serology test', '')
-        basic_instruction = instruction_dict.get('Serology test', '')
         reminder_instructions = reminder_dict.get('Serology test', '')
         
-        # Create focused instruction for required tests only
-        required_tests_list = ", ".join([test['test_name'] for test in required_tests])
-        focused_instruction = f"""{basic_instruction}
+        # Build detailed test list with aliases for better context
+        test_details = []
+        for test in required_tests:
+            aliases_str = ", ".join(test.get('aliases', [])[:3])  # Show first 3 aliases
+            test_details.append(f"- {test['test_name']} (also known as: {aliases_str})")
+        
+        test_details_str = "\n".join(test_details)
+        
+        # Create comprehensive focused instruction
+        focused_instruction = f"""Extract serology test results for donor eligibility assessment.
 
-IMPORTANT: Extract ONLY the following serology tests and their results:
-{required_tests_list}
+REQUIRED TESTS TO EXTRACT:
+{test_details_str}
 
-For each test, extract the test name EXACTLY as it appears, including any abbreviations or method designations.
-Extract results EXACTLY as they appear: Positive, Negative, Non-Reactive, Reactive, Equivocal, etc.
+EXTRACTION GUIDELINES:
 
-If a test is not found in the document, do NOT include it in the output."""
+1. TEST NAME EXTRACTION:
+   - Extract test names EXACTLY as they appear in the document
+   - Include abbreviations, manufacturer names, and method designations (e.g., "HIV-1/HIV-2 Plus O", "HBsAg (Alinity)", "CMV IgG (EIA)")
+   - Match test names to the required tests above, even if they use different aliases
+
+2. RESULT EXTRACTION:
+   - Extract results EXACTLY as they appear, including:
+     * Standard results: Positive, Negative, Non-Reactive, Reactive, Equivocal, Indeterminate, Borderline
+     * Blood type results: O Positive, A Negative, B Positive, AB Negative, etc.
+     * Status indicators: Complete, Cancelled, Pending, Not Tested
+     * Any quantitative values if present (e.g., titers, ratios, S/CO values)
+
+3. MULTIPLE OCCURRENCES:
+   - If a test appears multiple times with different results, include ALL instances
+   - Use the format: "{{"Test Name 1": "Result 1", "Test Name 2": "Result 2"}}"
+   - If the same test appears multiple times, number them (e.g., "HIV-1/HIV-2", "HIV-1/HIV-2 (2)")
+
+4. TEST MATCHING:
+   - Match tests to required tests even if names vary slightly
+   - For example: "HBsAg" should be matched to "Hepatitis B Surface Antigen"
+   - "RPR" or "VDRL" should be matched to "Syphilis"
+   - "anti-HCV" should be matched to "Hepatitis C Antibody"
+
+5. DO NOT EXTRACT:
+   - Tests not in the REQUIRED TESTS list above
+   - If a test name appears but no result is visible or unclear, do NOT include it
+
+IMPORTANT: Extract ALL occurrences of required tests found in the document. Be thorough and check all pages."""
         
         # Call LLM for extraction
         prompt = f"""{role}
@@ -103,6 +161,29 @@ CRITICAL: Extract information ONLY from the provided donor document. Do not use 
 
 Relevant donor information:
 {donor_info}
+
+OUTPUT FORMAT:
+Return a JSON object with test names as keys and results as values:
+{{
+  "HIV-1/HIV-2 Plus O": "Non-Reactive",
+  "Hepatitis B Surface Antigen (HBsAg)": "Negative",
+  "Hepatitis C Antibody (anti-HCV)": "Non-Reactive",
+  "Syphilis (RPR)": "Non-Reactive",
+  "HTLV I/II": "Non-Reactive",
+  "West Nile Virus": "Not Detected"
+}}
+
+If a test appears multiple times:
+{{
+  "HIV-1/HIV-2 Plus O": "Non-Reactive",
+  "HIV-1/HIV-2 Plus O (2)": "Non-Reactive"
+}}
+
+IMPORTANT:
+- Extract test names EXACTLY as they appear in the document
+- Extract results EXACTLY as they appear (do not normalize or change them)
+- Include ALL occurrences of required tests
+- If a test is not found, do NOT include it in the output
 
 {reminder_instructions} DO NOT return any other character or word (like ``` or 'json') but the required result JSON.
 AI Response: """
@@ -127,29 +208,66 @@ AI Response: """
         count = 0
         for test_name, result_value in result_dict.items():
             if not result_value:
+                logger.debug(f"Skipping test {test_name} with empty result")
                 continue
             
+            # Remove numbering from test name for matching (e.g., "HIV-1/HIV-2 (2)" -> "HIV-1/HIV-2")
+            original_test_name = test_name
+            test_name_for_matching = test_name
+            if " (" in test_name_for_matching and test_name_for_matching.endswith(")"):
+                # Remove trailing "(2)", "(3)", etc.
+                test_name_for_matching = test_name_for_matching.rsplit(" (", 1)[0]
+            
             # Parse test name and method
-            clean_test_name, test_method = parse_test_name_and_method(test_name)
+            clean_test_name, test_method = parse_test_name_and_method(test_name_for_matching)
             
             # Check if this test is in our required list (by matching against aliases)
             is_required = False
+            canonical_test_name = None
             for required_test in required_tests:
-                if (clean_test_name.lower() in [t.lower() for t in [required_test['test_name']] + required_test.get('aliases', [])] or
-                    any(alias.lower() in test_name.lower() for alias in required_test.get('aliases', []))):
+                # Check against cleaned test name
+                test_variants = [required_test['test_name']] + required_test.get('aliases', [])
+                if (clean_test_name.lower() in [t.lower() for t in test_variants] or
+                    any(alias.lower() in test_name_for_matching.lower() for alias in test_variants) or
+                    any(alias.lower() in clean_test_name.lower() for alias in test_variants)):
                     is_required = True
                     # Use the canonical test name
-                    clean_test_name = required_test['test_name']
+                    canonical_test_name = required_test['test_name']
                     break
             
             if not is_required:
-                # Skip tests not in required list
+                # Try fuzzy matching - check if any part of the test name matches
+                for required_test in required_tests:
+                    test_variants = [required_test['test_name']] + required_test.get('aliases', [])
+                    # Check if any key term from required test appears in the extracted test name
+                    for variant in test_variants:
+                        # Extract key terms (e.g., "HIV", "Hepatitis B", "HBsAg")
+                        key_terms = variant.lower().split()
+                        # Remove common words
+                        key_terms = [t for t in key_terms if t not in ['test', 'antibody', 'antigen', 'surface', 'core', 'virus']]
+                        # Check if any key term appears in the test name
+                        if any(term in test_name_for_matching.lower() or term in clean_test_name.lower() for term in key_terms if len(term) > 3):
+                            is_required = True
+                            canonical_test_name = required_test['test_name']
+                            logger.info(f"Fuzzy matched '{original_test_name}' to required test '{canonical_test_name}'")
+                            break
+                    if is_required:
+                        break
+            
+            if not is_required:
+                logger.debug(f"Skipping non-required test: {original_test_name} (cleaned: {clean_test_name})")
                 continue
+            
+            # Use canonical name if available
+            if canonical_test_name:
+                clean_test_name = canonical_test_name
             
             # Get source page from citations if available
             source_page = None
+            search_terms = [test_name_for_matching.lower(), clean_test_name.lower(), str(result_value).lower()]
             for doc in retrieved_docs:
-                if test_name.lower() in doc.page_content.lower() or result_value.lower() in doc.page_content.lower():
+                doc_content_lower = doc.page_content.lower()
+                if any(term in doc_content_lower for term in search_terms if term):
                     source_page = doc.metadata.get('page')
                     break
             
@@ -164,6 +282,7 @@ AI Response: """
             )
             db.add(lab_result)
             count += 1
+            logger.debug(f"Stored serology test: {clean_test_name} = {result_value} (from: {original_test_name})")
         
         db.commit()
         logger.info(f"Stored {count} serology test results for document {document_id}")
