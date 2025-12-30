@@ -1,0 +1,53 @@
+{
+  "required_tests": [
+    {
+      "test_name": "Blood Culture",
+      "aliases": [
+        "Blood Culture",
+        "Blood Culture Gram Stain",
+        "Blood Culture Test"
+      ],
+      "required_for_criteria": ["Sepsis", "Septicemia", "Infection"],
+      "specimen_types": ["Blood", "Whole Blood"]
+    },
+    {
+      "test_name": "Tissue Culture",
+      "aliases": [
+        "Recovery Culture",
+        "Pre-Processing Culture",
+        "Post-Processing Culture",
+        "Processing Filter Culture",
+        "Tissue Recovery Culture"
+      ],
+      "required_for_criteria": ["Contamination"],
+      "specimen_types": ["Tissue", "Musculoskeletal", "Skin"]
+    }
+  ],
+  "culture_patterns": {
+    "blood": ["blood culture", "blood culture test"],
+    "tissue": ["recovery culture", "pre-processing", "post-processing", "processing filter", "tissue culture"]
+  },
+  "microorganism_categories": {
+    "category_1": {
+      "description": "Low-risk organisms, typically common skin flora",
+      "examples": ["coagulase-negative staphylococci", "propionibacterium", "diphtheroids"],
+      "acceptability": "acceptable"
+    },
+    "category_2": {
+      "description": "Moderate-risk organisms, may require evaluation",
+      "examples": ["enterococcus", "candida", "gram-negative rods"],
+      "acceptability": "md_discretion"
+    },
+    "category_3": {
+      "description": "High-risk, UNACCEPTABLE organisms",
+      "examples": ["group A streptococcus", "salmonella", "aspergillus", "listeria"],
+      "acceptability": "unacceptable"
+    },
+    "category_3a": {
+      "description": "Clostridium species, UNACCEPTABLE",
+      "examples": ["clostridium perfringens", "clostridium difficile"],
+      "acceptability": "unacceptable"
+    }
+  }
+}
+

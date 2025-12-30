@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 _CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config')
 
 def get_prompt_components(): 
+    """
+    Get prompt components for lab test extraction.
+    Simplified - only loads what's needed for criteria-focused system.
+    """
     # This is the role for chunk extraction task
     with open(os.path.join(_CONFIG_DIR, "role.json"), 'r') as f:
         role = json.load(f)
@@ -45,31 +49,23 @@ def get_prompt_components():
     with open(os.path.join(_CONFIG_DIR, "new_serology_dictionary.json"), 'r') as f:
         serology_dictionary = json.load(f)
 
+    # These are still used for culture extraction (tissue mapping)
     with open(os.path.join(_CONFIG_DIR, "cat.json"), 'r') as f:
         MS_MO_category_map = json.load(f)
 
     with open(os.path.join(_CONFIG_DIR, "newMS.json"), 'r') as f:
         subtissue_map = json.load(f)
 
-    with open(os.path.join(_CONFIG_DIR, "Summary_topics.csv"), 'r') as f:
-        topic_df = pd.read_csv(f)
-
-    with open(os.path.join(_CONFIG_DIR, "t1_section_context.json"), 'r') as file:
-        t1_context = json.load(file)
-    with open(os.path.join(_CONFIG_DIR, "t1_tips.json"), 'r') as file:
-        t1_tips = json.load(file)
-    with open(os.path.join(_CONFIG_DIR, "t1_fewshot.json"), 'r') as file:
-        t1_fewshot = json.load(file)
-
-    # T3 topics prompt components
-    with open(os.path.join(_CONFIG_DIR, "t3_context.json"), 'r') as file:
-        t3_context = json.load(file)
-    with open(os.path.join(_CONFIG_DIR, "t3_instruction.json"), 'r') as file:
-        t3_instruction = json.load(file)
-    with open(os.path.join(_CONFIG_DIR, "t3_fewshot.json"), 'r') as file:
-        t3_fewshot = json.load(file)
-
-    return role, disease_context, basic_instruction, reminder_instructions, serology_dictionary, t1_context, t1_tips, t1_fewshot, topic_df, t3_context, t3_instruction, t3_fewshot, subtissue_map, MS_MO_category_map
+    # Return simplified structure (no topic-related components)
+    return {
+        'role': role,
+        'disease_context': disease_context,
+        'basic_instruction': basic_instruction,
+        'reminder_instructions': reminder_instructions,
+        'serology_dictionary': serology_dictionary,
+        'subtissue_map': subtissue_map,
+        'MS_MO_category_map': MS_MO_category_map
+    }
 
 
 

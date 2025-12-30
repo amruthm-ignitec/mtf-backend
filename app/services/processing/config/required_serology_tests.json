@@ -1,0 +1,117 @@
+{
+  "required_tests": [
+    {
+      "test_name": "HIV-1/HIV-2",
+      "aliases": [
+        "HIV-1/HIV-2 Plus O",
+        "HIV-1/HIV-2 Plus O Antibody",
+        "HIV-1/HIV-2 Antibody",
+        "anti-HIV-1/2",
+        "HIV Antibody",
+        "HIV-1/HIV-2 Plus O Antibody"
+      ],
+      "required_for_criteria": ["HIV", "HIV/AIDS", "High Risk Behavior"]
+    },
+    {
+      "test_name": "HIV-PCR",
+      "aliases": [
+        "HIV-1 NAT",
+        "HIV NAT",
+        "HIV-1 Nucleic Acid Test",
+        "HIV PCR"
+      ],
+      "required_for_criteria": ["HIV", "HIV/AIDS"]
+    },
+    {
+      "test_name": "Hepatitis B Surface Antigen",
+      "aliases": [
+        "HBsAg",
+        "Hepatitis B Surface Antigen (HBsAg)",
+        "HBV Surface Antigen"
+      ],
+      "required_for_criteria": ["Hepatitis"]
+    },
+    {
+      "test_name": "Hepatitis B Core Antibody",
+      "aliases": [
+        "anti-HBc",
+        "HBcAb",
+        "HBc Total",
+        "Hepatitis B Core Total Ab",
+        "Hepatitis B Core Antibody (Total)",
+        "HBc Total (IgG/IgM)"
+      ],
+      "required_for_criteria": ["Hepatitis"]
+    },
+    {
+      "test_name": "HBV-NAT",
+      "aliases": [
+        "HBV NAT",
+        "Hepatitis B Virus NAT",
+        "HBV Nucleic Acid Test"
+      ],
+      "required_for_criteria": ["Hepatitis"]
+    },
+    {
+      "test_name": "Hepatitis C Antibody",
+      "aliases": [
+        "anti-HCV",
+        "HCVAb",
+        "HCV Antibody",
+        "Hepatitis C Virus Ab",
+        "Hepatitis C Virus Antibody"
+      ],
+      "required_for_criteria": ["Hepatitis"]
+    },
+    {
+      "test_name": "HCV-NAT",
+      "aliases": [
+        "HCV NAT",
+        "Hepatitis C Virus NAT",
+        "HCV Nucleic Acid Test"
+      ],
+      "required_for_criteria": ["Hepatitis"]
+    },
+    {
+      "test_name": "Syphilis",
+      "aliases": [
+        "RPR",
+        "VDRL",
+        "TPPA",
+        "FTA-ABS",
+        "MHA-TP",
+        "Syphilis (RPR)",
+        "Syphilis (VDRL)",
+        "Syphilis (TPPA)"
+      ],
+      "required_for_criteria": ["Syphilis", "Sexually Transmitted Diseases"]
+    },
+    {
+      "test_name": "HTLV I/II",
+      "aliases": [
+        "HTLV",
+        "HTLV-1/HTLV-2",
+        "Human T-Lymphotropic Virus"
+      ],
+      "required_for_criteria": ["HTLV I/II"]
+    },
+    {
+      "test_name": "West Nile Virus",
+      "aliases": [
+        "WNV",
+        "West Nile Virus NAT",
+        "WNV NAT"
+      ],
+      "required_for_criteria": ["West Nile Virus"]
+    }
+  ],
+  "test_patterns": {
+    "hiv": ["hiv", "human immunodeficiency virus"],
+    "hepatitis_b": ["hbsag", "hbv", "hepatitis b"],
+    "hepatitis_c": ["hcv", "hepatitis c"],
+    "syphilis": ["syphilis", "rpr", "vdrl", "tppa"],
+    "htlv": ["htlv", "human t-lymphotropic"],
+    "west_nile": ["west nile", "wnv"]
+  }
+}
+
