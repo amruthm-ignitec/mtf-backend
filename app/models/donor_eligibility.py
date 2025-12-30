@@ -18,10 +18,10 @@ class DonorEligibility(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     donor_id = Column(Integer, ForeignKey("donors.id"), nullable=False, index=True)
-    tissue_type = Column(Enum(TissueType), nullable=False, index=True)
+    tissue_type = Column(Enum(TissueType, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, index=True)
     
     # Eligibility decision
-    overall_status = Column(Enum(EligibilityStatus), nullable=False)  # eligible/ineligible/requires_review
+    overall_status = Column(Enum(EligibilityStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False)  # eligible/ineligible/requires_review
     
     # Criteria details
     blocking_criteria = Column(JSON, nullable=True)  # List of criteria that make donor ineligible

@@ -326,9 +326,11 @@ class CriteriaEvaluator:
                     overall_status = EligibilityStatus.ELIGIBLE
                 
                 # Check if eligibility record exists
+                # Use enum value for comparison
+                tissue_type_value = tissue_type.value if hasattr(tissue_type, 'value') else str(tissue_type)
                 existing_eligibility = db.query(DonorEligibility).filter(
                     DonorEligibility.donor_id == donor_id,
-                    DonorEligibility.tissue_type == tissue_type
+                    DonorEligibility.tissue_type == tissue_type_value
                 ).first()
                 
                 if existing_eligibility:

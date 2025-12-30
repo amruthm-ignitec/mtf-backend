@@ -23,11 +23,11 @@ class CriteriaEvaluation(Base):
     
     # Criterion identification
     criterion_name = Column(String, nullable=False, index=True)  # e.g., "Cancer", "HIV", "Sepsis"
-    tissue_type = Column(Enum(TissueType), nullable=False, index=True)  # Which tissue type this evaluation is for
+    tissue_type = Column(Enum(TissueType, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, index=True)  # Which tissue type this evaluation is for
     
     # Extracted data and evaluation
     extracted_data = Column(JSON, nullable=True)  # Raw extracted data for this criterion
-    evaluation_result = Column(Enum(EvaluationResult), nullable=False)  # Acceptable/Unacceptable/MD Discretion
+    evaluation_result = Column(Enum(EvaluationResult, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False)  # Acceptable/Unacceptable/MD Discretion
     evaluation_reasoning = Column(Text, nullable=True)  # Explanation of the evaluation
     
     # Metadata
