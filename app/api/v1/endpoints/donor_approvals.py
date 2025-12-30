@@ -76,57 +76,6 @@ async def create_donor_approval(
     db.commit()
     db.refresh(db_approval)
     
-    # Create anchor database entry from approval (non-blocking background task)
-    # This is completely optional - if it fails, the approval still succeeds
-    try:
-        from app.services.anchor_database_service import anchor_database_service
-        from app.models.donor_anchor_decision import AnchorOutcome, OutcomeSource
-        import asyncio
-        
-        # Map approval status to anchor outcome
-        if approval.status == ApprovalStatus.APPROVED:
-            anchor_outcome = AnchorOutcome.ACCEPTED
-        elif approval.status == ApprovalStatus.REJECTED:
-            anchor_outcome = AnchorOutcome.REJECTED
-        else:
-            anchor_outcome = None
-        
-        if anchor_outcome:
-            # Create anchor decision in background (non-blocking)
-            async def create_anchor_decision_background():
-                from app.database.database import SessionLocal
-                background_db = SessionLocal()
-                try:
-                    await anchor_database_service.create_anchor_decision(
-                        donor_id=approval.donor_id,
-                        outcome=anchor_outcome,
-                        outcome_source=OutcomeSource.MANUAL_APPROVAL,
-                        db=background_db
-                    )
-                    logger.debug(f"Anchor decision created from approval {db_approval.id}")
-                except Exception as inner_e:
-                    logger.warning(f"Error creating anchor decision from approval {db_approval.id}: {inner_e}", exc_info=True)
-                finally:
-                    try:
-                        background_db.close()
-                    except:
-                        pass
-            
-            # Schedule background task
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    asyncio.create_task(create_anchor_decision_background())
-                else:
-                    # If no event loop, we're in a sync context - skip for now
-                    # The anchor decision can be created later via API or script
-                    logger.debug("No event loop available, anchor decision will be created on next request")
-            except RuntimeError:
-                logger.debug("Could not schedule anchor decision creation, will be created on next request")
-    except Exception as e:
-        logger.warning(f"Failed to schedule anchor database entry creation from approval: {e}", exc_info=True)
-        # Don't fail the approval if anchor DB creation fails - this is optional functionality
-    
     # Load approver info for response
     approver = db.query(User).filter(User.id == current_user.id).first()
     

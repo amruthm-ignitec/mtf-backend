@@ -158,6 +158,28 @@ class ResultParser:
             "laboratory_results": lab_results,
             "document_id": document_id
         }
+    
+    @staticmethod
+    def get_topic_results_for_document(document_id: int, db: Session) -> Dict[str, Any]:
+        """
+        Get topic results for a document (for backward compatibility).
+        Topics are no longer extracted in the new system.
+        
+        Returns:
+            Empty dictionary for backward compatibility
+        """
+        return {"result": {}, "citations": []}
+    
+    @staticmethod
+    def get_component_results_for_document(document_id: int, db: Session) -> Dict[str, Any]:
+        """
+        Get component results for a document (for backward compatibility).
+        Document components are no longer extracted in the new system.
+        
+        Returns:
+            Empty dictionary for backward compatibility
+        """
+        return {"initial_components": {}, "conditional_components": {}}
 
 
 # Global instance

@@ -24,49 +24,6 @@ logger = logging.getLogger(__name__)
 # Get the base directory for config files (relative to this file)
 _CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config')
 
-def get_prompt_components(): 
-    """
-    Get prompt components for lab test extraction.
-    Simplified - only loads what's needed for criteria-focused system.
-    """
-    # This is the role for chunk extraction task
-    with open(os.path.join(_CONFIG_DIR, "role.json"), 'r') as f:
-        role = json.load(f)
-
-    # This is the context for chunk extraction task
-    with open(os.path.join(_CONFIG_DIR, "context.json"), 'r') as f:
-        disease_context = json.load(f)
-
-    # This is the instruction that goes into the prompt (LLM) using LLM API call
-    with open(os.path.join(_CONFIG_DIR, "instruction.json"), 'r') as f:
-        basic_instruction = json.load(f)
-
-    # This is the reminder that goes into the prompt (LLM) using LLM API call
-    with open(os.path.join(_CONFIG_DIR, "reminder_instruction.json"), 'r') as f:
-        reminder_instructions = json.load(f)
-
-    # This is the serology test name synonym dictionary
-    with open(os.path.join(_CONFIG_DIR, "new_serology_dictionary.json"), 'r') as f:
-        serology_dictionary = json.load(f)
-
-    # These are still used for culture extraction (tissue mapping)
-    with open(os.path.join(_CONFIG_DIR, "cat.json"), 'r') as f:
-        MS_MO_category_map = json.load(f)
-
-    with open(os.path.join(_CONFIG_DIR, "newMS.json"), 'r') as f:
-        subtissue_map = json.load(f)
-
-    # Return simplified structure (no topic-related components)
-    return {
-        'role': role,
-        'disease_context': disease_context,
-        'basic_instruction': basic_instruction,
-        'reminder_instructions': reminder_instructions,
-        'serology_dictionary': serology_dictionary,
-        'subtissue_map': subtissue_map,
-        'MS_MO_category_map': MS_MO_category_map
-    }
-
 
 
 
