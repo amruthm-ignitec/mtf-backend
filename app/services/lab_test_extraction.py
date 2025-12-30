@@ -5,7 +5,8 @@ Extracts only required serology and culture tests as specified in acceptance cri
 import json
 import os
 import logging
-from typing import Dict, Any
+import re
+from typing import Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from app.models.laboratory_result import LaboratoryResult, TestType
 from app.services.processing.utils.llm_wrapper import call_llm_with_retry
@@ -582,4 +583,411 @@ AI Response: """
         logger.error(f"Error extracting culture tests for document {document_id}: {e}", exc_info=True)
         db.rollback()
         return 0
+
+
+def extract_all_lab_tests(
+    document_id: int,
+    vectordb: Any,
+    llm: Any,
+    db: Session,
+    role_dict: Dict[str, str],
+    instruction_dict: Dict[str, str],
+    reminder_dict: Dict[str, str],
+    serology_dictionary: Dict[str, Any]
+) -> Tuple[int, int]:
+    """
+    Extract both required serology and culture tests in a single LLM call.
+    This reduces LLM calls from 2 to 1 for lab test extraction.
+    
+    Returns:
+        Tuple of (serology_count, culture_count) - number of test results stored for each type
+    """
+    try:
+        # Load required tests config
+        config = load_required_tests_config()
+        required_serology_tests = config['serology']['required_tests']
+        required_culture_tests = config['culture']['required_tests']
+        
+        # Build comprehensive semantic search queries for both test types
+        queries = [
+            # Serology queries
+            "serology test results SEROLOGY RESULTS infectious disease screening",
+            "HIV test results HIV-1 HIV-2 antibody NAT",
+            "Hepatitis B HBsAg HBV test results",
+            "Hepatitis C HCV antibody NAT test results",
+            "Syphilis RPR VDRL TPPA test results",
+            "HTLV West Nile Virus WNV test results",
+            "blood typing ABO Rh blood group",
+            # Culture queries
+            "blood culture results positive negative no growth",
+            "culture results CULTURE RESULTS final result",
+            "tissue culture recovery culture pre-processing post-processing",
+            "staphylococcus coagulase gram positive cocci microorganisms"
+        ]
+        
+        # Retrieve relevant chunks using multiple targeted queries
+        all_retrieved_docs = []
+        retriever = vectordb.as_retriever(search_type='similarity', search_kwargs={'k': 15})
+        
+        for query in queries:
+            retrieved_docs = retriever.invoke(query)
+            all_retrieved_docs.extend(retrieved_docs)
+        
+        # Deduplicate by page and content
+        seen = set()
+        unique_docs = []
+        for doc in all_retrieved_docs:
+            doc_key = (doc.metadata.get('page'), doc.page_content[:100])
+            if doc_key not in seen:
+                seen.add(doc_key)
+                unique_docs.append(doc)
+        
+        retrieved_docs = unique_docs[:30]  # Limit to top 30 unique chunks
+        
+        if not retrieved_docs:
+            logger.warning(f"No relevant chunks found for lab test extraction in document {document_id}")
+            return 0, 0
+        
+        logger.info(f"Retrieved {len(retrieved_docs)} unique chunks for combined lab test extraction in document {document_id}")
+        
+        # Build donor info context
+        donor_info = "\n".join([
+            f"Page {doc.metadata.get('page', '?')}: {doc.page_content}"
+            for doc in retrieved_docs
+        ])
+        
+        # Build detailed serology test list with aliases
+        serology_test_details = []
+        for test in required_serology_tests:
+            aliases_str = ", ".join(test.get('aliases', [])[:3])
+            serology_test_details.append(f"- {test['test_name']} (also known as: {aliases_str})")
+        serology_test_details_str = "\n".join(serology_test_details)
+        
+        # Build culture test list
+        culture_test_names = [test['test_name'] for test in required_culture_tests]
+        culture_test_details_str = ", ".join(culture_test_names)
+        
+        # Get combined role (use serology role as base, add culture expertise)
+        serology_role = role_dict.get('Serology test', '')
+        culture_role = role_dict.get('Culture test', '')
+        combined_role = f"""You are an expert medical data extractor specializing in laboratory reports for donor eligibility assessment. You have expertise in both serological infectious disease screening and microbiological culture interpretation. {serology_role} {culture_role}"""
+        
+        # Create comprehensive focused instruction
+        focused_instruction = f"""Extract serology and culture test results for donor eligibility assessment.
+
+REQUIRED SEROLOGY TESTS TO EXTRACT (ONLY these):
+{serology_test_details_str}
+
+REQUIRED CULTURE TESTS TO EXTRACT (ONLY these):
+{culture_test_details_str}
+
+EXTRACTION GUIDELINES:
+
+1. SEROLOGY TEST EXTRACTION:
+   - Extract test names EXACTLY as they appear in the document
+   - Include abbreviations, manufacturer names, and method designations (e.g., "HIV-1/HIV-2 Plus O", "HBsAg (Alinity)")
+   - Match test names to the required tests above, even if they use different aliases
+   - Extract results EXACTLY as they appear: Positive, Negative, Non-Reactive, Reactive, Equivocal, Indeterminate, Borderline
+   - Include ALL occurrences of required tests, even if they appear multiple times
+   - If a test appears multiple times, number them (e.g., "HIV-1/HIV-2", "HIV-1/HIV-2 (2)")
+   - If a test name appears but no result is visible or unclear, do NOT include it
+
+2. CULTURE TEST EXTRACTION:
+   - BLOOD CULTURE (REQUIRED): Extract ALL Blood Culture results from the document
+     * Extract result: "No growth", "No Growth", "Positive", or specific microorganisms found
+     * Extract specimen type: "Blood"
+     * Extract specimen date if available
+     * Extract accession number if available
+     * Include ALL Blood Culture results, even if there are multiple entries
+   - TISSUE CULTURE (REQUIRED): Extract Recovery Culture, Pre-Processing Culture, Post-Processing Culture, Processing Filter Culture results
+     * Extract the FULL, EXACT name of each sub-tissue as it appears (e.g., 'Left Femur Recovery Culture')
+     * For each sub-tissue, extract ALL microorganisms found, including genus/species names
+     * If no microorganisms are found or result is "No Growth", indicate "No growth"
+
+3. DO NOT EXTRACT:
+   - Tests not in the REQUIRED TESTS lists above
+   - Urine culture, Sputum culture, Stool culture, Bronchial culture results
+   - If a test name appears but no result is visible, do NOT include it
+
+IMPORTANT: Extract ALL occurrences of required tests found in the document. Be thorough and check all pages."""
+        
+        # Get reminder instructions
+        serology_reminder = reminder_dict.get('Serology test', '')
+        culture_reminder = reminder_dict.get('Culture test', '')
+        combined_reminder = f"{serology_reminder}\n\n{culture_reminder}"
+        
+        # Call LLM for extraction
+        prompt = f"""{combined_role}
+Instruction: {focused_instruction}
+
+CRITICAL: Extract information ONLY from the provided donor document. Do not use information from other donors, documents, or your training data.
+
+Relevant donor information:
+{donor_info}
+
+OUTPUT FORMAT:
+Return a JSON object with the following structure:
+
+{{
+  "serology_tests": {{
+    "HIV-1/HIV-2 Plus O": "Non-Reactive",
+    "Hepatitis B Surface Antigen (HBsAg)": "Negative",
+    "Hepatitis C Antibody (anti-HCV)": "Non-Reactive",
+    "Syphilis (RPR)": "Non-Reactive",
+    "HTLV I/II": "Non-Reactive",
+    "West Nile Virus": "Not Detected"
+  }},
+  "culture_tests": {{
+    "Blood Culture": {{
+      "result": "No Growth" or "Positive Blood Culture" or specific organism,
+      "specimen_type": "Blood",
+      "specimen_date": "05/09/2025" (if available),
+      "accession_number": "MCLAR" (if available),
+      "final_result_details": "Gram positive Cocci in clusters" (if available)
+    }},
+    "Left Femur Recovery Culture": ["organism1", "organism2"] or [],
+    "Right Semitendinosus Pre-Processing Culture": []
+  }}
+}}
+
+If multiple Blood Culture results exist:
+{{
+  "serology_tests": {{...}},
+  "culture_tests": {{
+    "Blood Culture 1": {{"result": "...", "specimen_type": "Blood", ...}},
+    "Blood Culture 2": {{"result": "...", "specimen_type": "Blood", ...}},
+    ...
+  }}
+}}
+
+If a serology test appears multiple times:
+{{
+  "serology_tests": {{
+    "HIV-1/HIV-2 Plus O": "Non-Reactive",
+    "HIV-1/HIV-2 Plus O (2)": "Non-Reactive"
+  }},
+  "culture_tests": {{...}}
+}}
+
+IMPORTANT:
+- Extract test names EXACTLY as they appear in the document
+- Extract results EXACTLY as they appear (do not normalize or change them)
+- Include ALL occurrences of required tests
+- If a test is not found, do NOT include it in the output
+- For serology: extract ONLY when both test name AND result are present
+- For culture: extract ALL Blood Culture results and ALL tissue culture results
+
+{combined_reminder} DO NOT return any other character or word (like ``` or 'json') but the required result JSON.
+AI Response: """
+        
+        response = call_llm_with_retry(
+            llm=llm,
+            prompt=prompt,
+            max_retries=3,
+            base_delay=1.0,
+            timeout=90,  # Slightly longer timeout for combined extraction
+            context="combined lab test extraction"
+        )
+        
+        # Parse JSON response
+        try:
+            result_dict = safe_parse_llm_json(response.content)
+        except LLMResponseParseError as e:
+            logger.error(f"Failed to parse combined lab test LLM response for document {document_id}: {e}")
+            return 0, 0
+        
+        # Process serology tests
+        serology_count = 0
+        serology_tests = result_dict.get('serology_tests', {})
+        if isinstance(serology_tests, dict):
+            for test_name, result_value in serology_tests.items():
+                if not result_value:
+                    logger.debug(f"Skipping serology test {test_name} with empty result")
+                    continue
+                
+                # Remove numbering from test name for matching
+                original_test_name = test_name
+                test_name_for_matching = test_name
+                if " (" in test_name_for_matching and test_name_for_matching.endswith(")"):
+                    test_name_for_matching = test_name_for_matching.rsplit(" (", 1)[0]
+                
+                # Parse test name and method
+                clean_test_name, test_method = parse_test_name_and_method(test_name_for_matching)
+                
+                # Check if this test is in our required list
+                is_required = False
+                canonical_test_name = None
+                for required_test in required_serology_tests:
+                    test_variants = [required_test['test_name']] + required_test.get('aliases', [])
+                    if (clean_test_name.lower() in [t.lower() for t in test_variants] or
+                        any(alias.lower() in test_name_for_matching.lower() for alias in test_variants) or
+                        any(alias.lower() in clean_test_name.lower() for alias in test_variants)):
+                        is_required = True
+                        canonical_test_name = required_test['test_name']
+                        break
+                
+                if not is_required:
+                    # Try fuzzy matching
+                    for required_test in required_serology_tests:
+                        test_variants = [required_test['test_name']] + required_test.get('aliases', [])
+                        for variant in test_variants:
+                            key_terms = variant.lower().split()
+                            key_terms = [t for t in key_terms if t not in ['test', 'antibody', 'antigen', 'surface', 'core', 'virus']]
+                            if any(term in test_name_for_matching.lower() or term in clean_test_name.lower() for term in key_terms if len(term) > 3):
+                                is_required = True
+                                canonical_test_name = required_test['test_name']
+                                logger.info(f"Fuzzy matched '{original_test_name}' to required test '{canonical_test_name}'")
+                                break
+                        if is_required:
+                            break
+                
+                if not is_required:
+                    logger.debug(f"Skipping non-required serology test: {original_test_name}")
+                    continue
+                
+                # Use canonical name if available
+                if canonical_test_name:
+                    clean_test_name = canonical_test_name
+                
+                # Get source page
+                source_page = None
+                search_terms = [test_name_for_matching.lower(), clean_test_name.lower(), str(result_value).lower()]
+                for doc in retrieved_docs:
+                    doc_content_lower = doc.page_content.lower()
+                    if any(term in doc_content_lower for term in search_terms if term):
+                        source_page = doc.metadata.get('page')
+                        break
+                
+                # Store in database
+                lab_result = LaboratoryResult(
+                    document_id=document_id,
+                    test_type=TestType.SEROLOGY,
+                    test_name=clean_test_name,
+                    test_method=test_method,
+                    result=str(result_value),
+                    source_page=source_page
+                )
+                db.add(lab_result)
+                serology_count += 1
+                logger.debug(f"Stored serology test: {clean_test_name} = {result_value} (from: {original_test_name})")
+        
+        # Process culture tests
+        culture_count = 0
+        culture_tests = result_dict.get('culture_tests', {})
+        if isinstance(culture_tests, dict):
+            for test_key, test_data in culture_tests.items():
+                # Initialize variables
+                test_name = test_key
+                result = ""
+                microorganisms = []
+                specimen_type = None
+                specimen_date = None
+                accession_number = None
+                base_test_name = test_key
+                
+                # Handle different response formats
+                if isinstance(test_data, list):
+                    # Format: {"Left Femur Recovery Culture": ["organism1", "organism2"]} or []
+                    result = ", ".join(test_data) if test_data else "No growth"
+                    microorganisms = test_data
+                elif isinstance(test_data, dict):
+                    # Format: {"Blood Culture": {"result": "...", "specimen_type": "...", ...}}
+                    if "blood culture" in test_key.lower():
+                        base_test_name = "Blood Culture"
+                    elif "tissue" in test_key.lower() or "recovery" in test_key.lower():
+                        base_test_name = test_key
+                    
+                    result = test_data.get('result', '')
+                    if not result:
+                        final_details = test_data.get('final_result_details', '')
+                        if final_details:
+                            result = final_details
+                        else:
+                            result = "No result specified"
+                    
+                    microorganisms = test_data.get('microorganisms', [])
+                    if not microorganisms and result and result.lower() not in ['no growth', 'negative', 'positive', 'no growth after 18 hours']:
+                        result_lower = result.lower()
+                        if any(org in result_lower for org in ['staphylococcus', 'candida', 'gram positive', 'gram negative']):
+                            microorganisms.append(result)
+                    
+                    specimen_type = test_data.get('specimen_type', None)
+                    specimen_date = test_data.get('specimen_date', None)
+                    accession_number = test_data.get('accession_number', None)
+                else:
+                    # Format: {"Blood Culture": "result string"}
+                    result = str(test_data)
+                
+                # Check if this is a required test
+                is_required = False
+                canonical_test_name = None
+                for required_test in required_culture_tests:
+                    if (base_test_name.lower() in [t.lower() for t in [required_test['test_name']] + required_test.get('aliases', [])] or
+                        any(alias.lower() in base_test_name.lower() for alias in required_test.get('aliases', []))):
+                        is_required = True
+                        canonical_test_name = required_test['test_name']
+                        break
+                
+                if not is_required:
+                    logger.debug(f"Skipping non-required culture test: {test_key} (base: {base_test_name})")
+                    continue
+                
+                # Use canonical name if available, otherwise keep original
+                if canonical_test_name:
+                    test_name = canonical_test_name
+                
+                # Get source page
+                source_page = None
+                for doc in retrieved_docs:
+                    if test_name.lower() in doc.page_content.lower() or test_key.lower() in doc.page_content.lower():
+                        source_page = doc.metadata.get('page')
+                        break
+                
+                # Determine specimen type if not already set
+                if not specimen_type:
+                    if "blood" in test_name.lower() or "blood" in base_test_name.lower():
+                        specimen_type = "Blood"
+                    elif "tissue" in test_name.lower() or "recovery" in test_name.lower() or "tissue" in base_test_name.lower():
+                        specimen_type = "Tissue"
+                
+                # Build comments field with additional info
+                comments_parts = []
+                if accession_number:
+                    comments_parts.append(f"Accession: {accession_number}")
+                if microorganisms and isinstance(microorganisms, list) and len(microorganisms) > 0:
+                    if "blood" in test_name.lower():
+                        comments_parts.append(f"Microorganisms: {', '.join(microorganisms)}")
+                
+                # Store in database
+                lab_result = LaboratoryResult(
+                    document_id=document_id,
+                    test_type=TestType.CULTURE,
+                    test_name=test_name,
+                    result=result,
+                    specimen_type=specimen_type,
+                    specimen_date=specimen_date,
+                    source_page=source_page,
+                    comments="; ".join(comments_parts) if comments_parts else None
+                )
+                
+                # For tissue cultures, also store in legacy fields if needed
+                if "tissue" in test_name.lower() or "recovery" in test_name.lower():
+                    if microorganisms:
+                        lab_result.microorganism = ", ".join(microorganisms) if isinstance(microorganisms, list) else str(microorganisms)
+                        lab_result.tissue_location = test_key
+                elif "blood" in test_name.lower() and microorganisms:
+                    if not lab_result.comments:
+                        lab_result.comments = f"Microorganisms: {', '.join(microorganisms) if isinstance(microorganisms, list) else str(microorganisms)}"
+                
+                db.add(lab_result)
+                culture_count += 1
+        
+        db.commit()
+        logger.info(f"Stored {serology_count} serology and {culture_count} culture test results for document {document_id}")
+        return serology_count, culture_count
+        
+    except Exception as e:
+        logger.error(f"Error extracting combined lab tests for document {document_id}: {e}", exc_info=True)
+        db.rollback()
+        return 0, 0
 

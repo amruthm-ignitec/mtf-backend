@@ -13,8 +13,8 @@ from app.services.pdf_service import pdf_service
 from app.services.db_storage import db_storage_service
 from app.services.processing.utils.llm_config import llm_setup
 from app.services.processing.utils.helper_functions import processing_dc
-from app.services.lab_test_extraction import extract_required_serology_tests, extract_required_culture_tests
-from app.services.criteria_extraction import extract_criteria_data
+from app.services.lab_test_extraction import extract_all_lab_tests
+from app.services.criteria_extraction import extract_all_criteria_data_batched
 
 logger = logging.getLogger(__name__)
 
@@ -155,37 +155,30 @@ class DocumentProcessingService:
             document.progress = 45.0
             db.commit()
             
-            # Extract required lab tests (serology and culture)
-            logger.info("Running required lab test extraction...")
-            serology_count = await loop.run_in_executor(
+            # Extract required lab tests (serology and culture) in a single LLM call
+            logger.info("Running combined lab test extraction (serology + culture)...")
+            serology_count, culture_count = await loop.run_in_executor(
                 None,
-                extract_required_serology_tests,
+                extract_all_lab_tests,
                 document_id, vectordb, self.llm, db, role,
                 basic_instruction, reminder_instructions,
                 serology_dictionary
             )
             
-            culture_count = await loop.run_in_executor(
-                None,
-                extract_required_culture_tests,
-                document_id, vectordb, self.llm, db, role,
-                basic_instruction, reminder_instructions
-            )
-            
-            logger.info(f"Extracted {serology_count} serology tests and {culture_count} culture tests")
+            logger.info(f"Extracted {serology_count} serology tests and {culture_count} culture tests in one LLM call")
             
             document.progress = 60.0
             db.commit()
             
-            # Extract criteria-specific data
-            logger.info("Running criteria-specific data extraction...")
+            # Extract criteria-specific data (all 79 criteria in one LLM call)
+            logger.info("Running batched criteria data extraction (all 79 criteria in one call)...")
             criteria_count = await loop.run_in_executor(
                 None,
-                extract_criteria_data,
+                extract_all_criteria_data_batched,
                 document_id, document.donor_id, vectordb, self.llm, db, page_doc_list
             )
             
-            logger.info(f"Extracted data for {criteria_count} criteria evaluations")
+            logger.info(f"Extracted data for {criteria_count} criteria evaluations in one LLM call")
             
             document.progress = 80.0
             db.commit()

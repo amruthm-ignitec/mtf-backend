@@ -5,7 +5,7 @@ Extracts only data points needed for each criterion in the acceptance criteria t
 import json
 import os
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from app.models.criteria_evaluation import CriteriaEvaluation, EvaluationResult, TissueType
 from app.services.processing.utils.llm_wrapper import call_llm_with_retry, LLMCallError
@@ -92,6 +92,224 @@ def extract_criteria_data(
         logger.error(f"Error extracting criteria data for document {document_id}: {e}", exc_info=True)
         db.rollback()
         return 0
+
+
+def extract_all_criteria_data_batched(
+    document_id: int,
+    donor_id: int,
+    vectordb: Any,
+    llm: Any,
+    db: Session,
+    page_doc_list: List[Any]
+) -> int:
+    """
+    Extract data for ALL criteria in a single LLM call.
+    This reduces LLM calls from 79 to 1 for criteria extraction.
+    
+    Returns:
+        Number of criteria evaluations stored
+    """
+    try:
+        # Load acceptance criteria config
+        criteria_config = load_acceptance_criteria_config()
+        
+        # Build comprehensive semantic search queries covering major criteria categories
+        queries = [
+            "age donor age years old",
+            "cancer malignancy tumor neoplasm",
+            "HIV AIDS human immunodeficiency virus",
+            "hepatitis HBV HCV liver disease",
+            "syphilis RPR VDRL sexually transmitted",
+            "sepsis infection septicemia",
+            "culture contamination microorganisms",
+            "diabetes diabetic",
+            "hypertension high blood pressure",
+            "medications drugs prescription",
+            "surgery surgical procedure",
+            "medical history past medical history PMH",
+            "social history smoking alcohol drugs",
+            "cause of death COD",
+            "autopsy post-mortem examination"
+        ]
+        
+        # Retrieve relevant chunks using multiple queries
+        all_retrieved_docs = []
+        retriever = vectordb.as_retriever(search_type='similarity', search_kwargs={'k': 10})
+        
+        for query in queries:
+            retrieved_docs = retriever.invoke(query)
+            all_retrieved_docs.extend(retrieved_docs)
+        
+        # Deduplicate by page and content
+        seen = set()
+        unique_docs = []
+        for doc in all_retrieved_docs:
+            doc_key = (doc.metadata.get('page'), doc.page_content[:100])
+            if doc_key not in seen:
+                seen.add(doc_key)
+                unique_docs.append(doc)
+        
+        retrieved_docs = unique_docs[:50]  # Limit to top 50 unique chunks
+        
+        # Also include first 20 pages from page_doc_list for comprehensive coverage
+        context_pages = []
+        for page_doc in page_doc_list[:20]:
+            if hasattr(page_doc, 'page_content'):
+                context_pages.append(page_doc)
+        
+        # Build comprehensive context
+        context_parts = []
+        for doc in retrieved_docs:
+            context_parts.append(f"Page {doc.metadata.get('page', '?')}: {doc.page_content}")
+        for page_doc in context_pages:
+            page_num = getattr(page_doc, 'metadata', {}).get('page', '?')
+            content = getattr(page_doc, 'page_content', '')
+            context_parts.append(f"Page {page_num}: {content}")
+        
+        context = "\n".join(context_parts)
+        
+        # Build comprehensive criteria list with data points
+        criteria_list = []
+        for criterion_name, criterion_info in criteria_config.items():
+            required_data_points = criterion_info.get('required_data_points', [])
+            if required_data_points:
+                data_points_str = ", ".join(required_data_points)
+                criteria_list.append(f"- {criterion_name}: Extract [{data_points_str}]")
+        
+        criteria_list_str = "\n".join(criteria_list)
+        
+        # Build comprehensive prompt
+        prompt = f"""You are an expert medical document analyst specializing in donor eligibility assessment. Analyze the provided donor document and extract ALL required data points for each of the 79 acceptance criteria listed below.
+
+CRITICAL INSTRUCTIONS:
+1. Extract ONLY information that is explicitly present in the document
+2. If a data point is not found, set it to null (not false, not empty string, but null)
+3. Be thorough - check all pages and sections of the document
+4. Extract exact values as they appear (dates, numbers, text)
+5. For boolean/yes-no questions, extract as true/false/null based on what's stated
+6. For dates, extract in the format found in the document (or convert to YYYY-MM-DD if possible)
+
+ACCEPTANCE CRITERIA TO EXTRACT DATA FOR:
+{criteria_list_str}
+
+OUTPUT FORMAT:
+Return a JSON object where each key is a criterion name and the value is an object containing the extracted data points for that criterion.
+
+Example structure:
+{{
+  "Age": {{
+    "donor_age": 45,
+    "tissue_type": "femur",
+    "gender": "male"
+  }},
+  "Cancer": {{
+    "cancer_type": null,
+    "diagnosis_date": null,
+    "treatment": null,
+    "recurrence": null,
+    "time_since_death": null
+  }},
+  "HIV": {{
+    "hiv_history": false,
+    "hiv_exposure": null,
+    "hiv_test_results": "negative",
+    "hiv_test_date": "2024-01-15"
+  }}
+}}
+
+IMPORTANT:
+- Include ALL 79 criteria in your response, even if most data points are null
+- Use null (not false, not empty string) when data is not found
+- Extract exact values from the document
+- Be comprehensive - check medical history, social history, lab results, cause of death, etc.
+
+Document content:
+{context}
+
+Return only the JSON object, no other text or markdown formatting:"""
+        
+        # Call LLM with longer timeout for comprehensive extraction
+        response = call_llm_with_retry(
+            llm=llm,
+            prompt=prompt,
+            max_retries=3,
+            base_delay=1.0,
+            timeout=120,  # Longer timeout for batched extraction
+            context="batched criteria extraction"
+        )
+        
+        # Parse JSON response
+        try:
+            all_extracted_data = safe_parse_llm_json(response.content)
+        except LLMResponseParseError as e:
+            logger.error(f"Failed to parse batched criteria extraction response for document {document_id}: {e}")
+            # Fallback to individual extraction
+            logger.info(f"Falling back to individual criteria extraction for document {document_id}")
+            return extract_criteria_data(document_id, donor_id, vectordb, llm, db, page_doc_list)
+        
+        # Process extracted data and store in database
+        count = 0
+        for criterion_name, criterion_info in criteria_config.items():
+            try:
+                # Get extracted data for this criterion
+                extracted_data = all_extracted_data.get(criterion_name)
+                
+                if not extracted_data:
+                    # If criterion not in response, create empty data structure
+                    required_data_points = criterion_info.get('required_data_points', [])
+                    extracted_data = {dp: None for dp in required_data_points}
+                
+                # Ensure all required data points are present
+                required_data_points = criterion_info.get('required_data_points', [])
+                for dp in required_data_points:
+                    if dp not in extracted_data:
+                        extracted_data[dp] = None
+                
+                # Remove any extra keys that aren't required data points
+                extracted_data = {k: v for k, v in extracted_data.items() if k in required_data_points or k.startswith('_')}
+                
+                # Add metadata
+                extracted_data['_criterion_name'] = criterion_name
+                extracted_data['_extraction_timestamp'] = str(os.path.getmtime(__file__))
+                
+                # Determine tissue types to evaluate
+                tissue_types = []
+                if criterion_info.get('tissue_specific', False):
+                    tissue_types = [TissueType.MUSCULOSKELETAL, TissueType.SKIN]
+                else:
+                    tissue_types = [TissueType.BOTH]
+                
+                # Store extracted data for each tissue type
+                for tissue_type in tissue_types:
+                    criteria_eval = CriteriaEvaluation(
+                        donor_id=donor_id,
+                        document_id=document_id,
+                        criterion_name=criterion_name,
+                        tissue_type=tissue_type,
+                        extracted_data=extracted_data,
+                        evaluation_result=EvaluationResult.MD_DISCRETION  # Default, will be evaluated later
+                    )
+                    db.add(criteria_eval)
+                    count += 1
+                
+            except Exception as e:
+                logger.error(f"Error processing extracted data for criterion {criterion_name} in document {document_id}: {e}", exc_info=True)
+                continue
+        
+        db.commit()
+        logger.info(f"Stored extracted data for {count} criteria evaluations (batched extraction) in document {document_id}")
+        return count
+        
+    except Exception as e:
+        logger.error(f"Error in batched criteria extraction for document {document_id}: {e}", exc_info=True)
+        db.rollback()
+        # Fallback to individual extraction
+        logger.info(f"Falling back to individual criteria extraction for document {document_id}")
+        try:
+            return extract_criteria_data(document_id, donor_id, vectordb, llm, db, page_doc_list)
+        except Exception as fallback_error:
+            logger.error(f"Fallback extraction also failed for document {document_id}: {fallback_error}", exc_info=True)
+            return 0
 
 
 def extract_single_criterion(
