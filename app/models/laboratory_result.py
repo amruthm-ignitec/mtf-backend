@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Enum
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Enum, TypeDecorator
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects import postgresql
 from app.database.database import Base
 import enum
 
@@ -9,14 +10,44 @@ class TestType(str, enum.Enum):
     CULTURE = "culture"
     OTHER = "other"
 
+class TestTypeEnum(TypeDecorator):
+    """Type decorator that casts to PostgreSQL enum type."""
+    impl = String
+    cache_ok = True
+    
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            # Use the existing enum type
+            return dialect.type_descriptor(postgresql.ENUM('serology', 'culture', 'other', name='testtype', create_type=False))
+        return dialect.type_descriptor(String)
+    
+    def process_bind_param(self, value, dialect):
+        """Convert enum to value string for binding."""
+        if value is None:
+            return None
+        if isinstance(value, TestType):
+            return value.value
+        return str(value)
+    
+    def process_result_value(self, value, dialect):
+        """Convert database value back to enum."""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                return TestType(value)
+            except ValueError:
+                return value
+        return value
+
 class LaboratoryResult(Base):
     __tablename__ = "laboratory_results"
     
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(Integer, ForeignKey("documents.id"), nullable=False, index=True)
     
-    # Test classification
-    test_type = Column(Enum(TestType), nullable=False, index=True)
+    # Test classification - Use TypeDecorator for PostgreSQL enum
+    test_type = Column(TestTypeEnum, nullable=False, index=True)
     
     # Core test information (same for all types)
     test_name = Column(String, nullable=False)  # e.g., "HIV", "Blood Culture"
