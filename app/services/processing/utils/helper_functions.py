@@ -205,8 +205,24 @@ def data_load(filename, parser_name=None, use_fallback=True):
             if not has_text:
                 raise ValueError(f"Parser {parser} extracted no text content from PDF: {filename}")
             
+            # Check if we got sufficient text content (at least 50 characters per page on average)
+            # This helps detect cases where only a tiny fragment was extracted
+            total_chars = sum(len(doc.page_content.strip()) for doc in page_docs if doc.page_content)
+            avg_chars_per_page = total_chars / len(page_docs) if page_docs else 0
+            
+            if avg_chars_per_page < 50:
+                logger.warning(
+                    f"Parser {parser} extracted very little text ({total_chars} chars total, "
+                    f"{avg_chars_per_page:.1f} chars/page avg) from PDF: {filename}. "
+                    f"This may indicate a scanned/image-based PDF. Will try next parser or OCR."
+                )
+                raise ValueError(
+                    f"Parser {parser} extracted insufficient text content "
+                    f"({total_chars} chars, {avg_chars_per_page:.1f} chars/page avg) from PDF: {filename}"
+                )
+            
             # Successfully extracted text, proceed with chunking
-            logger.info(f"Successfully extracted text using {parser}, proceeding with chunking")
+            logger.info(f"Successfully extracted text using {parser} ({total_chars} chars, {avg_chars_per_page:.1f} chars/page avg), proceeding with chunking")
             break
             
         except Exception as e:

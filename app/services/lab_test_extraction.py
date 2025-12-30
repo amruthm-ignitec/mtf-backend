@@ -720,7 +720,14 @@ IMPORTANT: Extract ALL occurrences of required tests found in the document. Be t
         prompt = f"""{combined_role}
 Instruction: {focused_instruction}
 
-CRITICAL: Extract information ONLY from the provided donor document. Do not use information from other donors, documents, or your training data.
+CRITICAL ANTI-HALLUCINATION RULES:
+1. Extract information ONLY from the provided donor document text below
+2. DO NOT infer, assume, or guess test results based on document type or your training data
+3. DO NOT add test results that are not explicitly present in the document
+4. If a required test is NOT mentioned in the document, DO NOT include it in the output
+5. If you see test names but NO results, DO NOT include those tests
+6. If the document only contains partial information (e.g., only a date or header), return empty arrays
+7. DO NOT use "normal" or "expected" values - only extract what is actually written in the document
 
 Relevant donor information:
 {donor_info}
@@ -728,54 +735,36 @@ Relevant donor information:
 OUTPUT FORMAT:
 Return a JSON object with the following structure:
 
+If tests are found in the document:
 {{
   "serology_tests": {{
     "HIV-1/HIV-2 Plus O": "Non-Reactive",
-    "Hepatitis B Surface Antigen (HBsAg)": "Negative",
-    "Hepatitis C Antibody (anti-HCV)": "Non-Reactive",
-    "Syphilis (RPR)": "Non-Reactive",
-    "HTLV I/II": "Non-Reactive",
-    "West Nile Virus": "Not Detected"
+    "Hepatitis B Surface Antigen (HBsAg)": "Negative"
   }},
   "culture_tests": {{
     "Blood Culture": {{
-      "result": "No Growth" or "Positive Blood Culture" or specific organism,
+      "result": "No Growth",
       "specimen_type": "Blood",
-      "specimen_date": "05/09/2025" (if available),
-      "accession_number": "MCLAR" (if available),
-      "final_result_details": "Gram positive Cocci in clusters" (if available)
-    }},
-    "Left Femur Recovery Culture": ["organism1", "organism2"] or [],
-    "Right Semitendinosus Pre-Processing Culture": []
+      "specimen_date": "05/09/2025"
+    }}
   }}
 }}
 
-If multiple Blood Culture results exist:
+If NO tests are found in the document, return:
 {{
-  "serology_tests": {{...}},
-  "culture_tests": {{
-    "Blood Culture 1": {{"result": "...", "specimen_type": "Blood", ...}},
-    "Blood Culture 2": {{"result": "...", "specimen_type": "Blood", ...}},
-    ...
-  }}
-}}
-
-If a serology test appears multiple times:
-{{
-  "serology_tests": {{
-    "HIV-1/HIV-2 Plus O": "Non-Reactive",
-    "HIV-1/HIV-2 Plus O (2)": "Non-Reactive"
-  }},
-  "culture_tests": {{...}}
+  "serology_tests": {{}},
+  "culture_tests": {{}}
 }}
 
 IMPORTANT:
 - Extract test names EXACTLY as they appear in the document
 - Extract results EXACTLY as they appear (do not normalize or change them)
-- Include ALL occurrences of required tests
-- If a test is not found, do NOT include it in the output
-- For serology: extract ONLY when both test name AND result are present
-- For culture: extract ALL Blood Culture results and ALL tissue culture results
+- If a test is NOT found in the document, DO NOT include it - return empty object {{}}
+- For serology: extract ONLY when BOTH test name AND result are explicitly visible together in the document
+- For culture: extract ONLY when test name AND result are explicitly visible together in the document
+- DO NOT infer results from document type, headers, or context
+- DO NOT add default or "normal" values
+- If the document text is too short or unclear, return empty objects
 
 {combined_reminder} DO NOT return any other character or word (like ``` or 'json') but the required result JSON.
 AI Response: """
@@ -796,6 +785,18 @@ AI Response: """
             logger.error(f"Failed to parse combined lab test LLM response for document {document_id}: {e}")
             return 0, 0
         
+        # Validate extracted results against source document to prevent hallucination
+        # Build a searchable text from all retrieved chunks for validation
+        source_text_lower = " ".join([doc.page_content.lower() for doc in retrieved_docs])
+        
+        # Check if source text is too short - if so, reject all extractions to prevent hallucination
+        if len(source_text_lower.strip()) < 50:
+            logger.warning(
+                f"Source document text is too short ({len(source_text_lower)} chars) for document {document_id}. "
+                f"Rejecting all extractions to prevent hallucination. Text: {source_text_lower[:100]}"
+            )
+            return 0, 0
+        
         # Process serology tests
         serology_count = 0
         serology_tests = result_dict.get('serology_tests', {})
@@ -813,6 +814,44 @@ AI Response: """
                 
                 # Parse test name and method
                 clean_test_name, test_method = parse_test_name_and_method(test_name_for_matching)
+                
+                # VALIDATION: Check if test name or result actually appears in source document
+                # This prevents hallucination when LLM infers results not in the document
+                test_name_found = False
+                result_found = False
+                
+                # Check for test name variants in source
+                for required_test in required_serology_tests:
+                    test_variants = [required_test['test_name']] + required_test.get('aliases', [])
+                    for variant in test_variants:
+                        if variant.lower() in source_text_lower or any(part in source_text_lower for part in variant.lower().split() if len(part) > 3):
+                            test_name_found = True
+                            break
+                    if test_name_found:
+                        break
+                
+                # Also check the extracted test name itself
+                if not test_name_found:
+                    test_name_parts = [part for part in test_name_for_matching.lower().split() if len(part) > 3]
+                    if any(part in source_text_lower for part in test_name_parts):
+                        test_name_found = True
+                
+                # Check if result value appears in source (allowing for case variations)
+                result_lower = str(result_value).lower()
+                result_variants = [
+                    result_lower,
+                    result_lower.replace("-", " "),
+                    result_lower.replace(" ", ""),
+                ]
+                result_found = any(variant in source_text_lower for variant in result_variants if variant)
+                
+                # If neither test name nor result found in source, skip to prevent hallucination
+                if not test_name_found and not result_found:
+                    logger.warning(
+                        f"Rejecting serology test '{original_test_name}' = '{result_value}' for document {document_id}: "
+                        f"Neither test name nor result found in source document. This may be hallucination."
+                    )
+                    continue
                 
                 # Check if this test is in our required list
                 is_required = False
@@ -917,6 +956,48 @@ AI Response: """
                 else:
                     # Format: {"Blood Culture": "result string"}
                     result = str(test_data)
+                
+                # VALIDATION: Check if test name or result actually appears in source document
+                # This prevents hallucination when LLM infers results not in the document
+                test_name_found = False
+                result_found = False
+                
+                # Check for culture test name variants in source
+                for required_test in required_culture_tests:
+                    test_variants = [required_test['test_name']] + required_test.get('aliases', [])
+                    for variant in test_variants:
+                        if variant.lower() in source_text_lower or any(part in source_text_lower for part in variant.lower().split() if len(part) > 3):
+                            test_name_found = True
+                            break
+                    if test_name_found:
+                        break
+                
+                # Also check the extracted test name itself
+                if not test_name_found:
+                    test_name_parts = [part for part in base_test_name.lower().split() if len(part) > 3]
+                    if any(part in source_text_lower for part in test_name_parts):
+                        test_name_found = True
+                
+                # Check if result value appears in source (allowing for case variations)
+                if result:
+                    result_lower = str(result).lower()
+                    result_variants = [
+                        result_lower,
+                        result_lower.replace("-", " "),
+                        result_lower.replace(" ", ""),
+                        "no growth" if "no growth" in result_lower else None,
+                        "positive" if "positive" in result_lower else None,
+                    ]
+                    result_variants = [v for v in result_variants if v]
+                    result_found = any(variant in source_text_lower for variant in result_variants)
+                
+                # If neither test name nor result found in source, skip to prevent hallucination
+                if not test_name_found and not result_found:
+                    logger.warning(
+                        f"Rejecting culture test '{test_key}' = '{result}' for document {document_id}: "
+                        f"Neither test name nor result found in source document. This may be hallucination."
+                    )
+                    continue
                 
                 # Check if this is a required test
                 is_required = False
