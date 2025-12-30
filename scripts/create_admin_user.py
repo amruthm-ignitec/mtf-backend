@@ -33,7 +33,7 @@ def create_admin_user():
             email="admin@donoriq.com",
             hashed_password=hash_password("admin123"),
             full_name="System Administrator",
-            role=UserRole.ADMIN,
+            role=UserRole.ADMIN.value,  # Use .value to ensure lowercase 'admin' is used
             is_active=True
         )
         
