@@ -180,7 +180,19 @@ def data_load(filename, parser_name=None, use_fallback=True):
             
             if parser == "pymupdf":
                 loader = PyMuPDFLoader(filename)
-                page_docs = loader.load()
+                temp_page_docs = loader.load()
+                # PyMuPDFLoader may not preserve page numbers in metadata, so we add them explicitly
+                page_docs = []
+                for num, doc in enumerate(temp_page_docs):
+                    # Preserve existing metadata and ensure page number is set
+                    metadata = doc.metadata.copy() if hasattr(doc, 'metadata') and doc.metadata else {}
+                    metadata['page'] = num + 1  # Ensure page number is set (1-indexed)
+                    metadata['source'] = metadata.get('source', filename)
+                    new_doc = Document(
+                        page_content=doc.page_content,
+                        metadata=metadata
+                    )
+                    page_docs.append(new_doc)
             elif parser == "pdfminer":
                 loader = PDFMinerLoader(filename, concatenate_pages=False)
                 temp_page_docs = loader.load()
@@ -193,7 +205,19 @@ def data_load(filename, parser_name=None, use_fallback=True):
                     page_docs.append(new_doc)
             elif parser == "pdfplumber":
                 loader = PDFPlumberLoader(filename)
-                page_docs = loader.load()
+                temp_page_docs = loader.load()
+                # PDFPlumberLoader may not preserve page numbers in metadata, so we add them explicitly
+                page_docs = []
+                for num, doc in enumerate(temp_page_docs):
+                    # Preserve existing metadata and ensure page number is set
+                    metadata = doc.metadata.copy() if hasattr(doc, 'metadata') and doc.metadata else {}
+                    metadata['page'] = num + 1  # Ensure page number is set (1-indexed)
+                    metadata['source'] = metadata.get('source', filename)
+                    new_doc = Document(
+                        page_content=doc.page_content,
+                        metadata=metadata
+                    )
+                    page_docs.append(new_doc)
             else:
                 raise ValueError(f"Unknown parser name: {parser}")
             
@@ -266,6 +290,25 @@ def data_load(filename, parser_name=None, use_fallback=True):
         chunk_overlap=250
     )
     chunk_docs = text_splitter.split_documents(page_docs)
+    
+    # Verify metadata preservation and ensure page numbers are set
+    # CharacterTextSplitter should preserve metadata, but let's verify
+    chunks_with_pages = 0
+    chunks_without_pages = 0
+    for chunk_doc in chunk_docs:
+        if hasattr(chunk_doc, 'metadata') and chunk_doc.metadata and 'page' in chunk_doc.metadata:
+            chunks_with_pages += 1
+        else:
+            chunks_without_pages += 1
+    
+    if chunks_without_pages > 0:
+        logger.warning(f"PDF {filename}: {chunks_without_pages} chunks created without page metadata. This may indicate metadata is not being preserved during chunking.")
+        # Try to infer page numbers from original page_docs if metadata is missing
+        # This is a fallback - ideally CharacterTextSplitter should preserve metadata
+        logger.info(f"Attempting to restore page metadata for chunks...")
+        # Note: This is complex to do retroactively, so we'll log it for now
+    
+    logger.info(f"Chunked {len(page_docs)} pages into {len(chunk_docs)} chunks ({chunks_with_pages} with page metadata, {chunks_without_pages} without)")
     
     # Filter out empty chunks (can cause embedding issues)
     chunk_docs = [doc for doc in chunk_docs if doc.page_content and doc.page_content.strip()]

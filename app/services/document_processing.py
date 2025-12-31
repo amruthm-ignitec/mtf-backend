@@ -133,6 +133,10 @@ class DocumentProcessingService:
                         except (ValueError, TypeError):
                             page_number = None
                 
+                # Log if page number is missing (for debugging)
+                if page_number is None and idx < 5:  # Log first 5 chunks to avoid spam
+                    logger.debug(f"Chunk {idx} has no page number. Metadata: {chunk_doc.metadata if hasattr(chunk_doc, 'metadata') else 'No metadata'}")
+                
                 chunk_data = {
                     'text': chunk_text,
                     'index': idx,

@@ -27,12 +27,20 @@ class DBStorageService:
         """
         try:
             count = 0
+            chunks_with_pages = 0
+            chunks_without_pages = 0
             for chunk_data in chunks_with_embeddings:
+                page_number = chunk_data.get('page', None)
+                if page_number is not None:
+                    chunks_with_pages += 1
+                else:
+                    chunks_without_pages += 1
+                
                 chunk_result = DocumentChunk(
                     document_id=document_id,
                     chunk_text=chunk_data.get('text', ''),
                     chunk_index=chunk_data.get('index', 0),
-                    page_number=chunk_data.get('page', None),
+                    page_number=page_number,
                     embedding=chunk_data.get('embedding', None),  # Vector embedding
                     chunk_metadata=chunk_data.get('metadata', {})
                 )
@@ -40,7 +48,9 @@ class DBStorageService:
                 count += 1
             
             db.commit()
-            logger.info(f"Stored {count} document chunks for document {document_id}")
+            logger.info(f"Stored {count} document chunks for document {document_id} ({chunks_with_pages} with page numbers, {chunks_without_pages} without)")
+            if chunks_without_pages > 0:
+                logger.warning(f"Document {document_id}: {chunks_without_pages} chunks stored without page numbers. This may indicate metadata is not being preserved during chunking.")
             return count
             
         except Exception as e:
