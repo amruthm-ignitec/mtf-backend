@@ -864,8 +864,10 @@ EXTRACTION GUIDELINES:
    - Include abbreviations, manufacturer names, and method designations (e.g., "HIV-1/HIV-2 Plus O", "HBsAg (Alinity)")
    - Match test names to the required tests above, even if they use different aliases
    - For COVID-19/SARS-CoV-2 tests: Look for test names containing "SARS-CoV-2", "COVID-19", "coronavirus", or "PCR" - these may appear with institutional prefixes (e.g., "Gift of Life Michigan SARS-CoV-2 (COVID-19) PCR")
-   - Extract results EXACTLY as they appear: Positive, Negative, Non-Reactive, Reactive, Equivocal, Indeterminate, Borderline, Not Detected
+   - Extract results EXACTLY as they appear: Positive, Negative, Non-Reactive, Reactive, Equivocal, Indeterminate, Borderline, Not Detected, Invalid
    - Note: "Not Detected" is equivalent to "Negative" for COVID-19/SARS-CoV-2 tests
+   - IMPORTANT: If a test shows both "Normal Range" and an actual result (e.g., "Invalid"), extract the ACTUAL result, not the normal range value
+   - For COVID-19 PCR tests, if the result is "Invalid", still extract it as a valid test result
    - Include ALL occurrences of required tests, even if they appear multiple times
    - If a test appears multiple times, number them (e.g., "HIV-1/HIV-2", "HIV-1/HIV-2 (2)")
    - If a test name appears but no result is visible or unclear, do NOT include it
@@ -1033,6 +1035,8 @@ AI Response: """
                 ]
                 if "not detected" in result_lower or "notdetected" in result_lower:
                     result_variants.extend(["negative", "not detected", "notdetected", "no detection"])
+                if "invalid" in result_lower:
+                    result_variants.extend(["invalid", "invalid result", "sample invalid"])
                 result_found = any(variant in source_text_lower for variant in result_variants if variant)
                 
                 # If neither test name nor result found in source, skip to prevent hallucination
