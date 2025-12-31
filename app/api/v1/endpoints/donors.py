@@ -395,21 +395,69 @@ async def get_donor_extraction_data(
     # Get all laboratory results
     all_serology_results = {}
     all_culture_results = []
-    all_serology_citations = []
-    all_culture_citations = []
     
     for doc_id in document_ids:
         lab_results = result_parser.get_laboratory_results_for_document(doc_id, db)
         serology = lab_results.get("serology_results", {})
         culture = lab_results.get("culture_results", {})
         
-        # Merge serology results
-        all_serology_results.update(serology.get("result", {}))
-        all_serology_citations.extend(serology.get("citations", []))
+        # Merge serology results - combine citations when same test appears in multiple documents
+        for test_name, test_data in serology.get("result", {}).items():
+            if test_name not in all_serology_results:
+                # First time seeing this test - copy all data including citations
+                all_serology_results[test_name] = {
+                    "result": test_data.get("result"),
+                    "citations": list(test_data.get("citations", []))
+                }
+                if "method" in test_data:
+                    all_serology_results[test_name]["method"] = test_data["method"]
+                if "document_id" in test_data:
+                    all_serology_results[test_name]["document_id"] = test_data["document_id"]
+            else:
+                # Test already exists - merge citations
+                existing_citations = all_serology_results[test_name].get("citations", [])
+                new_citations = test_data.get("citations", [])
+                
+                # Add new citations that don't already exist
+                for new_citation in new_citations:
+                    citation_key = (new_citation.get("document_id"), new_citation.get("page"))
+                    if not any(c.get("document_id") == new_citation.get("document_id") and 
+                              c.get("page") == new_citation.get("page") 
+                              for c in existing_citations):
+                        existing_citations.append(new_citation)
+                
+                # Sort citations by document_id and page
+                existing_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)))
         
-        # Merge culture results
-        all_culture_results.extend(culture.get("result", []))
-        all_culture_citations.extend(culture.get("citations", []))
+        # Merge culture results - combine citations when same test appears in multiple documents
+        for culture_item in culture.get("result", []):
+            test_name = culture_item.get("test_name")
+            result_value = culture_item.get("result")
+            document_id = culture_item.get("document_id")
+            
+            # Check if we already have this exact culture result
+            # (same test_name, result, document_id)
+            existing_item = None
+            for existing in all_culture_results:
+                if (existing.get("test_name") == test_name and
+                    existing.get("result") == result_value and
+                    existing.get("document_id") == document_id):
+                    existing_item = existing
+                    break
+            
+            if existing_item:
+                # Merge citations
+                existing_citations = existing_item.get("citations", [])
+                new_citations = culture_item.get("citations", [])
+                for new_citation in new_citations:
+                    if not any(c.get("document_id") == new_citation.get("document_id") and 
+                              c.get("page") == new_citation.get("page") 
+                              for c in existing_citations):
+                        existing_citations.append(new_citation)
+                existing_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)))
+            else:
+                # New culture result - add it with citations array
+                all_culture_results.append(culture_item)
     
     # Get criteria evaluations
     criteria_evaluations = result_parser.get_criteria_evaluations_for_donor(donor_id, db)
@@ -470,11 +518,11 @@ async def get_donor_extraction_data(
         # New fields for criteria-focused system
         "serology_results": {
             "result": all_serology_results,
-            "citations": all_serology_citations
+            "citations": []  # Citations are now per-test in the result object
         },
         "culture_results": {
             "result": all_culture_results,
-            "citations": all_culture_citations
+            "citations": []  # Citations are now per-test in the result object
         },
         "criteria_evaluations": criteria_evaluations,
         "eligibility": {

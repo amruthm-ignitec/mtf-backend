@@ -21,14 +21,14 @@ class ResultParser:
     def get_laboratory_results_for_document(document_id: int, db: Session) -> Dict[str, Any]:
         """
         Get all laboratory results (serology and culture) for a document.
-        Includes file names in citations and attaches source_document/source_page to each result.
+        Includes file names in citations and attaches citations array to each result.
         
         Args:
             document_id: ID of the document
             db: Database session
             
         Returns:
-            Dictionary with serology_results and culture_results, with file names in citations
+            Dictionary with serology_results and culture_results, with citations per test
         """
         try:
             results = db.query(LaboratoryResult).filter(
@@ -41,8 +41,6 @@ class ResultParser:
             
             serology_results = {}
             culture_results = []
-            serology_citations = []
-            culture_citations = []
             
             for result in results:
                 # Build citation with file name
@@ -56,26 +54,33 @@ class ResultParser:
                     }
                 
                 if result.test_type == TestType.SEROLOGY:
-                    # For serology, include source_document and source_page in the result
-                    # Frontend expects this structure: { result: string, method?: string, source_document?: string, source_page?: number }
-                    serology_result_data = {
-                        "result": result.result
-                    }
-                    if result.test_method:
-                        serology_result_data["method"] = result.test_method  # Frontend expects "method" not "test_method"
-                    if result.source_page and result.source_page > 0:
-                        serology_result_data["source_page"] = result.source_page
-                        serology_result_data["source_document"] = file_names.get(result.document_id, f"Document {result.document_id}")
-                    serology_result_data["document_id"] = result.document_id
+                    # For serology, include citations array in each result
+                    test_name = result.test_name
+                    if test_name not in serology_results:
+                        serology_results[test_name] = {
+                            "result": result.result,
+                            "citations": []
+                        }
+                        if result.test_method:
+                            serology_results[test_name]["method"] = result.test_method
+                        serology_results[test_name]["document_id"] = result.document_id
                     
-                    serology_results[result.test_name] = serology_result_data
+                    # Add citation if available
                     if citation:
-                        serology_citations.append(citation)
+                        # Check if citation already exists (deduplicate)
+                        existing_citations = serology_results[test_name]["citations"]
+                        citation_key = (citation["document_id"], citation["page"])
+                        if not any(c.get("document_id") == citation["document_id"] and c.get("page") == citation["page"] 
+                                   for c in existing_citations):
+                            existing_citations.append(citation)
+                            # Sort citations by document_id and page
+                            existing_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)))
                 elif result.test_type == TestType.CULTURE:
                     culture_item = {
                         "test_name": result.test_name,
                         "result": result.result,
-                        "document_id": result.document_id
+                        "document_id": result.document_id,
+                        "citations": []
                     }
                     if result.test_method:
                         culture_item["test_method"] = result.test_method
@@ -90,36 +95,21 @@ class ResultParser:
                         culture_item["tissue_location"] = result.tissue_location
                     if result.microorganism:
                         culture_item["microorganism"] = result.microorganism
-                    # Add source_document and source_page for frontend
-                    if result.source_page and result.source_page > 0:
-                        culture_item["source_page"] = result.source_page
-                        culture_item["source_document"] = file_names.get(result.document_id, f"Document {result.document_id}")
+                    
+                    # Add citation if available
+                    if citation:
+                        culture_item["citations"].append(citation)
                     
                     culture_results.append(culture_item)
-                    if citation:
-                        culture_citations.append(citation)
-            
-            # Deduplicate citations
-            def deduplicate_citations(citations):
-                unique = []
-                seen = set()
-                for citation in citations:
-                    if citation:
-                        key = (citation["document_id"], citation["page"])
-                        if key not in seen:
-                            seen.add(key)
-                            unique.append(citation)
-                unique.sort(key=lambda x: (x["document_id"], x["page"]))
-                return unique
             
             return {
                 "serology_results": {
                     "result": serology_results,
-                    "citations": deduplicate_citations(serology_citations)
+                    "citations": []  # Keep for backward compatibility, but citations are now per-test
                 },
                 "culture_results": {
                     "result": culture_results,
-                    "citations": deduplicate_citations(culture_citations)
+                    "citations": []  # Keep for backward compatibility, but citations are now per-test
                 }
             }
         except Exception as e:
@@ -142,9 +132,32 @@ class ResultParser:
         return lab_results.get("serology_results", {"result": {}, "citations": []})
     
     @staticmethod
+    def _has_actual_data(extracted_data: Dict[str, Any]) -> bool:
+        """
+        Check if extracted_data has any actual data (not all nulls).
+        Excludes metadata fields like _criterion_name, _extraction_timestamp.
+        """
+        if not extracted_data:
+            return False
+        
+        metadata_fields = {'_criterion_name', '_extraction_timestamp'}
+        for key, value in extracted_data.items():
+            if key not in metadata_fields and value is not None:
+                # Check if value is not empty string, empty list, or empty dict
+                if isinstance(value, str) and value.strip():
+                    return True
+                elif isinstance(value, (list, dict)) and len(value) > 0:
+                    return True
+                elif not isinstance(value, (str, list, dict)):
+                    return True
+        
+        return False
+    
+    @staticmethod
     def get_criteria_evaluations_for_donor(donor_id: int, db: Session) -> Dict[str, Any]:
         """
         Get all criteria evaluations for a donor.
+        Only includes criteria that have actual extracted data (not all nulls).
         
         Returns:
             Dictionary with criteria evaluations grouped by criterion name
@@ -156,10 +169,15 @@ class ResultParser:
             
             criteria_data = {}
             for eval_obj in evaluations:
+                # Only include criteria with actual extracted data
+                extracted_data = eval_obj.extracted_data or {}
+                if not ResultParser._has_actual_data(extracted_data):
+                    continue
+                
                 criterion_name = eval_obj.criterion_name
                 if criterion_name not in criteria_data:
                     criteria_data[criterion_name] = {
-                        "extracted_data": eval_obj.extracted_data or {},
+                        "extracted_data": extracted_data,
                         "evaluation_result": eval_obj.evaluation_result.value,
                         "evaluation_reasoning": eval_obj.evaluation_reasoning,
                         "tissue_types": []
