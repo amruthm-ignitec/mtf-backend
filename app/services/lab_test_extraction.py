@@ -6,9 +6,10 @@ import json
 import os
 import logging
 import re
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 from app.models.laboratory_result import LaboratoryResult, TestType
+from app.models.document_chunk import DocumentChunk
 from app.services.processing.utils.llm_wrapper import call_llm_with_retry
 from app.services.processing.utils.json_parser import safe_parse_llm_json, LLMResponseParseError
 from app.services.processing.serology import parse_test_name_and_method
@@ -97,6 +98,63 @@ def normalize_culture_result(result: str, culture_dictionary: Dict[str, Any] = N
             return value
     
     return result
+
+
+def get_page_number_from_database(document_id: int, search_text: str, db: Session) -> Optional[int]:
+    """
+    Get page number from database by searching for matching chunk text.
+    This is more reliable than relying on vectordb metadata.
+    
+    Args:
+        document_id: ID of the document
+        search_text: Text to search for in chunks (test name or result)
+        db: Database session
+    
+    Returns:
+        Page number if found, None otherwise
+    """
+    try:
+        if not search_text or len(search_text.strip()) < 3:
+            return None
+        
+        # Search for chunks containing the search text
+        # Use a substring match - find chunks that contain the search text
+        search_lower = search_text.lower().strip()
+        
+        # Query chunks for this document that have page numbers
+        chunks = db.query(DocumentChunk).filter(
+            DocumentChunk.document_id == document_id,
+            DocumentChunk.page_number.isnot(None)
+        ).all()
+        
+        if not chunks:
+            logger.debug(f"No chunks with page numbers found for document {document_id}")
+            return None
+        
+        # Find the first chunk that contains the search text and has a page number
+        for chunk in chunks:
+            if chunk.chunk_text and chunk.page_number:
+                chunk_text_lower = chunk.chunk_text.lower()
+                # Check if search text appears in chunk (allowing for partial matches)
+                if search_lower in chunk_text_lower:
+                    logger.debug(f"Found page {chunk.page_number} for search text '{search_text}' in document {document_id}")
+                    return chunk.page_number
+        
+        # If no exact match, try matching key terms (for test names like "HIV-1/HIV-2")
+        key_terms = [term for term in search_lower.split() if len(term) > 3]
+        for chunk in chunks:
+            if chunk.chunk_text and chunk.page_number:
+                chunk_text_lower = chunk.chunk_text.lower()
+                # Check if any key term appears in chunk
+                if any(term in chunk_text_lower for term in key_terms):
+                    logger.debug(f"Found page {chunk.page_number} for key terms '{key_terms}' in document {document_id}")
+                    return chunk.page_number
+        
+        logger.debug(f"No matching chunk found for search text '{search_text}' in document {document_id}")
+        return None
+    except Exception as e:
+        logger.error(f"Error getting page number from database for document {document_id}: {e}", exc_info=True)
+        return None
 
 
 def load_required_tests_config() -> Dict[str, Any]:
@@ -973,20 +1031,37 @@ AI Response: """
                 if canonical_test_name:
                     clean_test_name = canonical_test_name
                 
-                # Get source page - try to find the page where this test result appears
+                # Get source page - try multiple methods
                 source_page = None
+                
+                # Method 1: Try to get from vectordb metadata (if available)
                 search_terms = [test_name_for_matching.lower(), clean_test_name.lower(), str(result_value).lower()]
                 for doc in retrieved_docs:
                     doc_content_lower = doc.page_content.lower()
                     if any(term in doc_content_lower for term in search_terms if term):
                         # Try to get page from metadata
-                        page = doc.metadata.get('page') if hasattr(doc, 'metadata') and doc.metadata else None
-                        if page is not None:
-                            source_page = int(page) if isinstance(page, (int, str)) and str(page).isdigit() else None
-                        if source_page:
-                            break
+                        if hasattr(doc, 'metadata') and doc.metadata:
+                            page = doc.metadata.get('page')
+                            if page is not None:
+                                try:
+                                    source_page = int(page) if isinstance(page, (int, str)) and str(page).isdigit() else None
+                                    if source_page:
+                                        break
+                                except (ValueError, TypeError):
+                                    pass
                 
-                # If still no page found, try to get from first matching doc
+                # Method 2: Query database directly using chunk text matching (more reliable)
+                if not source_page:
+                    # Try searching with test name first
+                    source_page = get_page_number_from_database(document_id, clean_test_name, db)
+                    # If not found, try with result value
+                    if not source_page and result_value:
+                        source_page = get_page_number_from_database(document_id, str(result_value), db)
+                    # If still not found, try with original test name
+                    if not source_page:
+                        source_page = get_page_number_from_database(document_id, test_name_for_matching, db)
+                
+                # Method 3: Fallback - get page from first retrieved doc metadata
                 if not source_page and retrieved_docs:
                     for doc in retrieved_docs:
                         if hasattr(doc, 'metadata') and doc.metadata:
@@ -1139,8 +1214,10 @@ AI Response: """
                 if canonical_test_name:
                     test_name = canonical_test_name
                 
-                # Get source page - try to find the page where this culture test appears
+                # Get source page - try multiple methods
                 source_page = None
+                
+                # Method 1: Try to get from vectordb metadata (if available)
                 for doc in retrieved_docs:
                     if test_name.lower() in doc.page_content.lower() or test_key.lower() in doc.page_content.lower():
                         # Try to get page from metadata
@@ -1154,7 +1231,18 @@ AI Response: """
                                 except (ValueError, TypeError):
                                     pass
                 
-                # If still no page found, try to get from first matching doc
+                # Method 2: Query database directly using chunk text matching (more reliable)
+                if not source_page:
+                    # Try searching with test name
+                    source_page = get_page_number_from_database(document_id, test_name, db)
+                    # If not found, try with base test name
+                    if not source_page:
+                        source_page = get_page_number_from_database(document_id, base_test_name, db)
+                    # If not found, try with result
+                    if not source_page and result:
+                        source_page = get_page_number_from_database(document_id, str(result), db)
+                
+                # Method 3: Fallback - get page from first retrieved doc metadata
                 if not source_page and retrieved_docs:
                     for doc in retrieved_docs:
                         if hasattr(doc, 'metadata') and doc.metadata:

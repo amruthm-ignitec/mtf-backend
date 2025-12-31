@@ -122,10 +122,21 @@ class DocumentProcessingService:
                 # Embeddings are now 3072 dimensions (text-embedding-3-large default)
                 # No truncation needed - database schema supports 3072 dimensions
                 
+                # Extract page number from metadata
+                page_number = None
+                if hasattr(chunk_doc, 'metadata') and chunk_doc.metadata:
+                    page_number = chunk_doc.metadata.get('page', None)
+                    # Ensure page is an integer if it exists
+                    if page_number is not None:
+                        try:
+                            page_number = int(page_number) if isinstance(page_number, (int, str)) and str(page_number).isdigit() else None
+                        except (ValueError, TypeError):
+                            page_number = None
+                
                 chunk_data = {
                     'text': chunk_text,
                     'index': idx,
-                    'page': chunk_doc.metadata.get('page', None) if hasattr(chunk_doc, 'metadata') else None,
+                    'page': page_number,
                     'embedding': chunk_embedding,  # Store embedding for pgvector
                     'metadata': chunk_doc.metadata if hasattr(chunk_doc, 'metadata') else {}
                 }
