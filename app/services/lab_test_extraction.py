@@ -100,6 +100,37 @@ def normalize_culture_result(result: str, culture_dictionary: Dict[str, Any] = N
     return result
 
 
+def strip_institutional_prefix(test_name: str) -> str:
+    """
+    Strip common institutional prefixes from test names to improve matching.
+    Examples:
+    - "Gift of Life Michigan SARS-CoV-2 (COVID-19) PCR" -> "SARS-CoV-2 (COVID-19) PCR"
+    - "Mayo Clinic HIV-1/HIV-2" -> "HIV-1/HIV-2"
+    """
+    if not test_name:
+        return test_name
+    
+    # Common institutional prefixes (case-insensitive)
+    # These are common patterns that appear before test names
+    prefixes = [
+        r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:of\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+',  # "Gift of Life Michigan"
+        r'^[A-Z][a-z]+\s+[A-Z][a-z]+\s+',  # "Mayo Clinic", "Johns Hopkins"
+        r'^[A-Z][a-z]+\s+Health\s+',  # "Corewell Health"
+        r'^[A-Z][a-z]+\s+Medical\s+',  # "Cleveland Medical"
+        r'^[A-Z][a-z]+\s+Hospital\s+',  # "General Hospital"
+    ]
+    
+    cleaned = test_name
+    for prefix_pattern in prefixes:
+        cleaned = re.sub(prefix_pattern, '', cleaned, flags=re.IGNORECASE)
+    
+    # If we stripped too much (result is too short), return original
+    if len(cleaned.strip()) < 5:
+        return test_name
+    
+    return cleaned.strip()
+
+
 def get_page_number_from_database(document_id: int, search_text: str, db: Session) -> Optional[int]:
     """
     Get page number from database by searching for matching chunk text.
@@ -761,6 +792,7 @@ def extract_all_lab_tests(
             "Syphilis RPR VDRL TPPA test results",
             "HTLV West Nile Virus WNV test results",
             "blood typing ABO Rh blood group",
+            "COVID-19 SARS-CoV-2 coronavirus PCR test results",
             # Culture queries
             "blood culture results positive negative no growth",
             "culture results CULTURE RESULTS final result",
@@ -1009,16 +1041,39 @@ AI Response: """
                         break
                 
                 if not is_required:
-                    # Try fuzzy matching
+                    # Try fuzzy matching - first strip institutional prefixes
+                    test_name_stripped = strip_institutional_prefix(test_name_for_matching)
+                    clean_test_name_stripped = strip_institutional_prefix(clean_test_name)
+                    
                     for required_test in required_serology_tests:
                         test_variants = [required_test['test_name']] + required_test.get('aliases', [])
                         for variant in test_variants:
-                            key_terms = variant.lower().split()
-                            key_terms = [t for t in key_terms if t not in ['test', 'antibody', 'antigen', 'surface', 'core', 'virus']]
-                            if any(term in test_name_for_matching.lower() or term in clean_test_name.lower() for term in key_terms if len(term) > 3):
-                                is_required = True
-                                canonical_test_name = required_test['test_name']
-                                logger.info(f"Fuzzy matched '{original_test_name}' to required test '{canonical_test_name}'")
+                            variant_lower = variant.lower()
+                            key_terms = variant_lower.split()
+                            # Remove common stop words
+                            key_terms = [t for t in key_terms if t not in ['test', 'antibody', 'antigen', 'surface', 'core', 'virus', 'testing']]
+                            
+                            # For COVID-19/SARS-CoV-2, also check for key terms like "sars", "cov", "covid", "pcr"
+                            if 'sars' in variant_lower or 'covid' in variant_lower or 'cov-2' in variant_lower:
+                                key_terms.extend(['sars', 'cov', 'covid', 'pcr'])
+                            
+                            # Check against both original and stripped test names
+                            test_names_to_check = [
+                                test_name_for_matching.lower(),
+                                clean_test_name.lower(),
+                                test_name_stripped.lower(),
+                                clean_test_name_stripped.lower()
+                            ]
+                            
+                            # Check if any key term appears in any of the test name variations
+                            for test_name_check in test_names_to_check:
+                                if any(term in test_name_check for term in key_terms if len(term) > 2):
+                                    is_required = True
+                                    canonical_test_name = required_test['test_name']
+                                    logger.info(f"Fuzzy matched '{original_test_name}' to required test '{canonical_test_name}'")
+                                    break
+                            
+                            if is_required:
                                 break
                         if is_required:
                             break
