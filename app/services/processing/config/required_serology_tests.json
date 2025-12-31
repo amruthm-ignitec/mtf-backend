@@ -6,6 +6,9 @@
         "HIV-1/HIV-2 Plus O",
         "HIV-1/HIV-2 Plus O Antibody",
         "HIV-1/HIV-2 Antibody",
+        "HIV-Ag/Ab Combo",
+        "HIV Ag/Ab Combo",
+        "HIV Ag/Ab",
         "anti-HIV-1/2",
         "HIV Antibody",
         "HIV-1/HIV-2 Plus O Antibody"
@@ -26,8 +29,10 @@
       "test_name": "Hepatitis B Surface Antigen",
       "aliases": [
         "HBsAg",
+        "HBs Antigen",
         "Hepatitis B Surface Antigen (HBsAg)",
-        "HBV Surface Antigen"
+        "HBV Surface Antigen",
+        "HBsAg Antigen"
       ],
       "required_for_criteria": ["Hepatitis"]
     },
@@ -36,6 +41,7 @@
       "aliases": [
         "anti-HBc",
         "HBcAb",
+        "HBc Antibody",
         "HBc Total",
         "Hepatitis B Core Total Ab",
         "Hepatitis B Core Antibody (Total)",
@@ -58,6 +64,7 @@
         "anti-HCV",
         "HCVAb",
         "HCV Antibody",
+        "HCV II Antibody",
         "Hepatitis C Virus Ab",
         "Hepatitis C Virus Antibody"
       ],
@@ -82,7 +89,9 @@
         "MHA-TP",
         "Syphilis (RPR)",
         "Syphilis (VDRL)",
-        "Syphilis (TPPA)"
+        "Syphilis (TPPA)",
+        "Syphilis IgG Antibody",
+        "Syphilis IgG"
       ],
       "required_for_criteria": ["Syphilis", "Sexually Transmitted Diseases"]
     },
@@ -91,6 +100,8 @@
       "aliases": [
         "HTLV",
         "HTLV-1/HTLV-2",
+        "HTLV I/II Antibody",
+        "HTLV I/II Ab",
         "Human T-Lymphotropic Virus"
       ],
       "required_for_criteria": ["HTLV I/II"]
@@ -163,6 +174,7 @@
       "aliases": [
         "Toxoplasmosis IgG",
         "Toxo IgG",
+        "Toxo IgG II",
         "Toxo Ab IgG",
         "anti-Toxoplasma IgG",
         "Toxoplasma IgG (EIA)",

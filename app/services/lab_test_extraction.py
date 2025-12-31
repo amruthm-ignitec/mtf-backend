@@ -973,14 +973,31 @@ AI Response: """
                 if canonical_test_name:
                     clean_test_name = canonical_test_name
                 
-                # Get source page
+                # Get source page - try to find the page where this test result appears
                 source_page = None
                 search_terms = [test_name_for_matching.lower(), clean_test_name.lower(), str(result_value).lower()]
                 for doc in retrieved_docs:
                     doc_content_lower = doc.page_content.lower()
                     if any(term in doc_content_lower for term in search_terms if term):
-                        source_page = doc.metadata.get('page')
-                        break
+                        # Try to get page from metadata
+                        page = doc.metadata.get('page') if hasattr(doc, 'metadata') and doc.metadata else None
+                        if page is not None:
+                            source_page = int(page) if isinstance(page, (int, str)) and str(page).isdigit() else None
+                        if source_page:
+                            break
+                
+                # If still no page found, try to get from first matching doc
+                if not source_page and retrieved_docs:
+                    for doc in retrieved_docs:
+                        if hasattr(doc, 'metadata') and doc.metadata:
+                            page = doc.metadata.get('page')
+                            if page is not None:
+                                try:
+                                    source_page = int(page) if isinstance(page, (int, str)) and str(page).isdigit() else None
+                                    if source_page:
+                                        break
+                                except (ValueError, TypeError):
+                                    pass
                 
                 # Store in database
                 lab_result = LaboratoryResult(
@@ -1122,12 +1139,33 @@ AI Response: """
                 if canonical_test_name:
                     test_name = canonical_test_name
                 
-                # Get source page
+                # Get source page - try to find the page where this culture test appears
                 source_page = None
                 for doc in retrieved_docs:
                     if test_name.lower() in doc.page_content.lower() or test_key.lower() in doc.page_content.lower():
-                        source_page = doc.metadata.get('page')
-                        break
+                        # Try to get page from metadata
+                        if hasattr(doc, 'metadata') and doc.metadata:
+                            page = doc.metadata.get('page')
+                            if page is not None:
+                                try:
+                                    source_page = int(page) if isinstance(page, (int, str)) and str(page).isdigit() else None
+                                    if source_page:
+                                        break
+                                except (ValueError, TypeError):
+                                    pass
+                
+                # If still no page found, try to get from first matching doc
+                if not source_page and retrieved_docs:
+                    for doc in retrieved_docs:
+                        if hasattr(doc, 'metadata') and doc.metadata:
+                            page = doc.metadata.get('page')
+                            if page is not None:
+                                try:
+                                    source_page = int(page) if isinstance(page, (int, str)) and str(page).isdigit() else None
+                                    if source_page:
+                                        break
+                                except (ValueError, TypeError):
+                                    pass
                 
                 # Determine specimen type if not already set
                 if not specimen_type:

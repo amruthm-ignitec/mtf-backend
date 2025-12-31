@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.laboratory_result import LaboratoryResult, TestType
 from app.models.criteria_evaluation import CriteriaEvaluation
 from app.models.donor_eligibility import DonorEligibility
+from app.services.file_citation_service import get_file_citations_batch
 
 logger = logging.getLogger(__name__)
 
@@ -20,18 +21,23 @@ class ResultParser:
     def get_laboratory_results_for_document(document_id: int, db: Session) -> Dict[str, Any]:
         """
         Get all laboratory results (serology and culture) for a document.
+        Includes file names in citations and attaches source_document/source_page to each result.
         
         Args:
             document_id: ID of the document
             db: Database session
             
         Returns:
-            Dictionary with serology_results and culture_results
+            Dictionary with serology_results and culture_results, with file names in citations
         """
         try:
             results = db.query(LaboratoryResult).filter(
                 LaboratoryResult.document_id == document_id
             ).all()
+            
+            # Get file names for all document IDs in batch
+            document_ids = list(set([r.document_id for r in results]))
+            file_names = get_file_citations_batch(document_ids, db)
             
             serology_results = {}
             culture_results = []
@@ -39,13 +45,30 @@ class ResultParser:
             culture_citations = []
             
             for result in results:
-                citation = {
-                    "document_id": result.document_id,
-                    "page": result.source_page
-                } if result.source_page else None
+                # Build citation with file name
+                citation = None
+                if result.source_page and result.source_page > 0:
+                    file_name = file_names.get(result.document_id, f"Document {result.document_id}")
+                    citation = {
+                        "document_id": result.document_id,
+                        "file_name": file_name,
+                        "page": result.source_page
+                    }
                 
                 if result.test_type == TestType.SEROLOGY:
-                    serology_results[result.test_name] = result.result
+                    # For serology, include source_document and source_page in the result
+                    # Frontend expects this structure: { result: string, method?: string, source_document?: string, source_page?: number }
+                    serology_result_data = {
+                        "result": result.result
+                    }
+                    if result.test_method:
+                        serology_result_data["method"] = result.test_method  # Frontend expects "method" not "test_method"
+                    if result.source_page and result.source_page > 0:
+                        serology_result_data["source_page"] = result.source_page
+                        serology_result_data["source_document"] = file_names.get(result.document_id, f"Document {result.document_id}")
+                    serology_result_data["document_id"] = result.document_id
+                    
+                    serology_results[result.test_name] = serology_result_data
                     if citation:
                         serology_citations.append(citation)
                 elif result.test_type == TestType.CULTURE:
@@ -67,6 +90,10 @@ class ResultParser:
                         culture_item["tissue_location"] = result.tissue_location
                     if result.microorganism:
                         culture_item["microorganism"] = result.microorganism
+                    # Add source_document and source_page for frontend
+                    if result.source_page and result.source_page > 0:
+                        culture_item["source_page"] = result.source_page
+                        culture_item["source_document"] = file_names.get(result.document_id, f"Document {result.document_id}")
                     
                     culture_results.append(culture_item)
                     if citation:
