@@ -1,0 +1,164 @@
+{
+  "test_names": {
+    "blood culture test": "Blood Culture",
+    "blood culture gram stain": "Blood Culture",
+    "bc": "Blood Culture",
+    "blood cx": "Blood Culture",
+    "blood culture and sensitivity": "Blood Culture",
+    "blood c&s": "Blood Culture",
+    
+    "urine culture": "Urine Culture",
+    "urine cx": "Urine Culture",
+    "u/c": "Urine Culture",
+    "urine culture test": "Urine Culture",
+    "urine culture and sensitivity": "Urine Culture",
+    "urine c&s": "Urine Culture",
+    "urine culture gram stain": "Urine Culture",
+    
+    "sputum culture": "Sputum Culture",
+    "sputum cx": "Sputum Culture",
+    "s/c": "Sputum Culture",
+    "sputum culture test": "Sputum Culture",
+    "sputum culture and sensitivity": "Sputum Culture",
+    "sputum c&s": "Sputum Culture",
+    "sputum culture gram stain": "Sputum Culture",
+    "expectorated sputum culture": "Sputum Culture",
+    "induced sputum culture": "Sputum Culture",
+    
+    "recovery culture": "Tissue Culture",
+    "pre-processing culture": "Tissue Culture",
+    "post-processing culture": "Tissue Culture",
+    "processing filter culture": "Tissue Culture",
+    "tissue recovery culture": "Tissue Culture"
+  },
+  
+  "specimen_types": {
+    "whole blood": "Blood",
+    "venous blood": "Blood",
+    "peripheral blood": "Blood",
+    "arterial blood": "Blood",
+    "blood sample": "Blood",
+    
+    "urine": "Urine",
+    "clean catch urine": "Urine",
+    "catheterized urine": "Urine",
+    "midstream urine": "Urine",
+    "random urine": "Urine",
+    "first void urine": "Urine",
+    
+    "sputum": "Sputum",
+    "expectorated sputum": "Sputum",
+    "induced sputum": "Sputum",
+    "sputum sample": "Sputum",
+    
+    "tissue": "Tissue",
+    "musculoskeletal": "Tissue",
+    "skin": "Tissue",
+    "bone": "Tissue",
+    "tendon": "Tissue",
+    "ligament": "Tissue"
+  },
+  
+  "microorganisms": {
+    "s. epidermidis": "Staphylococcus epidermidis",
+    "staph epidermidis": "Staphylococcus epidermidis",
+    "staphylococcus epidermidis": "Staphylococcus epidermidis",
+    "s epidermidis": "Staphylococcus epidermidis",
+    
+    "s. aureus": "Staphylococcus aureus",
+    "staph aureus": "Staphylococcus aureus",
+    "staphylococcus aureus": "Staphylococcus aureus",
+    "s aureus": "Staphylococcus aureus",
+    "mrsa": "Staphylococcus aureus",
+    "methicillin-resistant staphylococcus aureus": "Staphylococcus aureus",
+    
+    "coagulase-negative staphylococci": "Coagulase-negative staphylococci",
+    "cons": "Coagulase-negative staphylococci",
+    "cns": "Coagulase-negative staphylococci",
+    "coag neg staph": "Coagulase-negative staphylococci",
+    
+    "e. coli": "Escherichia coli",
+    "escherichia coli": "Escherichia coli",
+    "e coli": "Escherichia coli",
+    
+    "enterococcus": "Enterococcus",
+    "enterococcus faecalis": "Enterococcus",
+    "enterococcus faecium": "Enterococcus",
+    "e. faecalis": "Enterococcus",
+    "e. faecium": "Enterococcus",
+    
+    "candida": "Candida",
+    "candida albicans": "Candida",
+    "c. albicans": "Candida",
+    "candida species": "Candida",
+    
+    "propionibacterium": "Propionibacterium",
+    "propionibacterium acnes": "Propionibacterium",
+    "p. acnes": "Propionibacterium",
+    "cutibacterium acnes": "Propionibacterium",
+    
+    "diphtheroids": "Diphtheroids",
+    "corynebacterium": "Diphtheroids",
+    "corynebacterium species": "Diphtheroids",
+    
+    "group a streptococcus": "Group A Streptococcus",
+    "streptococcus pyogenes": "Group A Streptococcus",
+    "s. pyogenes": "Group A Streptococcus",
+    "gas": "Group A Streptococcus",
+    
+    "salmonella": "Salmonella",
+    "salmonella species": "Salmonella",
+    "salmonella spp": "Salmonella",
+    
+    "aspergillus": "Aspergillus",
+    "aspergillus species": "Aspergillus",
+    "aspergillus spp": "Aspergillus",
+    
+    "listeria": "Listeria",
+    "listeria monocytogenes": "Listeria",
+    "l. monocytogenes": "Listeria",
+    
+    "clostridium perfringens": "Clostridium perfringens",
+    "c. perfringens": "Clostridium perfringens",
+    "clostridium difficile": "Clostridium difficile",
+    "c. difficile": "Clostridium difficile",
+    "c. diff": "Clostridium difficile",
+    
+    "gram positive cocci": "Gram-positive cocci",
+    "gram positive": "Gram-positive",
+    "gpc": "Gram-positive cocci",
+    
+    "gram negative rods": "Gram-negative rods",
+    "gram negative": "Gram-negative",
+    "gnr": "Gram-negative rods",
+    "gram negative bacilli": "Gram-negative rods"
+  },
+  
+  "results": {
+    "no growth": "No Growth",
+    "no growth after 18 hours": "No Growth",
+    "no growth after 24 hours": "No Growth",
+    "no growth after 48 hours": "No Growth",
+    "negative": "No Growth",
+    "sterile": "No Growth",
+    "no organisms isolated": "No Growth",
+    "no organisms": "No Growth",
+    "no bacteria isolated": "No Growth",
+    "no bacteria": "No Growth",
+    "no growth detected": "No Growth",
+    
+    "positive": "Positive",
+    "growth": "Positive",
+    "organism isolated": "Positive",
+    "bacteria isolated": "Positive",
+    "organism present": "Positive",
+    "bacteria present": "Positive",
+    "growth detected": "Positive",
+    
+    "contaminated": "Contaminated",
+    "contamination": "Contaminated",
+    "mixed growth": "Contaminated",
+    "multiple organisms": "Contaminated"
+  }
+}
+

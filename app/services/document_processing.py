@@ -150,6 +150,8 @@ class DocumentProcessingService:
                 reminder_instructions = json.load(f)
             with open(os.path.join(config_dir, 'new_serology_dictionary.json'), 'r') as f:
                 serology_dictionary = json.load(f)
+            with open(os.path.join(config_dir, 'new_culture_dictionary.json'), 'r') as f:
+                culture_dictionary = json.load(f)
             
             # Update progress: 40-60% - Extraction
             document.progress = 45.0
@@ -162,7 +164,7 @@ class DocumentProcessingService:
                 extract_all_lab_tests,
                 document_id, vectordb, self.llm, db, role,
                 basic_instruction, reminder_instructions,
-                serology_dictionary
+                serology_dictionary, culture_dictionary
             )
             
             logger.info(f"Extracted {serology_count} serology tests and {culture_count} culture tests in one LLM call")

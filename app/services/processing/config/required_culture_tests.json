@@ -21,11 +21,41 @@
       ],
       "required_for_criteria": ["Contamination"],
       "specimen_types": ["Tissue", "Musculoskeletal", "Skin"]
+    },
+    {
+      "test_name": "Urine Culture",
+      "aliases": [
+        "Urine Cx",
+        "U/C",
+        "Urine Culture Test",
+        "Urine Culture and Sensitivity",
+        "Urine C&S",
+        "Urine Culture Gram Stain"
+      ],
+      "required_for_criteria": [],
+      "specimen_types": ["Urine", "Clean Catch Urine", "Catheterized Urine", "Midstream Urine"]
+    },
+    {
+      "test_name": "Sputum Culture",
+      "aliases": [
+        "Sputum Cx",
+        "S/C",
+        "Sputum Culture Test",
+        "Sputum Culture and Sensitivity",
+        "Sputum C&S",
+        "Sputum Culture Gram Stain",
+        "Expectorated Sputum Culture",
+        "Induced Sputum Culture"
+      ],
+      "required_for_criteria": [],
+      "specimen_types": ["Sputum", "Expectorated Sputum", "Induced Sputum"]
     }
   ],
   "culture_patterns": {
-    "blood": ["blood culture", "blood culture test"],
-    "tissue": ["recovery culture", "pre-processing", "post-processing", "processing filter", "tissue culture"]
+    "blood": ["blood culture", "blood culture test", "bc", "blood cx"],
+    "tissue": ["recovery culture", "pre-processing", "post-processing", "processing filter", "tissue culture"],
+    "urine": ["urine culture", "urine cx", "u/c", "urine c&s"],
+    "sputum": ["sputum culture", "sputum cx", "s/c", "sputum c&s"]
   },
   "microorganism_categories": {
     "category_1": {

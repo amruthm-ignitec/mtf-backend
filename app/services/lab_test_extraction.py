@@ -19,6 +19,86 @@ logger = logging.getLogger(__name__)
 _CONFIG_DIR = os.path.join(os.path.dirname(__file__), 'processing', 'config')
 
 
+def normalize_culture_test_name(test_name: str, culture_dictionary: Dict[str, Any] = None) -> str:
+    """Normalize culture test name using dictionary."""
+    if not culture_dictionary:
+        return test_name
+    
+    test_names_dict = culture_dictionary.get('test_names', {})
+    test_name_lower = test_name.lower().strip()
+    
+    # Direct match
+    if test_name_lower in test_names_dict:
+        return test_names_dict[test_name_lower]
+    
+    # Partial match (check if any key contains the test name or vice versa)
+    for key, value in test_names_dict.items():
+        if key in test_name_lower or test_name_lower in key:
+            return value
+    
+    return test_name
+
+
+def normalize_specimen_type(specimen_type: str, culture_dictionary: Dict[str, Any] = None) -> str:
+    """Normalize specimen type using dictionary."""
+    if not specimen_type or not culture_dictionary:
+        return specimen_type
+    
+    specimen_types_dict = culture_dictionary.get('specimen_types', {})
+    specimen_lower = specimen_type.lower().strip()
+    
+    # Direct match
+    if specimen_lower in specimen_types_dict:
+        return specimen_types_dict[specimen_lower]
+    
+    # Partial match
+    for key, value in specimen_types_dict.items():
+        if key in specimen_lower or specimen_lower in key:
+            return value
+    
+    return specimen_type
+
+
+def normalize_microorganism(microorganism: str, culture_dictionary: Dict[str, Any] = None) -> str:
+    """Normalize microorganism name using dictionary."""
+    if not microorganism or not culture_dictionary:
+        return microorganism
+    
+    microorganisms_dict = culture_dictionary.get('microorganisms', {})
+    micro_lower = microorganism.lower().strip()
+    
+    # Direct match
+    if micro_lower in microorganisms_dict:
+        return microorganisms_dict[micro_lower]
+    
+    # Partial match (check if any key is contained in the microorganism name)
+    for key, value in microorganisms_dict.items():
+        if key in micro_lower or micro_lower in key:
+            return value
+    
+    return microorganism
+
+
+def normalize_culture_result(result: str, culture_dictionary: Dict[str, Any] = None) -> str:
+    """Normalize culture result using dictionary."""
+    if not result or not culture_dictionary:
+        return result
+    
+    results_dict = culture_dictionary.get('results', {})
+    result_lower = result.lower().strip()
+    
+    # Direct match
+    if result_lower in results_dict:
+        return results_dict[result_lower]
+    
+    # Partial match
+    for key, value in results_dict.items():
+        if key in result_lower or result_lower in key:
+            return value
+    
+    return result
+
+
 def load_required_tests_config() -> Dict[str, Any]:
     """Load required test configurations."""
     serology_path = os.path.join(_CONFIG_DIR, 'required_serology_tests.json')
@@ -593,7 +673,8 @@ def extract_all_lab_tests(
     role_dict: Dict[str, str],
     instruction_dict: Dict[str, str],
     reminder_dict: Dict[str, str],
-    serology_dictionary: Dict[str, Any]
+    serology_dictionary: Dict[str, Any],
+    culture_dictionary: Dict[str, Any] = None
 ) -> Tuple[int, int]:
     """
     Extract both required serology and culture tests in a single LLM call.
@@ -607,6 +688,10 @@ def extract_all_lab_tests(
         config = load_required_tests_config()
         required_serology_tests = config['serology']['required_tests']
         required_culture_tests = config['culture']['required_tests']
+        
+        # Ensure culture_dictionary is initialized
+        if culture_dictionary is None:
+            culture_dictionary = {}
         
         # Build comprehensive semantic search queries for both test types
         queries = [
@@ -931,10 +1016,20 @@ AI Response: """
                     microorganisms = test_data
                 elif isinstance(test_data, dict):
                     # Format: {"Blood Culture": {"result": "...", "specimen_type": "...", ...}}
-                    if "blood culture" in test_key.lower():
-                        base_test_name = "Blood Culture"
-                    elif "tissue" in test_key.lower() or "recovery" in test_key.lower():
-                        base_test_name = test_key
+                    # Normalize test name using culture dictionary
+                    base_test_name = normalize_culture_test_name(test_key, culture_dictionary)
+                    if not base_test_name or base_test_name == test_key:
+                        # Fallback to original logic if dictionary didn't match
+                        if "blood culture" in test_key.lower():
+                            base_test_name = "Blood Culture"
+                        elif "urine culture" in test_key.lower() or "urine cx" in test_key.lower() or "u/c" in test_key.lower():
+                            base_test_name = "Urine Culture"
+                        elif "sputum culture" in test_key.lower() or "sputum cx" in test_key.lower() or "s/c" in test_key.lower():
+                            base_test_name = "Sputum Culture"
+                        elif "tissue" in test_key.lower() or "recovery" in test_key.lower():
+                            base_test_name = test_key
+                        else:
+                            base_test_name = test_key
                     
                     result = test_data.get('result', '')
                     if not result:
@@ -945,14 +1040,24 @@ AI Response: """
                             result = "No result specified"
                     
                     microorganisms = test_data.get('microorganisms', [])
-                    if not microorganisms and result and result.lower() not in ['no growth', 'negative', 'positive', 'no growth after 18 hours']:
+                    # Normalize microorganism names using dictionary
+                    if microorganisms and isinstance(microorganisms, list):
+                        microorganisms = [normalize_microorganism(org, culture_dictionary) for org in microorganisms]
+                    elif not microorganisms and result and result.lower() not in ['no growth', 'negative', 'positive', 'no growth after 18 hours']:
                         result_lower = result.lower()
                         if any(org in result_lower for org in ['staphylococcus', 'candida', 'gram positive', 'gram negative']):
-                            microorganisms.append(result)
+                            microorganisms.append(normalize_microorganism(result, culture_dictionary))
                     
                     specimen_type = test_data.get('specimen_type', None)
+                    # Normalize specimen type using dictionary
+                    if specimen_type:
+                        specimen_type = normalize_specimen_type(specimen_type, culture_dictionary)
                     specimen_date = test_data.get('specimen_date', None)
                     accession_number = test_data.get('accession_number', None)
+                    
+                    # Normalize result using dictionary
+                    if result:
+                        result = normalize_culture_result(result, culture_dictionary)
                 else:
                     # Format: {"Blood Culture": "result string"}
                     result = str(test_data)
@@ -1027,9 +1132,13 @@ AI Response: """
                 # Determine specimen type if not already set
                 if not specimen_type:
                     if "blood" in test_name.lower() or "blood" in base_test_name.lower():
-                        specimen_type = "Blood"
+                        specimen_type = normalize_specimen_type("Blood", culture_dictionary)
+                    elif "urine" in test_name.lower() or "urine" in base_test_name.lower():
+                        specimen_type = normalize_specimen_type("Urine", culture_dictionary)
+                    elif "sputum" in test_name.lower() or "sputum" in base_test_name.lower():
+                        specimen_type = normalize_specimen_type("Sputum", culture_dictionary)
                     elif "tissue" in test_name.lower() or "recovery" in test_name.lower() or "tissue" in base_test_name.lower():
-                        specimen_type = "Tissue"
+                        specimen_type = normalize_specimen_type("Tissue", culture_dictionary)
                 
                 # Build comments field with additional info
                 comments_parts = []
@@ -1054,11 +1163,15 @@ AI Response: """
                 # For tissue cultures, also store in legacy fields if needed
                 if "tissue" in test_name.lower() or "recovery" in test_name.lower():
                     if microorganisms:
-                        lab_result.microorganism = ", ".join(microorganisms) if isinstance(microorganisms, list) else str(microorganisms)
+                        # Normalize microorganisms before storing
+                        normalized_micros = [normalize_microorganism(org, culture_dictionary) if isinstance(org, str) else str(org) for org in microorganisms]
+                        lab_result.microorganism = ", ".join(normalized_micros) if isinstance(normalized_micros, list) else str(normalized_micros)
                         lab_result.tissue_location = test_key
-                elif "blood" in test_name.lower() and microorganisms:
+                elif ("blood" in test_name.lower() or "urine" in test_name.lower() or "sputum" in test_name.lower()) and microorganisms:
                     if not lab_result.comments:
-                        lab_result.comments = f"Microorganisms: {', '.join(microorganisms) if isinstance(microorganisms, list) else str(microorganisms)}"
+                        # Normalize microorganisms before storing
+                        normalized_micros = [normalize_microorganism(org, culture_dictionary) if isinstance(org, str) else str(org) for org in microorganisms]
+                        lab_result.comments = f"Microorganisms: {', '.join(normalized_micros) if isinstance(normalized_micros, list) else str(normalized_micros)}"
                 
                 db.add(lab_result)
                 culture_count += 1

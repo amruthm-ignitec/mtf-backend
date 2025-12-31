@@ -100,9 +100,137 @@
       "aliases": [
         "WNV",
         "West Nile Virus NAT",
-        "WNV NAT"
+        "WNV NAT",
+        "WNV-NAT",
+        "West Nile Virus RNA (PCR) NAT Detection"
       ],
       "required_for_criteria": ["West Nile Virus"]
+    },
+    {
+      "test_name": "CMV IgG",
+      "aliases": [
+        "Cytomegalovirus IgG Antibodies",
+        "anti-CMV IgG",
+        "CMV IgG Serology",
+        "CMV IgG (EIA)",
+        "CMV IgG Ab",
+        "BioRad CMV IgG using GSDX Automation"
+      ],
+      "required_for_criteria": []
+    },
+    {
+      "test_name": "CMV IgM",
+      "aliases": [
+        "Cytomegalovirus IgM Antibodies",
+        "anti-CMV IgM",
+        "CMV IgM Serology",
+        "CMV IgM (EIA)",
+        "CMV IgM Ab",
+        "BioRad CMV IgM using GSDX Automation"
+      ],
+      "required_for_criteria": []
+    },
+    {
+      "test_name": "EBV IgG",
+      "aliases": [
+        "Epstein-Barr Virus IgG",
+        "Epstein-Barr Virus IgG Antibodies",
+        "anti-EBV IgG",
+        "EBV IgG Serology",
+        "EBV IgG (EIA)",
+        "EBV (VCA) (IgG)",
+        "EBV-VCA IgG Ab",
+        "BioRad EBV IgG using GSDX Automation"
+      ],
+      "required_for_criteria": []
+    },
+    {
+      "test_name": "EBV IgM",
+      "aliases": [
+        "Epstein-Barr Virus IgM",
+        "Epstein-Barr Virus IgM Antibodies",
+        "anti-EBV IgM",
+        "EBV IgM Serology",
+        "EBV IgM (EIA)",
+        "EBV (VCA) (IgM)",
+        "EBV-VCA IgM Ab",
+        "BioRad EBV IgM using GSDX Automation"
+      ],
+      "required_for_criteria": []
+    },
+    {
+      "test_name": "Toxoplasma IgG",
+      "aliases": [
+        "Toxoplasmosis IgG",
+        "Toxo IgG",
+        "Toxo Ab IgG",
+        "anti-Toxoplasma IgG",
+        "Toxoplasma IgG (EIA)",
+        "Toxoplasma IgG Ab",
+        "Toxoplasma gondii IgG",
+        "BioRad Toxo IgG using GSDX Automation"
+      ],
+      "required_for_criteria": []
+    },
+    {
+      "test_name": "Chagas",
+      "aliases": [
+        "Chagas (EIA)",
+        "Chagas Antibody",
+        "Trypanosoma cruzi",
+        "Trypanosoma",
+        "Chagas Disease",
+        "Chagas Test",
+        "T. cruzi"
+      ],
+      "required_for_criteria": []
+    },
+    {
+      "test_name": "SARS-CoV-2",
+      "aliases": [
+        "SARS-CoV-2 Testing",
+        "COVID-19 Test",
+        "SARS-CoV-2 Panther",
+        "SARS AG FIA",
+        "SARS-CoV-2 PCR Test",
+        "SARS-CoV-2 by PCR",
+        "SARS-CoV-2 RNA Test",
+        "COVID-19 (SARS-CoV-2)",
+        "Coronavirus SARS-CoV-2 RT-PCR",
+        "Novel Coronavirus 2019 ANTIGEN",
+        "SARS-CoV-2 AG (Rapid)",
+        "SARS-CoV-2 RNA",
+        "COVID-19 Qualitative RT-PCR"
+      ],
+      "required_for_criteria": []
+    },
+    {
+      "test_name": "Glycosylated Hemoglobin",
+      "aliases": [
+        "HbA1c",
+        "Hemoglobin A1c",
+        "Glycosylated Hgb",
+        "Hb A1c",
+        "A1C",
+        "Hemoglobin A1C"
+      ],
+      "required_for_criteria": []
+    },
+    {
+      "test_name": "ABO-Rh Determination",
+      "aliases": [
+        "Blood Typing",
+        "ABO Blood Group Test",
+        "Rh Factor Testing",
+        "ABO-Rh",
+        "ABO/Rh",
+        "ABO/Rh - Automated",
+        "ABO/Rh - Micro Typing System",
+        "ABO Rh Type",
+        "Gel Blood Type",
+        "Serology ABO"
+      ],
+      "required_for_criteria": []
     }
   ],
   "test_patterns": {
@@ -111,7 +239,13 @@
     "hepatitis_c": ["hcv", "hepatitis c"],
     "syphilis": ["syphilis", "rpr", "vdrl", "tppa"],
     "htlv": ["htlv", "human t-lymphotropic"],
-    "west_nile": ["west nile", "wnv"]
+    "west_nile": ["west nile", "wnv"],
+    "cmv": ["cmv", "cytomegalovirus"],
+    "ebv": ["ebv", "epstein-barr", "epstein barr"],
+    "toxoplasma": ["toxo", "toxoplasma", "toxoplasmosis"],
+    "chagas": ["chagas", "trypanosoma cruzi", "t. cruzi"],
+    "sars_cov2": ["sars-cov-2", "covid-19", "covid", "coronavirus"],
+    "hba1c": ["hba1c", "hemoglobin a1c", "glycosylated", "a1c"]
   }
 }
 
