@@ -13,6 +13,34 @@ from app.services.processing.utils.json_parser import safe_parse_llm_json, LLMRe
 
 logger = logging.getLogger(__name__)
 
+
+def _has_actual_data(extracted_data: Dict[str, Any]) -> bool:
+    """
+    Check if extracted_data has any actual data (not all nulls).
+    Excludes metadata fields like _criterion_name, _extraction_timestamp.
+    
+    Args:
+        extracted_data: Dictionary of extracted data
+        
+    Returns:
+        True if there's actual data, False if all values are null
+    """
+    if not extracted_data:
+        return False
+    
+    metadata_fields = {'_criterion_name', '_extraction_timestamp'}
+    for key, value in extracted_data.items():
+        if key not in metadata_fields and value is not None:
+            # Check if value is not empty string, empty list, or empty dict
+            if isinstance(value, str) and value.strip():
+                return True
+            elif isinstance(value, (list, dict)) and len(value) > 0:
+                return True
+            elif not isinstance(value, (str, list, dict)):
+                return True
+    
+    return False
+
 # Get config directory
 _CONFIG_DIR = os.path.join(os.path.dirname(__file__), 'processing', 'config')
 
@@ -57,6 +85,15 @@ def extract_criteria_data(
                 )
                 
                 if not extracted_data:
+                    continue
+                
+                # Add metadata
+                extracted_data['_criterion_name'] = criterion_name
+                extracted_data['_extraction_timestamp'] = str(os.path.getmtime(__file__))
+                
+                # Skip storing if there's no actual data (all values are null)
+                if not _has_actual_data(extracted_data):
+                    logger.debug(f"Skipping criterion {criterion_name} - no actual extracted data")
                     continue
                 
                 # Determine tissue types to evaluate
@@ -271,6 +308,11 @@ Return only the JSON object, no other text or markdown formatting:"""
                 # Add metadata
                 extracted_data['_criterion_name'] = criterion_name
                 extracted_data['_extraction_timestamp'] = str(os.path.getmtime(__file__))
+                
+                # Skip storing if there's no actual data (all values are null)
+                if not _has_actual_data(extracted_data):
+                    logger.debug(f"Skipping criterion {criterion_name} - no actual extracted data")
+                    continue
                 
                 # Determine tissue types to evaluate
                 tissue_types = []
