@@ -16,10 +16,7 @@ from app.core.config import settings
 from app.models import (
     User, Donor, Document,
     Setting, DonorApproval, DocumentChunk,
-    LaboratoryResult, CriteriaEvaluation, DonorEligibility,
-    # Legacy models (will be removed after migration)
-    CultureResult, SerologyResult, TopicResult, ComponentResult,
-    DonorExtraction, DonorExtractionVector, DonorAnchorDecision
+    LaboratoryResult, CriteriaEvaluation, DonorEligibility
 )
 
 # this is the Alembic Config object, which provides
