@@ -100,6 +100,23 @@ def normalize_culture_result(result: str, culture_dictionary: Dict[str, Any] = N
     return result
 
 
+def normalize_for_matching(test_name: str) -> str:
+    """
+    Normalize test name for matching by removing special characters and converting to lowercase.
+    Examples:
+    - "SARS CoV-2 by PCR" -> "sarscov2bypcr"
+    - "SARS-CoV-2 by PCR" -> "sarscov2bypcr"
+    - "HIV-PCR" -> "hivpcr"
+    - "HIV PCR" -> "hivpcr"
+    """
+    if not test_name:
+        return ""
+    
+    normalized = test_name.lower()
+    normalized = re.sub(r'[^a-z0-9]', '', normalized)
+    return normalized
+
+
 def strip_institutional_prefix(test_name: str) -> str:
     """
     Strip common institutional prefixes from test names to improve matching.
@@ -1050,13 +1067,29 @@ AI Response: """
                 # Check if this test is in our required list
                 is_required = False
                 canonical_test_name = None
+                
+                # Normalize extracted test names for matching
+                normalized_test_name = normalize_for_matching(test_name_for_matching)
+                normalized_clean_name = normalize_for_matching(clean_test_name)
+                
                 for required_test in required_serology_tests:
                     test_variants = [required_test['test_name']] + required_test.get('aliases', [])
-                    if (clean_test_name.lower() in [t.lower() for t in test_variants] or
-                        any(alias.lower() in test_name_for_matching.lower() for alias in test_variants) or
-                        any(alias.lower() in clean_test_name.lower() for alias in test_variants)):
-                        is_required = True
-                        canonical_test_name = required_test['test_name']
+                    
+                    # Check exact matches using normalized strings
+                    for variant in test_variants:
+                        normalized_variant = normalize_for_matching(variant)
+                        
+                        if (normalized_variant == normalized_test_name or
+                            normalized_variant == normalized_clean_name or
+                            normalized_variant in normalized_test_name or
+                            normalized_variant in normalized_clean_name or
+                            normalized_test_name in normalized_variant or
+                            normalized_clean_name in normalized_variant):
+                            is_required = True
+                            canonical_test_name = required_test['test_name']
+                            break
+                    
+                    if is_required:
                         break
                 
                 if not is_required:
@@ -1064,36 +1097,33 @@ AI Response: """
                     test_name_stripped = strip_institutional_prefix(test_name_for_matching)
                     clean_test_name_stripped = strip_institutional_prefix(clean_test_name)
                     
+                    # Normalize all test name variations for comparison
+                    normalized_stripped = normalize_for_matching(test_name_stripped)
+                    normalized_clean_stripped = normalize_for_matching(clean_test_name_stripped)
+                    
                     for required_test in required_serology_tests:
                         test_variants = [required_test['test_name']] + required_test.get('aliases', [])
                         for variant in test_variants:
-                            variant_lower = variant.lower()
-                            key_terms = variant_lower.split()
-                            # Remove common stop words
-                            key_terms = [t for t in key_terms if t not in ['test', 'antibody', 'antigen', 'surface', 'core', 'virus', 'testing']]
+                            normalized_variant = normalize_for_matching(variant)
                             
-                            # For COVID-19/SARS-CoV-2, also check for key terms like "sars", "cov", "covid", "pcr"
-                            if 'sars' in variant_lower or 'covid' in variant_lower or 'cov-2' in variant_lower:
-                                key_terms.extend(['sars', 'cov', 'covid', 'pcr'])
-                            
-                            # Check against both original and stripped test names
-                            test_names_to_check = [
-                                test_name_for_matching.lower(),
-                                clean_test_name.lower(),
-                                test_name_stripped.lower(),
-                                clean_test_name_stripped.lower()
-                            ]
-                            
-                            # Check if any key term appears in any of the test name variations
-                            for test_name_check in test_names_to_check:
-                                if any(term in test_name_check for term in key_terms if len(term) > 2):
-                                    is_required = True
-                                    canonical_test_name = required_test['test_name']
-                                    logger.info(f"Fuzzy matched '{original_test_name}' to required test '{canonical_test_name}'")
-                                    break
-                            
-                            if is_required:
+                            # Check if normalized strings match (exact or substring)
+                            if (normalized_variant == normalized_test_name or
+                                normalized_variant == normalized_clean_name or
+                                normalized_variant == normalized_stripped or
+                                normalized_variant == normalized_clean_stripped or
+                                normalized_variant in normalized_test_name or
+                                normalized_variant in normalized_clean_name or
+                                normalized_variant in normalized_stripped or
+                                normalized_variant in normalized_clean_stripped or
+                                normalized_test_name in normalized_variant or
+                                normalized_clean_name in normalized_variant or
+                                normalized_stripped in normalized_variant or
+                                normalized_clean_stripped in normalized_variant):
+                                is_required = True
+                                canonical_test_name = required_test['test_name']
+                                logger.info(f"Fuzzy matched '{original_test_name}' to required test '{canonical_test_name}'")
                                 break
+                        
                         if is_required:
                             break
                 
