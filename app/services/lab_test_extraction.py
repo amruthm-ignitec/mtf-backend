@@ -110,21 +110,18 @@ def strip_institutional_prefix(test_name: str) -> str:
     if not test_name:
         return test_name
     
-    # Common institutional prefixes (case-insensitive)
-    # These are common patterns that appear before test names
     prefixes = [
-        r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:of\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+',  # "Gift of Life Michigan"
-        r'^[A-Z][a-z]+\s+[A-Z][a-z]+\s+',  # "Mayo Clinic", "Johns Hopkins"
-        r'^[A-Z][a-z]+\s+Health\s+',  # "Corewell Health"
-        r'^[A-Z][a-z]+\s+Medical\s+',  # "Cleveland Medical"
-        r'^[A-Z][a-z]+\s+Hospital\s+',  # "General Hospital"
+        r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:of\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+',
+        r'^[A-Z][a-z]+\s+[A-Z][a-z]+\s+',
+        r'^[A-Z][a-z]+\s+Health\s+',
+        r'^[A-Z][a-z]+\s+Medical\s+',
+        r'^[A-Z][a-z]+\s+Hospital\s+',
     ]
     
     cleaned = test_name
     for prefix_pattern in prefixes:
         cleaned = re.sub(prefix_pattern, '', cleaned, flags=re.IGNORECASE)
     
-    # If we stripped too much (result is too short), return original
     if len(cleaned.strip()) < 5:
         return test_name
     
@@ -834,7 +831,11 @@ def extract_all_lab_tests(
         # Build detailed serology test list with aliases
         serology_test_details = []
         for test in required_serology_tests:
-            aliases_str = ", ".join(test.get('aliases', [])[:3])
+            aliases = test.get('aliases', [])
+            if test['test_name'] == 'SARS-CoV-2':
+                aliases_str = ", ".join(aliases[:6])
+            else:
+                aliases_str = ", ".join(aliases[:3])
             serology_test_details.append(f"- {test['test_name']} (also known as: {aliases_str})")
         serology_test_details_str = "\n".join(serology_test_details)
         
@@ -862,7 +863,9 @@ EXTRACTION GUIDELINES:
    - Extract test names EXACTLY as they appear in the document
    - Include abbreviations, manufacturer names, and method designations (e.g., "HIV-1/HIV-2 Plus O", "HBsAg (Alinity)")
    - Match test names to the required tests above, even if they use different aliases
-   - Extract results EXACTLY as they appear: Positive, Negative, Non-Reactive, Reactive, Equivocal, Indeterminate, Borderline
+   - For COVID-19/SARS-CoV-2 tests: Look for test names containing "SARS-CoV-2", "COVID-19", "coronavirus", or "PCR" - these may appear with institutional prefixes (e.g., "Gift of Life Michigan SARS-CoV-2 (COVID-19) PCR")
+   - Extract results EXACTLY as they appear: Positive, Negative, Non-Reactive, Reactive, Equivocal, Indeterminate, Borderline, Not Detected
+   - Note: "Not Detected" is equivalent to "Negative" for COVID-19/SARS-CoV-2 tests
    - Include ALL occurrences of required tests, even if they appear multiple times
    - If a test appears multiple times, number them (e.g., "HIV-1/HIV-2", "HIV-1/HIV-2 (2)")
    - If a test name appears but no result is visible or unclear, do NOT include it
@@ -995,29 +998,41 @@ AI Response: """
                 test_name_found = False
                 result_found = False
                 
-                # Check for test name variants in source
+                source_text_for_matching = source_text_lower
+                
                 for required_test in required_serology_tests:
                     test_variants = [required_test['test_name']] + required_test.get('aliases', [])
                     for variant in test_variants:
-                        if variant.lower() in source_text_lower or any(part in source_text_lower for part in variant.lower().split() if len(part) > 3):
+                        variant_lower = variant.lower()
+                        if variant_lower in source_text_for_matching:
+                            test_name_found = True
+                            break
+                        if 'sars' in variant_lower or 'covid' in variant_lower or 'cov-2' in variant_lower:
+                            key_terms = ['sars', 'cov', 'covid', 'pcr', 'coronavirus']
+                            if any(term in source_text_for_matching for term in key_terms):
+                                test_name_found = True
+                                break
+                        variant_parts = [part for part in variant_lower.split() if len(part) > 3]
+                        if variant_parts and any(part in source_text_for_matching for part in variant_parts):
                             test_name_found = True
                             break
                     if test_name_found:
                         break
                 
-                # Also check the extracted test name itself
                 if not test_name_found:
-                    test_name_parts = [part for part in test_name_for_matching.lower().split() if len(part) > 3]
-                    if any(part in source_text_lower for part in test_name_parts):
+                    test_name_stripped = strip_institutional_prefix(test_name_for_matching)
+                    test_name_parts = [part for part in test_name_stripped.lower().split() if len(part) > 3]
+                    if test_name_parts and any(part in source_text_for_matching for part in test_name_parts):
                         test_name_found = True
                 
-                # Check if result value appears in source (allowing for case variations)
                 result_lower = str(result_value).lower()
                 result_variants = [
                     result_lower,
                     result_lower.replace("-", " "),
                     result_lower.replace(" ", ""),
                 ]
+                if "not detected" in result_lower or "notdetected" in result_lower:
+                    result_variants.extend(["negative", "not detected", "notdetected", "no detection"])
                 result_found = any(variant in source_text_lower for variant in result_variants if variant)
                 
                 # If neither test name nor result found in source, skip to prevent hallucination
