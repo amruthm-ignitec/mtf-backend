@@ -197,6 +197,73 @@ class DocumentProcessingService:
             
             logger.info(f"Extracted data for {criteria_count} criteria evaluations in one LLM call")
             
+            document.progress = 60.0
+            db.commit()
+            
+            # Update progress: 60-70% - Semantic Extraction
+            logger.info("Running semantic extraction (recovery, terminal, document presence)...")
+            from app.services.semantic_extraction import (
+                extract_recovery_information,
+                extract_terminal_information,
+                detect_document_presence,
+                extract_simple_medical_records,
+                extract_critical_lab_values
+            )
+            
+            semantic_data = {}
+            try:
+                semantic_data['recovery_information'] = await loop.run_in_executor(
+                    None,
+                    extract_recovery_information,
+                    vectordb, page_doc_list
+                )
+                semantic_data['terminal_information'] = await loop.run_in_executor(
+                    None,
+                    extract_terminal_information,
+                    vectordb, page_doc_list
+                )
+                document_presence_data = await loop.run_in_executor(
+                    None,
+                    detect_document_presence,
+                    vectordb, page_doc_list, db, document_id
+                )
+                semantic_data.update(document_presence_data)
+                semantic_data['critical_lab_values'] = await loop.run_in_executor(
+                    None,
+                    extract_critical_lab_values,
+                    vectordb, page_doc_list
+                )
+                # Try simple medical records extraction
+                simple_mrr = await loop.run_in_executor(
+                    None,
+                    extract_simple_medical_records,
+                    vectordb, page_doc_list
+                )
+                if simple_mrr:
+                    semantic_data['medical_records_review_summary'] = simple_mrr
+            except Exception as e:
+                logger.error(f"Error in semantic extraction for document {document_id}: {e}", exc_info=True)
+            
+            document.progress = 70.0
+            db.commit()
+            
+            # Update progress: 70-80% - Document-Specific Extraction
+            logger.info("Running document-specific data extraction (DRAI, MRR, Plasma Dilution)...")
+            from app.services.document_specific_extraction import extract_document_specific_data_batched
+            
+            document_specific_data = {}
+            try:
+                document_specific_data = await loop.run_in_executor(
+                    None,
+                    extract_document_specific_data_batched,
+                    document_id, vectordb, self.llm, page_doc_list, db
+                )
+            except Exception as e:
+                logger.error(f"Error in document-specific extraction for document {document_id}: {e}", exc_info=True)
+            
+            # Merge semantic and document-specific data
+            extracted_data = {**semantic_data, **document_specific_data}
+            
             document.progress = 80.0
             db.commit()
             
@@ -205,9 +272,11 @@ class DocumentProcessingService:
             db.commit()
             
             # Store summary JSON in processing_result field (for backward compatibility)
+            # Also store extracted_data in processing_result for aggregation
             summary_result = {
                 "lab_tests_extracted": serology_count + culture_count,
-                "criteria_extracted": criteria_count
+                "criteria_extracted": criteria_count,
+                "extracted_data": extracted_data  # Store extracted_data for aggregation
             }
             document.processing_result = json.dumps(summary_result)
             

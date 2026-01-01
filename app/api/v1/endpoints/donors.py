@@ -496,14 +496,30 @@ async def get_donor_extraction_data(
                     "reasoning": criterion.get("reasoning", "")
                 })
     
+    # Get aggregated extracted_data
+    from app.services.extraction_aggregation import extraction_aggregation_service
+    aggregated_extracted_data = extraction_aggregation_service.get_aggregated_extracted_data(donor_id, db)
+    
+    # Get conditional documents
+    from app.services.conditional_documents_service import determine_conditional_documents_from_criteria
+    conditional_documents = determine_conditional_documents_from_criteria(donor_id, db)
+    
+    # Extract top-level fields from aggregated_extracted_data (frontend expects these at top level)
+    recovery_information = aggregated_extracted_data.pop('recovery_information', None)
+    terminal_information = aggregated_extracted_data.pop('terminal_information', None)
+    critical_lab_values = aggregated_extracted_data.pop('critical_lab_values', None)
+    
     # Build response in format expected by frontend (backward compatibility)
     return {
         "donor_id": donor.unique_donor_id,
         "case_id": f"{donor.unique_donor_id}81",
         "processing_timestamp": datetime.now().isoformat() if documents else None,
         "processing_duration_seconds": 0,
-        "extracted_data": {},  # Can be populated from criteria_evaluations if needed
-        "conditional_documents": {},
+        "extracted_data": aggregated_extracted_data,  # Document-specific data (DRAI, MRR, Plasma Dilution, etc.)
+        "recovery_information": recovery_information,  # Top level - for Overview tab
+        "terminal_information": terminal_information,  # Top level - for Overview and Clinical tabs
+        "critical_lab_values": critical_lab_values,  # Top level - for Infectious Disease tab
+        "conditional_documents": conditional_documents,
         "validation": {
             "critical_findings": critical_findings,
             "has_critical_findings": len(critical_findings) > 0,
