@@ -29,7 +29,52 @@
     "pre-processing culture": "Tissue Culture",
     "post-processing culture": "Tissue Culture",
     "processing filter culture": "Tissue Culture",
-    "tissue recovery culture": "Tissue Culture"
+    "tissue recovery culture": "Tissue Culture",
+    
+    "bioburden": "Bioburden",
+    "qualitative bioburden": "Bioburden",
+    "quantitative bioburden": "Bioburden",
+    "bioburden test": "Bioburden",
+    "bioburden culture": "Bioburden",
+    "transport solution bioburden": "Bioburden",
+    "dermis transport solution bioburden": "Bioburden",
+    "processing solution bioburden": "Bioburden",
+    "pre-processing bioburden": "Bioburden",
+    "post-processing bioburden": "Bioburden",
+    "final product bioburden": "Bioburden",
+    "sterility test": "Bioburden",
+    "bioburden analysis": "Bioburden",
+    
+    "skin dermal culture": "Skin Dermal Culture",
+    "dermal culture": "Skin Dermal Culture",
+    "skin culture": "Skin Dermal Culture",
+    "dermis culture": "Skin Dermal Culture",
+    "skin surface culture": "Skin Dermal Culture",
+    "epidermal culture": "Skin Dermal Culture",
+    "subcutaneous culture": "Skin Dermal Culture",
+    "skin swab culture": "Skin Dermal Culture",
+    "skin biopsy culture": "Skin Dermal Culture",
+    
+    "transport solution culture": "Transport Solution Culture",
+    "dermis transport solution culture": "Transport Solution Culture",
+    "tissue transport solution culture": "Transport Solution Culture",
+    "transport solution test": "Transport Solution Culture",
+    "transport media culture": "Transport Solution Culture",
+    
+    "processing solution culture": "Processing Solution Culture",
+    "rinse solution culture": "Processing Solution Culture",
+    "wash solution culture": "Processing Solution Culture",
+    "preservation solution culture": "Processing Solution Culture",
+    "storage solution culture": "Processing Solution Culture",
+    "processing media culture": "Processing Solution Culture",
+    
+    "environmental culture": "Environmental Culture",
+    "air culture": "Environmental Culture",
+    "surface culture": "Environmental Culture",
+    "equipment culture": "Environmental Culture",
+    "sterile field culture": "Environmental Culture",
+    "processing environment culture": "Environmental Culture",
+    "clean room culture": "Environmental Culture"
   },
   
   "specimen_types": {
@@ -56,7 +101,31 @@
     "skin": "Tissue",
     "bone": "Tissue",
     "tendon": "Tissue",
-    "ligament": "Tissue"
+    "ligament": "Tissue",
+    
+    "dermis": "Dermis",
+    "epidermis": "Epidermis",
+    "subcutaneous": "Subcutaneous",
+    "adipose": "Adipose",
+    
+    "transport solution": "Transport Solution",
+    "dermis transport solution": "Transport Solution",
+    "tissue transport solution": "Transport Solution",
+    "transport media": "Transport Solution",
+    
+    "processing solution": "Processing Solution",
+    "rinse solution": "Processing Solution",
+    "wash solution": "Processing Solution",
+    "preservation solution": "Processing Solution",
+    "storage solution": "Processing Solution",
+    "processing media": "Processing Solution",
+    
+    "final product": "Final Product",
+    
+    "air": "Air",
+    "surface": "Surface",
+    "equipment": "Equipment",
+    "environment": "Environment"
   },
   
   "microorganisms": {

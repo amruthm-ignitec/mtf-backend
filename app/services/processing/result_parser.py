@@ -180,10 +180,18 @@ class ResultParser:
                         "extracted_data": extracted_data,
                         "evaluation_result": eval_obj.evaluation_result.value,
                         "evaluation_reasoning": eval_obj.evaluation_reasoning,
-                        "tissue_types": []
+                        "tissue_types": [],
+                        "document_ids": []  # Collect all document IDs for this criterion
                     }
                 
-                criteria_data[criterion_name]["tissue_types"].append(eval_obj.tissue_type.value)
+                # Only append if not already present (deduplicate)
+                tissue_type_value = eval_obj.tissue_type.value
+                if tissue_type_value not in criteria_data[criterion_name]["tissue_types"]:
+                    criteria_data[criterion_name]["tissue_types"].append(tissue_type_value)
+                
+                # Add document_id if available and not already present
+                if eval_obj.document_id and eval_obj.document_id not in criteria_data[criterion_name]["document_ids"]:
+                    criteria_data[criterion_name]["document_ids"].append(eval_obj.document_id)
             
             return criteria_data
         except Exception as e:

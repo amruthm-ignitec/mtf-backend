@@ -504,7 +504,13 @@ def extract_required_culture_tests(
             "blood culture results positive negative no growth",
             "culture results CULTURE RESULTS final result",
             "tissue culture recovery culture pre-processing post-processing",
-            "staphylococcus coagulase gram positive cocci microorganisms"
+            "staphylococcus coagulase gram positive cocci microorganisms",
+            # Bioburden and skin culture queries
+            "bioburden qualitative quantitative sterility test no growth",
+            "skin dermal culture dermis culture epidermal culture",
+            "transport solution culture dermis transport solution",
+            "processing solution culture rinse wash preservation storage",
+            "environmental culture air surface equipment sterile field"
         ]
         
         all_retrieved_docs = []
@@ -811,7 +817,13 @@ def extract_all_lab_tests(
             "blood culture results positive negative no growth",
             "culture results CULTURE RESULTS final result",
             "tissue culture recovery culture pre-processing post-processing",
-            "staphylococcus coagulase gram positive cocci microorganisms"
+            "staphylococcus coagulase gram positive cocci microorganisms",
+            # Bioburden and skin culture queries
+            "bioburden qualitative quantitative sterility test no growth",
+            "skin dermal culture dermis culture epidermal culture",
+            "transport solution culture dermis transport solution",
+            "processing solution culture rinse wash preservation storage",
+            "environmental culture air surface equipment sterile field"
         ]
         
         # Retrieve relevant chunks using multiple targeted queries
