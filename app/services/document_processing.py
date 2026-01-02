@@ -249,8 +249,25 @@ class DocumentProcessingService:
             
             # Update progress: 70-80% - Document-Specific Extraction
             logger.info("Running document-specific data extraction (DRAI, MRR, Plasma Dilution)...")
+            
+            # Extract DRAI using comprehensive extraction (processes ALL pages)
+            from app.services.drai_extraction import extract_drai_comprehensive
             from app.services.document_specific_extraction import extract_document_specific_data_batched
             
+            drai_data = {}
+            try:
+                drai_data = await loop.run_in_executor(
+                    None,
+                    extract_drai_comprehensive,
+                    document_id, db, self.llm, page_doc_list
+                )
+                logger.info(f"DRAI extraction completed for document {document_id}: present={drai_data.get('present', False)}")
+            except Exception as e:
+                logger.error(f"Error in DRAI extraction for document {document_id}: {e}", exc_info=True)
+                drai_data = {'present': False, 'pages': [], 'summary': {}, 'extracted_data': {}}
+            
+            # Extract other document-specific data (MRR, Plasma Dilution, ID Summary)
+            # Note: DRAI is now handled separately, so this call won't extract DRAI
             document_specific_data = {}
             try:
                 document_specific_data = await loop.run_in_executor(
@@ -260,6 +277,16 @@ class DocumentProcessingService:
                 )
             except Exception as e:
                 logger.error(f"Error in document-specific extraction for document {document_id}: {e}", exc_info=True)
+            
+            # Merge DRAI data with other document-specific data
+            # DRAI data structure: {'present': bool, 'pages': [], 'summary': {}, 'extracted_data': {}}
+            # Other document-specific data structure: {'donor_risk_assessment_interview': {...}, 'medical_records_review_summary': {...}, ...}
+            # Replace the DRAI entry in document_specific_data with our comprehensive extraction
+            if drai_data.get('present', False):
+                document_specific_data['donor_risk_assessment_interview'] = drai_data
+            else:
+                # If DRAI not found, ensure empty structure is present
+                document_specific_data['donor_risk_assessment_interview'] = drai_data
             
             # Merge semantic and document-specific data
             extracted_data = {**semantic_data, **document_specific_data}

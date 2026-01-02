@@ -27,10 +27,11 @@ def extract_document_specific_data_batched(
     """
     try:
         # Build comprehensive semantic search queries
+        # Note: DRAI is now handled separately by drai_extraction.py, so we only extract:
+        # - Medical Records Review Summary
+        # - Plasma Dilution
+        # - Infectious Disease Testing Summary
         queries = [
-            # DRAI queries
-            "donor risk assessment interview DRAI medical history social history risk factors",
-            "risk assessment interview questions answers donor interview",
             # Medical Records Review queries
             "medical records review summary diagnoses procedures medications",
             "medical review summary clinical summary patient summary",
@@ -95,14 +96,9 @@ CRITICAL INSTRUCTIONS:
 
 SECTIONS TO EXTRACT:
 
-1. DRAI (Donor Risk Assessment Interview):
-   - Medical_History: Extract as key-value pairs (e.g., {{"Diabetes": "Yes", "Hypertension": "No"}})
-   - Social_History: Extract as key-value pairs (e.g., {{"Smoking": "No", "Alcohol": "Occasional"}})
-   - Risk_Factors: Extract as key-value pairs (e.g., {{"IV Drug Use": "No", "High Risk Behavior": "No"}})
-   - Additional_Information: Any additional information from the DRAI
-   - summary: Create a brief summary of the DRAI findings
+Note: DRAI (Donor Risk Assessment Interview) is handled separately and should NOT be extracted here.
 
-2. Medical Records Review Summary:
+1. Medical Records Review Summary:
    - Diagnoses: Extract as a list of diagnosis strings
    - Procedures: Extract as a list of procedure strings
    - Medications: Extract as a list of medication strings
@@ -113,14 +109,14 @@ SECTIONS TO EXTRACT:
      * Medications: Comma-separated string of medications
      * Significant History: Summary of significant history
 
-3. Plasma Dilution:
+2. Plasma Dilution:
    - Dilution_Factor: Extract the dilution factor value (number or text)
    - Volumes: Extract volume measurements (text or structured)
    - Procedures: Extract procedure details (text)
    - Measurements: Extract measurement values (text or structured)
    - summary: Create summary fields for each extracted value
 
-4. Infectious Disease Testing Summary:
+3. Infectious Disease Testing Summary:
    - Test_Results: Extract as an array of test result objects, each with:
      * Test_Name: Name of the test
      * Test_Result: Result value
@@ -151,21 +147,9 @@ SECTIONS TO EXTRACT:
 OUTPUT FORMAT:
 Return a JSON object with the following structure:
 
+Note: Do NOT include "donor_risk_assessment_interview" in the output - it is handled separately.
+
 {{
-  "donor_risk_assessment_interview": {{
-    "extracted_data": {{
-      "Medical_History": {{}},
-      "Social_History": {{}},
-      "Risk_Factors": {{}},
-      "Additional_Information": {{}}
-    }},
-    "summary": {{
-      "Medical History": "",
-      "Social History": "",
-      "Risk Factors": "",
-      "Additional Information": ""
-    }}
-  }},
   "medical_records_review_summary": {{
     "extracted_data": {{
       "Diagnoses": [],
@@ -255,12 +239,8 @@ Return only the JSON object, no other text or markdown formatting:"""
         try:
             extracted_data = safe_parse_llm_json(response.content)
             
-            # Ensure all expected keys are present
+            # Ensure all expected keys are present (DRAI is handled separately)
             result = {
-                'donor_risk_assessment_interview': extracted_data.get('donor_risk_assessment_interview', {
-                    'extracted_data': {},
-                    'summary': {}
-                }),
                 'medical_records_review_summary': extracted_data.get('medical_records_review_summary', {
                     'extracted_data': {},
                     'summary': {}
@@ -280,9 +260,8 @@ Return only the JSON object, no other text or markdown formatting:"""
             
         except LLMResponseParseError as e:
             logger.error(f"Failed to parse document-specific extraction response for document {document_id}: {e}")
-            # Return empty structure on parse error
+            # Return empty structure on parse error (DRAI is handled separately)
             return {
-                'donor_risk_assessment_interview': {'extracted_data': {}, 'summary': {}},
                 'medical_records_review_summary': {'extracted_data': {}, 'summary': {}},
                 'plasma_dilution': {'extracted_data': {}, 'summary': {}},
                 'infectious_disease_testing': {'extracted_data': {}, 'summary': {}}
@@ -290,9 +269,8 @@ Return only the JSON object, no other text or markdown formatting:"""
         
     except Exception as e:
         logger.error(f"Error in document-specific extraction for document {document_id}: {e}", exc_info=True)
-        # Return empty structure on error
+        # Return empty structure on error (DRAI is handled separately)
         return {
-            'donor_risk_assessment_interview': {'extracted_data': {}, 'summary': {}},
             'medical_records_review_summary': {'extracted_data': {}, 'summary': {}},
             'plasma_dilution': {'extracted_data': {}, 'summary': {}},
             'infectious_disease_testing': {'extracted_data': {}, 'summary': {}}
