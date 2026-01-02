@@ -55,7 +55,11 @@ def determine_conditional_documents_from_criteria(
             conditional_documents['toxicology_report'] = {
                 'conditional_status': 'CONDITION MET',
                 'condition_required': 'Toxicology Performed',
-                'testing_performed': True,
+                'toxicology_screening_status': {
+                    'performed': True,
+                    'source_document': None,
+                    'confidence': 1.0
+                },
                 'test_results': toxicology_results,
                 'source_document': None,
                 'source_pages': []
@@ -64,7 +68,11 @@ def determine_conditional_documents_from_criteria(
             conditional_documents['toxicology_report'] = {
                 'conditional_status': 'CONDITION NOT MET',
                 'condition_required': 'Toxicology Performed',
-                'testing_performed': False,
+                'toxicology_screening_status': {
+                    'performed': False,
+                    'source_document': None,
+                    'confidence': 1.0
+                },
                 'test_results': None,
                 'source_document': None,
                 'source_pages': []
