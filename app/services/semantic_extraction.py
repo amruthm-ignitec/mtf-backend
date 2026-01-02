@@ -335,7 +335,7 @@ def detect_document_presence(
             
             document_presence[doc_type] = {
                 'present': is_present,
-                'pages': [{'document_id': document_id, 'page': p} for p in sorted(set(pages)))],
+                'pages': [{'document_id': document_id, 'page': p} for p in sorted(set(pages))],
                 'summary': {},
                 'extracted_data': {},
                 'confidence': min(len(unique_chunks) * 10.0, 100.0) if unique_chunks else 0.0
