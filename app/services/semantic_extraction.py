@@ -7,6 +7,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from app.models.document_chunk import DocumentChunk
+from app.models.laboratory_result import LaboratoryResult, TestType
 
 logger = logging.getLogger(__name__)
 
@@ -313,9 +314,28 @@ def detect_document_presence(
                         if chunk.page_number and chunk.page_number not in pages:
                             pages.append(chunk.page_number)
             
+            # Special handling for infectious_disease_testing: also check for actual test results
+            is_present = len(unique_chunks) > 0 or len(pages) > 0
+            if doc_type == 'infectious_disease_testing' and not is_present:
+                # Check if there are actual test results in the database
+                test_results = db.query(LaboratoryResult).filter(
+                    LaboratoryResult.document_id == document_id
+                ).all()
+                
+                if test_results:
+                    # If we have test results, mark as present and extract page numbers from results
+                    is_present = True
+                    result_pages = []
+                    for result in test_results:
+                        if result.source_page and result.source_page not in result_pages:
+                            result_pages.append(result.source_page)
+                    if result_pages:
+                        pages.extend(result_pages)
+                    logger.info(f"Found {len(test_results)} test results for document {document_id}, marking infectious_disease_testing as present")
+            
             document_presence[doc_type] = {
-                'present': len(unique_chunks) > 0 or len(pages) > 0,
-                'pages': [{'document_id': document_id, 'page': p} for p in sorted(pages)],
+                'present': is_present,
+                'pages': [{'document_id': document_id, 'page': p} for p in sorted(set(pages)))],
                 'summary': {},
                 'extracted_data': {},
                 'confidence': min(len(unique_chunks) * 10.0, 100.0) if unique_chunks else 0.0
