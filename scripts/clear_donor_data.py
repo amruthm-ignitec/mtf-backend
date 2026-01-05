@@ -2,9 +2,9 @@
 """
 Script to clear all data related to a donor except the donor details.
 This will delete:
-- All documents and their associated data (chunks, extraction results)
+- All documents and their associated data (chunks, laboratory results, criteria evaluations)
+- All donor eligibility records
 - All donor approvals
-- All donor extraction data
 - All files from Azure Blob Storage
 
 The donor record itself will be preserved.
@@ -18,17 +18,14 @@ import asyncio
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import sessionmaker
-from app.database.database import engine, Base
+from app.database.database import engine
 from app.models.donor import Donor
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
-from app.models.culture_result import CultureResult
-from app.models.serology_result import SerologyResult
-from app.models.topic_result import TopicResult
-from app.models.component_result import ComponentResult
+from app.models.laboratory_result import LaboratoryResult
+from app.models.criteria_evaluation import CriteriaEvaluation
+from app.models.donor_eligibility import DonorEligibility
 from app.models.donor_approval import DonorApproval
-from app.models.donor_extraction import DonorExtraction
-from app.models.donor_extraction_vector import DonorExtractionVector
 from app.services.azure_service import azure_blob_service
 
 
@@ -93,13 +90,10 @@ def clear_donor_data(donor_id: int = None, clear_all: bool = False):
         total_deleted = {
             'documents': 0,
             'chunks': 0,
-            'culture_results': 0,
-            'serology_results': 0,
-            'topic_results': 0,
-            'component_results': 0,
+            'laboratory_results': 0,
+            'criteria_evaluations': 0,
+            'donor_eligibility': 0,
             'approvals': 0,
-            'extractions': 0,
-            'extraction_vectors': 0,
             'files_deleted': 0,
             'files_failed': 0
         }
@@ -117,43 +111,29 @@ def clear_donor_data(donor_id: int = None, clear_all: bool = False):
             if documents:
                 print(f"\n📄 Found {len(documents)} document(s)")
                 
-                # Delete document chunks
+                # Delete document chunks first (no foreign key dependencies)
                 chunks_deleted = db.query(DocumentChunk).filter(
                     DocumentChunk.document_id.in_(document_ids)
                 ).delete(synchronize_session=False)
                 total_deleted['chunks'] += chunks_deleted
                 print(f"  ✓ Deleted {chunks_deleted} document chunk(s)")
                 
-                # Delete culture results
-                culture_deleted = db.query(CultureResult).filter(
-                    CultureResult.document_id.in_(document_ids)
+                # Delete criteria evaluations (references documents)
+                criteria_eval_deleted = db.query(CriteriaEvaluation).filter(
+                    CriteriaEvaluation.document_id.in_(document_ids)
                 ).delete(synchronize_session=False)
-                total_deleted['culture_results'] += culture_deleted
-                print(f"  ✓ Deleted {culture_deleted} culture result(s)")
+                total_deleted['criteria_evaluations'] += criteria_eval_deleted
+                print(f"  ✓ Deleted {criteria_eval_deleted} criteria evaluation(s)")
                 
-                # Delete serology results
-                serology_deleted = db.query(SerologyResult).filter(
-                    SerologyResult.document_id.in_(document_ids)
+                # Delete laboratory results (references documents)
+                lab_results_deleted = db.query(LaboratoryResult).filter(
+                    LaboratoryResult.document_id.in_(document_ids)
                 ).delete(synchronize_session=False)
-                total_deleted['serology_results'] += serology_deleted
-                print(f"  ✓ Deleted {serology_deleted} serology result(s)")
-                
-                # Delete topic results
-                topic_deleted = db.query(TopicResult).filter(
-                    TopicResult.document_id.in_(document_ids)
-                ).delete(synchronize_session=False)
-                total_deleted['topic_results'] += topic_deleted
-                print(f"  ✓ Deleted {topic_deleted} topic result(s)")
-                
-                # Delete component results
-                component_deleted = db.query(ComponentResult).filter(
-                    ComponentResult.document_id.in_(document_ids)
-                ).delete(synchronize_session=False)
-                total_deleted['component_results'] += component_deleted
-                print(f"  ✓ Deleted {component_deleted} component result(s)")
+                total_deleted['laboratory_results'] += lab_results_deleted
+                print(f"  ✓ Deleted {lab_results_deleted} laboratory result(s)")
                 
                 # Delete files from Azure Blob Storage
-                print(f"\n🗑️  Deleting files from Azure Blob Storage...")
+                print("\n🗑️  Deleting files from Azure Blob Storage...")
                 try:
                     loop = asyncio.get_event_loop()
                 except RuntimeError:
@@ -165,7 +145,7 @@ def clear_donor_data(donor_id: int = None, clear_all: bool = False):
                 total_deleted['files_deleted'] += files_deleted
                 total_deleted['files_failed'] += files_failed
                 
-                # Delete documents
+                # Delete documents (after all child records are deleted)
                 docs_deleted = db.query(Document).filter(
                     Document.donor_id == current_donor_id
                 ).delete(synchronize_session=False)
@@ -173,6 +153,24 @@ def clear_donor_data(donor_id: int = None, clear_all: bool = False):
                 print(f"  ✓ Deleted {docs_deleted} document record(s)")
             else:
                 print("  ℹ No documents found for this donor")
+            
+            # Delete donor-level data (references donor, not documents)
+            # Delete criteria evaluations that might not have document_id (nullable)
+            criteria_eval_no_doc_deleted = db.query(CriteriaEvaluation).filter(
+                CriteriaEvaluation.donor_id == current_donor_id,
+                CriteriaEvaluation.document_id.is_(None)
+            ).delete(synchronize_session=False)
+            if criteria_eval_no_doc_deleted > 0:
+                total_deleted['criteria_evaluations'] += criteria_eval_no_doc_deleted
+                print(f"  ✓ Deleted {criteria_eval_no_doc_deleted} criteria evaluation(s) without document reference")
+            
+            # Delete donor eligibility (references donor)
+            eligibility_deleted = db.query(DonorEligibility).filter(
+                DonorEligibility.donor_id == current_donor_id
+            ).delete(synchronize_session=False)
+            total_deleted['donor_eligibility'] += eligibility_deleted
+            if eligibility_deleted > 0:
+                print(f"  ✓ Deleted {eligibility_deleted} donor eligibility record(s)")
             
             # Delete donor approvals
             approvals_deleted = db.query(DonorApproval).filter(
@@ -182,45 +180,26 @@ def clear_donor_data(donor_id: int = None, clear_all: bool = False):
             if approvals_deleted > 0:
                 print(f"  ✓ Deleted {approvals_deleted} donor approval(s)")
             
-            # Delete donor extraction vectors
-            vectors_deleted = db.query(DonorExtractionVector).filter(
-                DonorExtractionVector.donor_id == current_donor_id
-            ).delete(synchronize_session=False)
-            total_deleted['extraction_vectors'] += vectors_deleted
-            if vectors_deleted > 0:
-                print(f"  ✓ Deleted {vectors_deleted} extraction vector(s)")
-            
-            # Delete donor extraction
-            extraction_deleted = db.query(DonorExtraction).filter(
-                DonorExtraction.donor_id == current_donor_id
-            ).delete(synchronize_session=False)
-            total_deleted['extractions'] += extraction_deleted
-            if extraction_deleted > 0:
-                print(f"  ✓ Deleted {extraction_deleted} donor extraction record(s)")
-            
             # Commit all deletions for this donor
             db.commit()
             print(f"\n✅ Successfully cleared all data for donor ID {current_donor_id}")
-            print(f"   (Donor record preserved)")
+            print("   (Donor record preserved)")
         
         # Print summary
         print(f"\n{'='*60}")
         print("SUMMARY")
         print(f"{'='*60}")
-        print(f"Documents deleted:        {total_deleted['documents']}")
-        print(f"Document chunks deleted:  {total_deleted['chunks']}")
-        print(f"Culture results deleted:  {total_deleted['culture_results']}")
-        print(f"Serology results deleted: {total_deleted['serology_results']}")
-        print(f"Topic results deleted:    {total_deleted['topic_results']}")
-        print(f"Component results deleted: {total_deleted['component_results']}")
-        print(f"Donor approvals deleted:  {total_deleted['approvals']}")
-        print(f"Extraction vectors deleted: {total_deleted['extraction_vectors']}")
-        print(f"Donor extractions deleted: {total_deleted['extractions']}")
-        print(f"Files deleted from Azure: {total_deleted['files_deleted']}")
+        print(f"Documents deleted:           {total_deleted['documents']}")
+        print(f"Document chunks deleted:      {total_deleted['chunks']}")
+        print(f"Laboratory results deleted:   {total_deleted['laboratory_results']}")
+        print(f"Criteria evaluations deleted: {total_deleted['criteria_evaluations']}")
+        print(f"Donor eligibility deleted:    {total_deleted['donor_eligibility']}")
+        print(f"Donor approvals deleted:      {total_deleted['approvals']}")
+        print(f"Files deleted from Azure:      {total_deleted['files_deleted']}")
         if total_deleted['files_failed'] > 0:
-            print(f"Files failed to delete:   {total_deleted['files_failed']} ⚠")
-        print(f"\n✅ All donor data cleared successfully!")
-        print(f"   (Donor records preserved)")
+            print(f"Files failed to delete:        {total_deleted['files_failed']} ⚠")
+        print("\n✅ All donor data cleared successfully!")
+        print("   (Donor records preserved)")
         
     except Exception as e:
         print(f"❌ Error clearing donor data: {e}")

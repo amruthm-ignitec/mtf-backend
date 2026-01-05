@@ -47,6 +47,7 @@ def setup_logging():
     logging.getLogger("passlib").setLevel(logging.WARNING)
     logging.getLogger("azure").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # Suppress HTTP request logs from httpx
     
     # Add request ID to logs
     class RequestIDFilter(logging.Filter):

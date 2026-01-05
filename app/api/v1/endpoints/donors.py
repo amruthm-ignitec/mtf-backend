@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Dict, Any
+from datetime import datetime
 import logging
 import json
 import os
@@ -11,7 +12,6 @@ from app.models.document import Document, DocumentStatus, DocumentType
 from app.models.user import User, UserRole
 from app.schemas.donor import DonorCreate, DonorUpdate, DonorResponse, DonorPriorityUpdate
 from app.api.v1.endpoints.auth import get_current_user
-from app.services.processing.document_components import load_component_config
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -161,17 +161,9 @@ async def get_queue_details(
     donors = db.query(Donor).all()
     result = []
     
-    # Load Initial Paperwork Case Checklist from config
-    component_config = load_component_config()
-    initial_components = component_config.get("initial_components", {})
-    
-    # Get required document types from Initial Paperwork Case Checklist
-    # These are the component names from the config
-    REQUIRED_DOC_TYPES = list(initial_components.keys()) if initial_components else []
-    
-    # If config is not available, fall back to empty list (will show no required docs)
-    if not REQUIRED_DOC_TYPES:
-        logger.warning("No initial components found in config. Missing documents will not be determined from checklist.")
+    # Document components config was removed during cleanup
+    # Using empty list for required document types
+    REQUIRED_DOC_TYPES = []
     
     for donor in donors:
         # Get all documents for this donor
@@ -248,106 +240,83 @@ async def get_queue_details(
                 processing_status = "pending"
         
         
-        # Get extraction data from DonorExtraction table for critical findings and document presence
-        critical_findings = None  # None means extraction hasn't happened yet, [] means no findings
+        # Get eligibility data from DonorEligibility table for critical findings
+        critical_findings = None  # None means evaluation hasn't happened yet, [] means no findings
         rejection_reason = None
         
-        from app.models.donor_extraction import DonorExtraction
+        from app.models.donor_eligibility import DonorEligibility
         
-        donor_extraction = db.query(DonorExtraction).filter(
-            DonorExtraction.donor_id == donor.id
+        # Get eligibility for both tissue types
+        eligibility_ms = db.query(DonorEligibility).filter(
+            DonorEligibility.donor_id == donor.id,
+            DonorEligibility.tissue_type == "musculoskeletal"
         ).first()
         
-        extraction_data = None
-        if donor_extraction and donor_extraction.extraction_data:
-            extraction_data = donor_extraction.extraction_data
-            # Initialize as empty array if extraction data exists
+        eligibility_skin = db.query(DonorEligibility).filter(
+            DonorEligibility.donor_id == donor.id,
+            DonorEligibility.tissue_type == "skin"
+        ).first()
+        
+        # Build critical findings from blocking criteria
+        if eligibility_ms or eligibility_skin:
             critical_findings = []
             
-            # Get critical findings from validation
-            if extraction_data.get("validation") and extraction_data["validation"].get("critical_findings"):
-                for finding in extraction_data["validation"]["critical_findings"]:
+            # Add blocking criteria from musculoskeletal eligibility
+            if eligibility_ms and eligibility_ms.blocking_criteria:
+                for criterion in eligibility_ms.blocking_criteria:
                     critical_findings.append({
-                        "type": finding.get("type", "Unknown"),
-                        "severity": finding.get("severity", "CRITICAL"),
-                        "automaticRejection": finding.get("automaticRejection", False),
-                        "detectedAt": finding.get("detectedAt"),
-                        "source": finding.get("source", {
+                        "type": criterion.get("criterion_name", "Unknown"),
+                        "severity": "CRITICAL",
+                        "automaticRejection": True,
+                        "detectedAt": eligibility_ms.evaluated_at.isoformat() if eligibility_ms.evaluated_at else None,
+                        "source": {
                             "documentId": "Unknown",
                             "pageNumber": "Unknown",
                             "confidence": 0.95
-                        })
+                        }
                     })
-                    if not rejection_reason and finding.get("automaticRejection"):
-                        finding_type = finding.get("type", "Unknown")
-                        rejection_reason = f"Critical Finding: {finding_type}"
-                        # Update processing status to rejected if automatic rejection
-                        if finding.get("automaticRejection"):
+                    if not rejection_reason:
+                        rejection_reason = f"Critical Finding: {criterion.get('criterion_name', 'Unknown')}"
+                        if eligibility_ms.overall_status.value == "ineligible":
                             processing_status = "rejected"
+            
+            # Add blocking criteria from skin eligibility (avoid duplicates)
+            if eligibility_skin and eligibility_skin.blocking_criteria:
+                for criterion in eligibility_skin.blocking_criteria:
+                    criterion_name = criterion.get("criterion_name", "Unknown")
+                    if not any(cf["type"] == criterion_name for cf in critical_findings):
+                        critical_findings.append({
+                            "type": criterion_name,
+                            "severity": "CRITICAL",
+                            "automaticRejection": True,
+                            "detectedAt": eligibility_skin.evaluated_at.isoformat() if eligibility_skin.evaluated_at else None,
+                            "source": {
+                                "documentId": "Unknown",
+                                "pageNumber": "Unknown",
+                                "confidence": 0.95
+                            }
+                        })
+                        if not rejection_reason:
+                            rejection_reason = f"Critical Finding: {criterion_name}"
+                            if eligibility_skin.overall_status.value == "ineligible":
+                                processing_status = "rejected"
         
-        # Update required documents status based on extraction data present fields
-        if extraction_data and extraction_data.get("extracted_data"):
-            extracted_data = extraction_data["extracted_data"]
+        # Update required documents status based on document processing
+        # Simplified: just check if documents exist and are completed
+        for req_doc in required_documents:
+            doc_name = req_doc["name"]
+            matching_doc = doc_by_type.get(doc_name)
             
-            # Map required document types to extraction data keys
-            # Generate mapping from Initial Paperwork component names to their extraction keys
-            # Component names are converted to snake_case for extraction keys
-            extraction_key_mapping = {}
-            for component_name in REQUIRED_DOC_TYPES:
-                extraction_key = component_name_to_extraction_key(component_name)
-                # Each component maps to its own extraction key
-                extraction_key_mapping[component_name] = [extraction_key]
-            
-            # Update document statuses based on present field in extraction data
-            # Extraction data is the source of truth for Initial Paperwork components
-            for req_doc in required_documents:
-                doc_name = req_doc["name"]
-                extraction_keys = extraction_key_mapping.get(doc_name, [])
-                
-                # Check if any of the mapped extraction keys have present=True
-                found_present = False
-                for extraction_key in extraction_keys:
-                    if extraction_key in extracted_data:
-                        section = extracted_data[extraction_key]
-                        if section and isinstance(section, dict):
-                            # Check the present field (can be boolean or "Yes"/"No" string)
-                            present_value = section.get("present")
-                            if present_value is True or present_value == "Yes" or present_value == "yes":
-                                found_present = True
-                                # If extraction says present, determine status based on document processing
-                                # Check if any documents are still processing
-                                has_processing_docs = any(
-                                    doc.status in [DocumentStatus.PROCESSING, DocumentStatus.ANALYZING, DocumentStatus.REVIEWING]
-                                    for doc in documents
-                                )
-                                all_completed = all(doc.status == DocumentStatus.COMPLETED for doc in documents)
-                                
-                                if all_completed and len(documents) > 0:
-                                    req_doc["status"] = "completed"
-                                elif has_processing_docs:
-                                    req_doc["status"] = "processing"
-                                else:
-                                    # Extraction found it but documents might still be processing
-                                    req_doc["status"] = "processing"
-                                break
-                            elif present_value is False or present_value == "No" or present_value == "no":
-                                # Explicitly marked as not present
-                                req_doc["status"] = "missing"
-                                break
-                
-                # If extraction data says not present, mark as missing
-                if not found_present:
-                    # Check if any extraction key exists and explicitly says not present
-                    for extraction_key in extraction_keys:
-                        if extraction_key in extracted_data:
-                            section = extracted_data[extraction_key]
-                            if section and isinstance(section, dict):
-                                present_value = section.get("present")
-                                if present_value is False or present_value == "No" or present_value == "no":
-                                    req_doc["status"] = "missing"
-                                    break
-                    # If extraction key doesn't exist in extracted_data, it means extraction hasn't found it yet
-                    # Keep the current status (which should be "missing" if no document was uploaded)
+            if matching_doc:
+                status = matching_doc.status.value if hasattr(matching_doc.status, 'value') else str(matching_doc.status)
+                if status == "completed":
+                    req_doc["status"] = "completed"
+                elif status in ["processing", "analyzing", "reviewing"]:
+                    req_doc["status"] = "processing"
+                else:
+                    req_doc["status"] = "missing"
+            else:
+                req_doc["status"] = "missing"
         
         result.append({
             "id": str(donor.id),
@@ -407,8 +376,10 @@ async def get_donor_extraction_data(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get aggregated extraction data for a donor from DonorExtraction table."""
-    from app.models.donor_extraction import DonorExtraction
+    """Get aggregated extraction data for a donor from new criteria-focused tables."""
+    from app.models.document import Document
+    from app.models.laboratory_result import LaboratoryResult
+    from app.services.processing.result_parser import result_parser
     
     donor = db.query(Donor).filter(Donor.id == donor_id).first()
     if not donor:
@@ -417,124 +388,181 @@ async def get_donor_extraction_data(
             detail="Donor not found"
         )
     
-    # Query DonorExtraction table
-    donor_extraction = db.query(DonorExtraction).filter(
-        DonorExtraction.donor_id == donor_id
+    # Get all documents for this donor
+    documents = db.query(Document).filter(Document.donor_id == donor_id).all()
+    document_ids = [doc.id for doc in documents]
+    
+    # Get all laboratory results
+    all_serology_results = {}
+    all_culture_results = []
+    
+    for doc_id in document_ids:
+        lab_results = result_parser.get_laboratory_results_for_document(doc_id, db)
+        serology = lab_results.get("serology_results", {})
+        culture = lab_results.get("culture_results", {})
+        
+        # Merge serology results - combine citations when same test appears in multiple documents
+        for test_name, test_data in serology.get("result", {}).items():
+            if test_name not in all_serology_results:
+                # First time seeing this test - copy all data including citations
+                all_serology_results[test_name] = {
+                    "result": test_data.get("result"),
+                    "citations": list(test_data.get("citations", []))
+                }
+                if "method" in test_data:
+                    all_serology_results[test_name]["method"] = test_data["method"]
+                if "document_id" in test_data:
+                    all_serology_results[test_name]["document_id"] = test_data["document_id"]
+            else:
+                # Test already exists - merge citations
+                existing_citations = all_serology_results[test_name].get("citations", [])
+                new_citations = test_data.get("citations", [])
+                
+                # Add new citations that don't already exist
+                for new_citation in new_citations:
+                    citation_key = (new_citation.get("document_id"), new_citation.get("page"))
+                    if not any(c.get("document_id") == new_citation.get("document_id") and 
+                              c.get("page") == new_citation.get("page") 
+                              for c in existing_citations):
+                        existing_citations.append(new_citation)
+                
+                # Sort citations by document_id and page
+                existing_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)))
+        
+        # Merge culture results - combine citations when same test appears in multiple documents
+        for culture_item in culture.get("result", []):
+            test_name = culture_item.get("test_name")
+            result_value = culture_item.get("result")
+            document_id = culture_item.get("document_id")
+            
+            # Check if we already have this exact culture result
+            # (same test_name, result, document_id)
+            existing_item = None
+            for existing in all_culture_results:
+                if (existing.get("test_name") == test_name and
+                    existing.get("result") == result_value and
+                    existing.get("document_id") == document_id):
+                    existing_item = existing
+                    break
+            
+            if existing_item:
+                # Merge citations
+                existing_citations = existing_item.get("citations", [])
+                new_citations = culture_item.get("citations", [])
+                for new_citation in new_citations:
+                    if not any(c.get("document_id") == new_citation.get("document_id") and 
+                              c.get("page") == new_citation.get("page") 
+                              for c in existing_citations):
+                        existing_citations.append(new_citation)
+                existing_citations.sort(key=lambda x: (x.get("document_id", 0), x.get("page", 0)))
+            else:
+                # New culture result - add it with citations array
+                all_culture_results.append(culture_item)
+    
+    # Get criteria evaluations
+    criteria_evaluations = result_parser.get_criteria_evaluations_for_donor(donor_id, db)
+    
+    # Get eligibility decisions
+    from app.models.donor_eligibility import DonorEligibility
+    eligibility_ms = db.query(DonorEligibility).filter(
+        DonorEligibility.donor_id == donor_id,
+        DonorEligibility.tissue_type == "musculoskeletal"
     ).first()
     
-    if donor_extraction and donor_extraction.extraction_data:
-        return donor_extraction.extraction_data
+    eligibility_skin = db.query(DonorEligibility).filter(
+        DonorEligibility.donor_id == donor_id,
+        DonorEligibility.tissue_type == "skin"
+    ).first()
     
-    # Return empty structure if no extraction data found
+    # Build validation from eligibility
+    critical_findings = []
+    if eligibility_ms and eligibility_ms.blocking_criteria:
+        for criterion in eligibility_ms.blocking_criteria:
+            critical_findings.append({
+                "type": criterion.get("criterion_name", "Unknown"),
+                "severity": "CRITICAL",
+                "automaticRejection": True,
+                "reasoning": criterion.get("reasoning", "")
+            })
+    
+    if eligibility_skin and eligibility_skin.blocking_criteria:
+        for criterion in eligibility_skin.blocking_criteria:
+            # Avoid duplicates
+            if not any(cf["type"] == criterion.get("criterion_name") for cf in critical_findings):
+                critical_findings.append({
+                    "type": criterion.get("criterion_name", "Unknown"),
+                    "severity": "CRITICAL",
+                    "automaticRejection": True,
+                    "reasoning": criterion.get("reasoning", "")
+                })
+    
+    # Get aggregated extracted_data
+    from app.services.extraction_aggregation import extraction_aggregation_service
+    aggregated_extracted_data = extraction_aggregation_service.get_aggregated_extracted_data(donor_id, db)
+    
+    # Get conditional documents
+    from app.services.conditional_documents_service import determine_conditional_documents_from_criteria
+    conditional_documents = determine_conditional_documents_from_criteria(donor_id, db)
+    
+    # Extract top-level fields from aggregated_extracted_data (frontend expects these at top level)
+    recovery_information = aggregated_extracted_data.pop('recovery_information', None)
+    terminal_information = aggregated_extracted_data.pop('terminal_information', None)
+    critical_lab_values = aggregated_extracted_data.pop('critical_lab_values', None)
+    
+    # Build response in format expected by frontend (backward compatibility)
     return {
         "donor_id": donor.unique_donor_id,
         "case_id": f"{donor.unique_donor_id}81",
-        "processing_timestamp": None,
+        "processing_timestamp": datetime.now().isoformat() if documents else None,
         "processing_duration_seconds": 0,
-        "extracted_data": {},
-        "conditional_documents": {},
-        "validation": None,
+        "extracted_data": aggregated_extracted_data,  # Document-specific data (DRAI, MRR, Plasma Dilution, etc.)
+        "recovery_information": recovery_information,  # Top level - for Overview tab
+        "terminal_information": terminal_information,  # Top level - for Overview and Clinical tabs
+        "critical_lab_values": critical_lab_values,  # Top level - for Infectious Disease tab
+        "conditional_documents": conditional_documents,
+        "validation": {
+            "critical_findings": critical_findings,
+            "has_critical_findings": len(critical_findings) > 0,
+            "automatic_rejection": any(cf.get("automaticRejection", False) for cf in critical_findings)
+        } if critical_findings else None,
         "compliance_status": None,
-        "document_summary": None
+        "document_summary": {
+            "total_documents_processed": len([d for d in documents if d.status == DocumentStatus.COMPLETED]),
+            "total_pages_processed": 0,
+            "extraction_methods_used": ["laboratory_tests", "criteria_evaluation"]
+        },
+        # New fields for criteria-focused system
+        "serology_results": {
+            "result": all_serology_results,
+            "citations": []  # Citations are now per-test in the result object
+        },
+        "culture_results": {
+            "result": all_culture_results,
+            "citations": []  # Citations are now per-test in the result object
+        },
+        "criteria_evaluations": criteria_evaluations,
+        "eligibility": {
+            "musculoskeletal": {
+                "status": eligibility_ms.overall_status.value if eligibility_ms else None,
+                "blocking_criteria": eligibility_ms.blocking_criteria if eligibility_ms else [],
+                "md_discretion_criteria": eligibility_ms.md_discretion_criteria if eligibility_ms else []
+            } if eligibility_ms else None,
+            "skin": {
+                "status": eligibility_skin.overall_status.value if eligibility_skin else None,
+                "blocking_criteria": eligibility_skin.blocking_criteria if eligibility_skin else [],
+                "md_discretion_criteria": eligibility_skin.md_discretion_criteria if eligibility_skin else []
+            } if eligibility_skin else None
+        }
     }
 
-@router.post("/search-similar")
-async def search_similar_donors(
-    query: str,
-    limit: int = 10,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Semantic search for similar donors based on extraction data."""
-    from app.models.donor_extraction_vector import DonorExtractionVector
-    from app.services.processing.utils.llm_config import llm_setup
-    import asyncio
-    
-    try:
-        # Generate embedding for query
-        _, embeddings = await asyncio.get_event_loop().run_in_executor(None, llm_setup)
-        query_embedding = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: embeddings.embed_query(query)
-        )
-        
-        # Search using pgvector similarity
-        # Note: This requires raw SQL for pgvector similarity search
-        from sqlalchemy import text
-        
-        # Use cosine similarity
-        # Convert embedding list to string format for pgvector
-        embedding_str = '[' + ','.join(map(str, query_embedding)) + ']'
-        
-        results = db.execute(
-            text("""
-                SELECT 
-                    donor_id,
-                    extraction_type,
-                    extraction_text,
-                    1 - (embedding <=> CAST(:query_embedding AS vector)) as similarity
-                FROM donor_extraction_vectors
-                WHERE embedding IS NOT NULL
-                ORDER BY embedding <=> CAST(:query_embedding AS vector)
-                LIMIT :limit
-            """),
-            {
-                "query_embedding": embedding_str,
-                "limit": limit
-            }
-        ).fetchall()
-        
-        # Group by donor_id and get best matches
-        donor_similarities = {}
-        for row in results:
-            donor_id = row[0]
-            similarity = float(row[3])
-            if donor_id not in donor_similarities or similarity > donor_similarities[donor_id]['similarity']:
-                donor_similarities[donor_id] = {
-                    "donor_id": donor_id,
-                    "similarity": similarity,
-                    "extraction_type": row[1],
-                    "extraction_text": row[2]
-                }
-        
-        # Get donor details
-        similar_donors = []
-        for donor_id, match_info in donor_similarities.items():
-            donor = db.query(Donor).filter(Donor.id == donor_id).first()
-            if donor:
-                similar_donors.append({
-                    "donor_id": donor_id,
-                    "donor_name": donor.name,
-                    "unique_donor_id": donor.unique_donor_id,
-                    "similarity_score": match_info['similarity'],
-                    "matched_on": match_info['extraction_type']
-                })
-        
-        # Sort by similarity
-        similar_donors.sort(key=lambda x: x['similarity_score'], reverse=True)
-        
-        return {
-            "query": query,
-            "results": similar_donors[:limit]
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in similarity search: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error performing similarity search: {str(e)}"
-        )
-
-@router.get("/{donor_id}/similar")
-async def get_similar_donors(
+@router.get("/{donor_id}/eligibility")
+async def get_donor_eligibility(
     donor_id: int,
-    limit: int = 10,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get similar donors based on extraction data vectors."""
-    from app.models.donor_extraction_vector import DonorExtractionVector
-    from sqlalchemy import text
+    """Get eligibility decisions for a donor per tissue type."""
+    from app.models.donor_eligibility import DonorEligibility
     
     donor = db.query(Donor).filter(Donor.id == donor_id).first()
     if not donor:
@@ -543,85 +571,54 @@ async def get_similar_donors(
             detail="Donor not found"
         )
     
-    # Get donor's extraction vectors
-    donor_vectors = db.query(DonorExtractionVector).filter(
-        DonorExtractionVector.donor_id == donor_id,
-        DonorExtractionVector.embedding.isnot(None)
+    # Get eligibility for both tissue types
+    eligibility_ms = db.query(DonorEligibility).filter(
+        DonorEligibility.donor_id == donor_id,
+        DonorEligibility.tissue_type == "musculoskeletal"
+    ).first()
+    
+    eligibility_skin = db.query(DonorEligibility).filter(
+        DonorEligibility.donor_id == donor_id,
+        DonorEligibility.tissue_type == "skin"
+    ).first()
+    
+    # Get criteria evaluations for details
+    from app.models.criteria_evaluation import CriteriaEvaluation
+    criteria_evaluations = db.query(CriteriaEvaluation).filter(
+        CriteriaEvaluation.donor_id == donor_id
     ).all()
     
-    if not donor_vectors:
-        return {
-            "donor_id": donor_id,
-            "similar_donors": [],
-            "message": "No extraction vectors found for this donor"
-        }
+    # Group evaluations by criterion
+    evaluations_by_criterion = {}
+    for eval_obj in criteria_evaluations:
+        criterion_name = eval_obj.criterion_name
+        if criterion_name not in evaluations_by_criterion:
+            evaluations_by_criterion[criterion_name] = []
+        evaluations_by_criterion[criterion_name].append({
+            "tissue_type": eval_obj.tissue_type.value,
+            "evaluation_result": eval_obj.evaluation_result.value,
+            "evaluation_reasoning": eval_obj.evaluation_reasoning,
+            "extracted_data": eval_obj.extracted_data
+        })
     
-    # Use the first vector for similarity search
-    reference_vector = donor_vectors[0].embedding
-    
-    # Search for similar donors
-    try:
-        # Convert embedding to string format for pgvector
-        if hasattr(reference_vector, '__iter__'):
-            embedding_str = '[' + ','.join(map(str, reference_vector)) + ']'
-        else:
-            embedding_str = str(reference_vector)
-        
-        results = db.execute(
-            text("""
-                SELECT 
-                    donor_id,
-                    extraction_type,
-                    1 - (embedding <=> CAST(:ref_embedding AS vector)) as similarity
-                FROM donor_extraction_vectors
-                WHERE donor_id != :donor_id
-                AND embedding IS NOT NULL
-                ORDER BY embedding <=> CAST(:ref_embedding AS vector)
-                LIMIT :limit
-            """),
-            {
-                "ref_embedding": embedding_str,
-                "donor_id": donor_id,
-                "limit": limit
+    return {
+        "donor_id": donor.unique_donor_id,
+        "eligibility": {
+            "musculoskeletal": {
+                "status": eligibility_ms.overall_status.value if eligibility_ms else None,
+                "blocking_criteria": eligibility_ms.blocking_criteria if eligibility_ms else [],
+                "md_discretion_criteria": eligibility_ms.md_discretion_criteria if eligibility_ms else [],
+                "evaluated_at": eligibility_ms.evaluated_at.isoformat() if eligibility_ms and eligibility_ms.evaluated_at else None
+            },
+            "skin": {
+                "status": eligibility_skin.overall_status.value if eligibility_skin else None,
+                "blocking_criteria": eligibility_skin.blocking_criteria if eligibility_skin else [],
+                "md_discretion_criteria": eligibility_skin.md_discretion_criteria if eligibility_skin else [],
+                "evaluated_at": eligibility_skin.evaluated_at.isoformat() if eligibility_skin and eligibility_skin.evaluated_at else None
             }
-        ).fetchall()
-        
-        # Group by donor_id
-        donor_similarities = {}
-        for row in results:
-            similar_donor_id = row[0]
-            similarity = float(row[2])
-            if similar_donor_id not in donor_similarities or similarity > donor_similarities[similar_donor_id]['similarity']:
-                donor_similarities[similar_donor_id] = {
-                    "donor_id": similar_donor_id,
-                    "similarity": similarity
-                }
-        
-        # Get donor details
-        similar_donors = []
-        for similar_donor_id, match_info in donor_similarities.items():
-            similar_donor = db.query(Donor).filter(Donor.id == similar_donor_id).first()
-            if similar_donor:
-                similar_donors.append({
-                    "donor_id": similar_donor_id,
-                    "donor_name": similar_donor.name,
-                    "unique_donor_id": similar_donor.unique_donor_id,
-                    "similarity_score": match_info['similarity']
-                })
-        
-        similar_donors.sort(key=lambda x: x['similarity_score'], reverse=True)
-        
-        return {
-            "donor_id": donor_id,
-            "similar_donors": similar_donors
-        }
-        
-    except Exception as e:
-        logger.error(f"Error finding similar donors for {donor_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error finding similar donors: {str(e)}"
-        )
+        },
+        "criteria_evaluations": evaluations_by_criterion
+    }
 
 @router.get("/{donor_id}/extraction/detailed")
 async def get_donor_extraction_detailed(

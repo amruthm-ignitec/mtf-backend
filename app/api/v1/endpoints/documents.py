@@ -310,7 +310,7 @@ async def get_document_topics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get topic results for a specific document."""
+    """Get topic results for a specific document (deprecated - returns empty)."""
     document = db.query(Document).filter(Document.id == document_id).first()
     if not document:
         raise HTTPException(
@@ -318,7 +318,45 @@ async def get_document_topics(
             detail="Document not found"
         )
     
-    return result_parser.get_topic_results_for_document(document_id, db)
+    # Topic summarization removed in criteria-focused system
+    return {}
+
+@router.get("/{document_id}/criteria")
+async def get_document_criteria(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get criteria evaluations for a specific document."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+    
+    from app.models.criteria_evaluation import CriteriaEvaluation
+    evaluations = db.query(CriteriaEvaluation).filter(
+        CriteriaEvaluation.document_id == document_id
+    ).all()
+    
+    criteria_data = {}
+    for eval_obj in evaluations:
+        criterion_name = eval_obj.criterion_name
+        if criterion_name not in criteria_data:
+            criteria_data[criterion_name] = []
+        
+        criteria_data[criterion_name].append({
+            "tissue_type": eval_obj.tissue_type.value,
+            "extracted_data": eval_obj.extracted_data,
+            "evaluation_result": eval_obj.evaluation_result.value,
+            "evaluation_reasoning": eval_obj.evaluation_reasoning
+        })
+    
+    return {
+        "document_id": document_id,
+        "criteria_evaluations": criteria_data
+    }
 
 @router.get("/{document_id}/components")
 async def get_document_components(
@@ -326,7 +364,7 @@ async def get_document_components(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get component results for a specific document."""
+    """Get component results for a specific document (deprecated - returns empty)."""
     document = db.query(Document).filter(Document.id == document_id).first()
     if not document:
         raise HTTPException(
@@ -334,7 +372,8 @@ async def get_document_components(
             detail="Document not found"
         )
     
-    return result_parser.get_component_results_for_document(document_id, db)
+    # Document components extraction removed in criteria-focused system
+    return {"initial_components": {}, "conditional_components": {}}
 
 @router.get("/{document_id}/sas-url")
 async def get_document_sas_url(

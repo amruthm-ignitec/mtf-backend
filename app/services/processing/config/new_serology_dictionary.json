@@ -34,12 +34,14 @@
   "HIV-1 Group M & O, HIV-2  RNA (PCR) NAT Detection": "HIV by a NAT method",
 
   "hiv ag/ab combo": "HIV Antibody/Antigen Combo",
+  "hiv-ag/ab combo": "HIV Antibody/Antigen Combo",
   "HIV Ag/Ab": "HIV Antibody/Antigen Combo",
   "hiv ag/ab combo, cmia method": "HIV Antibody/Antigen Combo",
   "hiv ag/ab combo (alinity)": "HIV Antibody/Antigen Combo",
   "hiv antibody/antigen": "HIV Antibody/Antigen Combo",
 
   "hbsag": "Hepatitis B Surface Antigen (HBsAg)",
+  "hbs antigen": "Hepatitis B Surface Antigen (HBsAg)",
   "ag hepat b surf": "Hepatitis B Surface Antigen (HBsAg)",
   "hbsag#": "Hepatitis B Surface Antigen (HBsAg)",
   "hbsag (alinity)": "Hepatitis B Surface Antigen (HBsAg)",
@@ -56,6 +58,7 @@
   "hepatitis b sag confirmatory assay": "Hepatitis B Surface Antigen (HBsAg)",
 
   "anti-hbc": "Hepatitis B Core Antibody - Total (HBcAb)",
+  "hbc antibody": "Hepatitis B Core Antibody - Total (HBcAb)",
   "hepatitis b core total ab": "Hepatitis B Core Antibody - Total (HBcAb)",
   "hepatitis b core total ab - automated": "Hepatitis B Core Antibody - Total (HBcAb)",
   "hepatitis bc ab (total)": "Hepatitis B Core Antibody - Total (HBcAb)",
@@ -93,6 +96,7 @@
   "HBV DNA (PCR) NAT Detection": "Hepatitis B - NAT",
   
   "hcv ab": "Hepatitis C Antibody (anti-HCV)",
+  "hcv ii antibody": "Hepatitis C Antibody (anti-HCV)",
   "anti-hcv": "Hepatitis C Antibody (anti-HCV)",
   "anti hcv": "Hepatitis C Antibody (anti-HCV)",
   "anti-hcv (alinity)": "Hepatitis C Antibody (anti-HCV)",
@@ -259,6 +263,7 @@
   "procleix wnv nat ids": "WNV-NAT",
 
   "toxo igg": "Toxoplasma IgG",
+  "toxo igg ii": "Toxoplasma IgG",
   "toxo ab igg": "Toxoplasma IgG",
   "toxoplasmosis igg": "Toxoplasma IgG",
   "anti-toxoplasma igg": "Toxoplasma IgG",
@@ -476,5 +481,12 @@
   "indeterminate": "Indeterminate",
   "borderline": "Borderline",
   "weakly positive": "Weakly Positive",
-  "weakly reactive": "Weakly Reactive"
+  "weakly reactive": "Weakly Reactive",
+
+  "glycosylated hgb": "Glycosylated Hemoglobin",
+  "glycosylated hemoglobin": "Glycosylated Hemoglobin",
+  "hba1c": "Glycosylated Hemoglobin",
+  "hemoglobin a1c": "Glycosylated Hemoglobin",
+  "hb a1c": "Glycosylated Hemoglobin",
+  "a1c": "Glycosylated Hemoglobin"
 }

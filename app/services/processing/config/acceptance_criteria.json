@@ -1,0 +1,1516 @@
+{
+  "Age": {
+    "required_tests": [],
+    "required_data_points": ["donor_age", "tissue_type", "gender"],
+    "evaluation_logic": "age_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "age >= 15 && age <= 75",
+        "result": "acceptable",
+        "note": "15 to 75 years inclusive up to 76th birthday"
+      },
+      {
+        "condition": "age >= 12 && age <= 70",
+        "result": "acceptable",
+        "note": "12 to 70 years inclusive"
+      },
+      {
+        "condition": "tissue_type == 'femur_with_proximal_soft_tissue' && age >= 12 && age <= 45 && pre_no_autopsy",
+        "result": "acceptable",
+        "note": "Femur with proximal soft tissue attachments"
+      },
+      {
+        "condition": "tissue_type == 'tendons_ligaments' && age >= 12 && age <= 70",
+        "result": "acceptable",
+        "note": "Tendons and Ligaments"
+      },
+      {
+        "condition": "tissue_type == 'sternum_costal_cartilage_ribs' && age >= 12 && age <= 60",
+        "result": "acceptable",
+        "note": "Sternum with Costal Cartilage and Ribs"
+      },
+      {
+        "condition": "tissue_type == 'pericardium' && age >= 12 && age <= 45 && pre_no_autopsy",
+        "result": "acceptable",
+        "note": "Pericardium"
+      },
+      {
+        "condition": "tissue_type == 'en_bloc_oa_grafts' && age >= 12 && age <= 40 && pre_autopsy",
+        "result": "acceptable",
+        "note": "en bloc and OA grafts"
+      }
+    ],
+    "skin_rules": [
+      {
+        "condition": "age >= 12 && age <= 70",
+        "result": "acceptable",
+        "note": "12 to 70 years inclusive"
+      }
+    ]
+  },
+  "Cancer": {
+    "required_tests": [],
+    "required_data_points": ["cancer_type", "diagnosis_date", "treatment", "recurrence", "time_since_death"],
+    "evaluation_logic": "cancer_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "malignancy_within_5_years",
+        "result": "unacceptable",
+        "note": "Exclude donors with a history of malignancy within 5 years of the time of death"
+      },
+      {
+        "condition": "cancer_type in ['basal_cell', 'squamous_cell'] && no_recurrence_6_months",
+        "result": "md_discretion",
+        "note": "Localized, treated basal or squamous cell carcinomas"
+      },
+      {
+        "condition": "cancer_type == 'cervical_intraepithelial_neoplasia'",
+        "result": "md_discretion",
+        "note": "Well-documented cervical intraepithelial neoplasia"
+      },
+      {
+        "condition": "cancer_type in ['breast', 'colon', 'melanoma', 'hematologic', 'unknown_primary', 'metastasizing_cns']",
+        "result": "unacceptable",
+        "note": "History of these malignancies regardless of time"
+      },
+      {
+        "condition": "cancer_type in ['pituitary_adenoma', 'optic_nerve_glioma', 'hemangioblastoma', 'schwannoma', 'neurofibroma', 'hamartoma', 'meningioma', 'colloid_cyst', 'dermoid_cyst', 'craniopharyngioma', 'lipoma'] && benign",
+        "result": "acceptable",
+        "note": "Benign brain neoplasms"
+      },
+      {
+        "condition": "cancer_type == 'skin_unknown' && requires_details",
+        "result": "md_discretion",
+        "note": "History of skin cancer of unknown type - requires detailed evaluation"
+      },
+      {
+        "condition": "radiation_or_chemotherapy_history",
+        "result": "md_discretion",
+        "note": "Past or present history of radiation, cryosurgery, or chemotherapy"
+      }
+    ],
+    "skin_rules": [
+      {
+        "condition": "malignancy_within_5_years",
+        "result": "unacceptable"
+      },
+      {
+        "condition": "cancer_type in ['basal_cell', 'squamous_cell'] && no_recurrence_6_months",
+        "result": "md_discretion"
+      },
+      {
+        "condition": "cancer_type in ['breast', 'colon', 'melanoma', 'hematologic', 'unknown_primary', 'metastasizing_cns']",
+        "result": "unacceptable"
+      }
+    ]
+  },
+  "HIV": {
+    "required_tests": ["HIV-1/HIV-2", "HIV-PCR", "HIV-1 NAT"],
+    "required_data_points": ["hiv_history", "hiv_exposure", "hiv_test_results", "needle_tracks"],
+    "evaluation_logic": "hiv_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "exposed_to_hiv_12_months",
+        "result": "unacceptable",
+        "note": "Exposed in preceding 12 months to known or suspected HIV, HBV, and/or HCV infected blood"
+      },
+      {
+        "condition": "sexual_relations_with_exposed_12_months",
+        "result": "md_discretion",
+        "note": "Sexual relations with such an individual within preceding 12 months"
+      },
+      {
+        "condition": "test_result_positive && test_name in ['HIV-1/HIV-2', 'HIV-PCR', 'HIV-1 NAT']",
+        "result": "unacceptable",
+        "note": "Repeatedly reactive or positive test results"
+      },
+      {
+        "condition": "previously_tested_negative",
+        "result": "md_discretion",
+        "note": "Previously tested and found to be negative - obtain details"
+      }
+    ]
+  },
+  "HIV/AIDS": {
+    "required_tests": ["HIV-1/HIV-2"],
+    "required_data_points": ["aids_diagnosis", "hiv_infection", "positive_test", "needle_tracks", "iv_drug_abuse_signs"],
+    "evaluation_logic": "hiv_aids_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "aids_diagnosed || hiv_infected || positive_test || needle_tracks || iv_drug_abuse",
+        "result": "unacceptable",
+        "note": "Diagnosed ever with AIDS or been told they have been infected with HIV virus"
+      }
+    ]
+  },
+  "Hepatitis": {
+    "required_tests": ["Hepatitis B Surface Antigen", "Hepatitis B Core Antibody", "HBV-NAT", "Hepatitis C Antibody", "HCV-NAT"],
+    "required_data_points": ["hepatitis_history", "hepatitis_contact", "liver_disease_symptoms", "hepatitis_treatment"],
+    "evaluation_logic": "hepatitis_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "resided_with_hepatitis_person_12_months",
+        "result": "unacceptable",
+        "note": "Resided in same dwelling with another person in preceding 12 months who has hepatitis B or active hepatitis C infection"
+      },
+      {
+        "condition": "hepatitis_c_treated_cured",
+        "result": "acceptable",
+        "note": "History of hepatitis C infection treated with directly acting antivirals and deemed to be cured"
+      },
+      {
+        "condition": "contact_with_jaundice_liver_disease_dialysis",
+        "result": "md_discretion",
+        "note": "Contact with a person(s) having jaundice, liver disease or on a kidney dialysis machine"
+      },
+      {
+        "condition": "unexplained_liver_disease_symptoms",
+        "result": "unacceptable",
+        "note": "Clinical signs and symptoms of unexplained or undiagnosed liver disease"
+      },
+      {
+        "condition": "test_result_positive && test_name in ['HBsAg', 'anti-HBc', 'anti-HCV', 'HCV-NAT', 'HBV-NAT']",
+        "result": "unacceptable",
+        "note": "Positive (reactive) blood test for hepatitis"
+      },
+      {
+        "condition": "active_hepatitis_diagnosis",
+        "result": "unacceptable",
+        "note": "Current diagnosis of active hepatitis A, B, C, or non-A, non-B hepatitis infection"
+      },
+      {
+        "condition": "inactive_hepatitis_c",
+        "result": "md_discretion",
+        "note": "Clinically inactive (asymptomatic) hepatitis C infection"
+      },
+      {
+        "condition": "hepatitis_b_vaccine || hbsab_positive",
+        "result": "acceptable",
+        "note": "Receipt of hepatitis B vaccine or have tested positive for hepatitis B surface antibody"
+      },
+      {
+        "condition": "symptomatic_viral_hepatitis_after_11 && not_hepatitis_a_ebv_cmv",
+        "result": "md_discretion",
+        "note": "Past diagnosis of clinical, symptomatic viral hepatitis after 11th birthday"
+      }
+    ]
+  },
+  "Sepsis": {
+    "required_tests": ["Blood Culture"],
+    "required_data_points": ["sepsis_diagnosis", "sepsis_symptoms", "blood_culture_results", "sepsis_types"],
+    "evaluation_logic": "sepsis_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "sepsis_diagnosed || bacteremia || septicemia || sepsis_syndrome || systemic_infection || septic_shock",
+        "result": "unacceptable",
+        "note": "Documented medical diagnosis of sepsis or clinical evidence consistent with diagnosis of sepsis"
+      },
+      {
+        "condition": "uncertainty_regarding_sepsis",
+        "result": "md_discretion",
+        "note": "Uncertainty regarding physical findings regarding sepsis or significant active infection"
+      }
+    ]
+  },
+  "Septicemia": {
+    "required_tests": ["Blood Culture"],
+    "required_data_points": ["septicemia_evidence", "blood_culture_results", "contamination_possibility"],
+    "evaluation_logic": "septicemia_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "septicemia_evidence || positive_blood_culture",
+        "result": "unacceptable",
+        "note": "Evidence or medical diagnosis including positive blood cultures indicative of septicemia"
+      },
+      {
+        "condition": "positive_blood_culture_contamination",
+        "result": "md_discretion",
+        "note": "Positive blood culture results that suggest potential contamination during testing"
+      }
+    ]
+  },
+  "Tuberculosis": {
+    "required_tests": [],
+    "required_data_points": ["tb_diagnosis", "tb_symptoms", "tb_test_results", "tb_exposure", "tb_treatment"],
+    "evaluation_logic": "tuberculosis_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "tb_diagnosis || tb_symptoms_history",
+        "result": "unacceptable",
+        "note": "Diagnosis or history of symptoms associated with TB regardless of present health status"
+      },
+      {
+        "condition": "tb_skin_test_positive && no_diagnosis && no_symptoms",
+        "result": "md_discretion",
+        "note": "Positive TB skin test or prophylactic treatment for possible exposure for TB but have never been diagnosed with or had any symptoms"
+      },
+      {
+        "condition": "active_tb_infection",
+        "result": "unacceptable",
+        "note": "Evidence of significant active infections"
+      }
+    ]
+  },
+  "High Risk Behavior": {
+    "required_tests": [],
+    "required_data_points": ["sex_for_money_drugs_12_months", "female_male_partner_msm_5_years", "sex_with_iv_drug_user_12_months", "sex_with_hiv_hepatitis_12_months", "sex_for_money_drugs_5_years", "male_msm_5_years", "iv_drug_use_5_years", "iv_drug_use_more_than_5_years"],
+    "evaluation_logic": "high_risk_behavior_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "sex_for_money_drugs_12_months || female_male_partner_msm_5_years || sex_with_iv_drug_user_12_months || sex_with_hiv_hepatitis_12_months",
+        "result": "unacceptable",
+        "note": "Donors in the preceding 12 months with high risk behaviors"
+      },
+      {
+        "condition": "sex_for_money_drugs_5_years || male_msm_5_years || iv_drug_use_5_years",
+        "result": "unacceptable",
+        "note": "Donors in the past 5 years with high risk behaviors"
+      },
+      {
+        "condition": "iv_drug_use_more_than_5_years",
+        "result": "md_discretion",
+        "note": "Injected drugs for non-medical reason more than five years ago"
+      }
+    ]
+  },
+  "Intravenous (IV) drug use or non-medical percutaneous drug use": {
+    "required_tests": [],
+    "required_data_points": ["iv_drug_use_5_years", "iv_drug_use_more_than_5_years", "drug_type", "route", "duration"],
+    "evaluation_logic": "iv_drug_use_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "iv_drug_use_5_years",
+        "result": "unacceptable",
+        "note": "Injected drugs for non-medical reason in preceding five years"
+      },
+      {
+        "condition": "iv_drug_use_more_than_5_years",
+        "result": "md_discretion",
+        "note": "Injected drugs for non-medical reason more than five years ago"
+      }
+    ]
+  },
+  "Incarceration": {
+    "required_tests": [],
+    "required_data_points": ["incarceration_72_hours_12_months", "incarceration_1_year", "incarceration_length", "incarceration_circumstances"],
+    "evaluation_logic": "incarceration_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "incarceration_72_hours_12_months",
+        "result": "unacceptable",
+        "note": "Incarcerated for more than 72 consecutive hours in preceding 12 months"
+      },
+      {
+        "condition": "incarceration_1_year",
+        "result": "md_discretion",
+        "note": "Incarcerated, within one year prior to death"
+      }
+    ]
+  },
+  "Autoimmune diseases": {
+    "required_tests": [],
+    "required_data_points": ["autoimmune_disease_type", "skin_manifestations"],
+    "evaluation_logic": "autoimmune_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "autoimmune_type in ['polyarteritis_nodosa', 'sarcoidosis', 'progressive_systemic_sclerosis']",
+        "result": "unacceptable",
+        "note": "History of these autoimmune diseases"
+      },
+      {
+        "condition": "autoimmune_type in ['rheumatoid_arthritis', 'systemic_lupus_erythematosus', 'polymyositis', 'sjogren_syndrome', 'ankylosing_spondylitis', 'psoriatic_arthritis', 'reiters_syndrome']",
+        "result": "unacceptable",
+        "note": "History of these autoimmune diseases"
+      }
+    ],
+    "skin_rules": [
+      {
+        "condition": "autoimmune_type in ['polyarteritis_nodosa', 'sarcoidosis', 'progressive_systemic_sclerosis']",
+        "result": "unacceptable"
+      },
+      {
+        "condition": "autoimmune_type in ['rheumatoid_arthritis', 'systemic_lupus_erythematosus', 'polymyositis', 'sjogren_syndrome', 'ankylosing_spondylitis', 'psoriatic_arthritis', 'reiters_syndrome'] && no_skin_manifestations",
+        "result": "md_discretion",
+        "note": "May be acceptable if no skin manifestations are present"
+      }
+    ]
+  },
+  "Dementia": {
+    "required_tests": [],
+    "required_data_points": ["dementia_diagnosis", "dementia_etiology", "tse_evidence"],
+    "evaluation_logic": "dementia_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "dementia_unknown_etiology || memory_loss_unknown_etiology",
+        "result": "unacceptable",
+        "note": "Diagnosis of neurological or demyelinating diseases of unknown etiology"
+      },
+      {
+        "condition": "dementia_caused_by_cva_brain_tumor_trauma_toxic && no_tse_evidence",
+        "result": "md_discretion",
+        "note": "Confirmed diagnosis caused by CVA, brain tumor, head trauma, or toxic/metabolic dementia"
+      }
+    ]
+  },
+  "Syphilis": {
+    "required_tests": ["Syphilis"],
+    "required_data_points": ["syphilis_test_results"],
+    "evaluation_logic": "syphilis_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "test_result_positive && test_name == 'Syphilis'",
+        "result": "unacceptable",
+        "note": "Repeatedly reactive or positive test results"
+      }
+    ]
+  },
+  "HTLV I/II": {
+    "required_tests": ["HTLV I/II"],
+    "required_data_points": ["htlv_test_results"],
+    "evaluation_logic": "htlv_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "test_result_positive && test_name == 'HTLV I/II'",
+        "result": "unacceptable",
+        "note": "Repeatedly reactive or positive test results"
+      }
+    ]
+  },
+  "West Nile Virus": {
+    "required_tests": ["West Nile Virus"],
+    "required_data_points": ["wnv_diagnosis", "wnv_test_results", "wnv_onset_date"],
+    "evaluation_logic": "west_nile_virus_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "wnv_diagnosis && days_since_diagnosis_or_onset <= 120",
+        "result": "unacceptable",
+        "note": "Medical diagnosis or suspicion of WNV infection for 120 days following diagnosis or onset"
+      },
+      {
+        "condition": "test_result_positive && test_name == 'West Nile Virus' && days_since_test <= 120",
+        "result": "unacceptable",
+        "note": "Positive or reactive test for WNV infection in preceding 120 days"
+      }
+    ]
+  },
+  "Infection": {
+    "required_tests": [],
+    "required_data_points": ["active_infection", "infection_type", "infection_location", "meningitis_encephalitis", "meningitis_resolved"],
+    "evaluation_logic": "infection_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "significant_active_infection",
+        "result": "unacceptable",
+        "note": "Diagnosis of significant active infections"
+      },
+      {
+        "condition": "active_bacterial_viral_meningitis_encephalitis",
+        "result": "unacceptable",
+        "note": "Active bacterial or viral meningitis or encephalitis"
+      },
+      {
+        "condition": "meningitis_resolved_6_months",
+        "result": "acceptable",
+        "note": "Meningitis infection that has been resolved and clinical symptoms have not recurred within past six months"
+      },
+      {
+        "condition": "herpes_zoster_inactive_healed",
+        "result": "acceptable",
+        "note": "Herpes zoster (inactive or healed)"
+      }
+    ],
+    "skin_rules": [
+      {
+        "condition": "sores_cutaneous_infection_breakdown",
+        "result": "unacceptable",
+        "note": "Sores and/or sites of cutaneous infection and/or breakdown"
+      },
+      {
+        "condition": "significant_active_infection",
+        "result": "unacceptable"
+      },
+      {
+        "condition": "herpes_zoster_inactive_healed",
+        "result": "acceptable"
+      }
+    ]
+  },
+  "Cooling": {
+    "required_tests": [],
+    "required_data_points": ["cooling_time", "cardiac_death_time", "skin_prep_time"],
+    "evaluation_logic": "cooling_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "cooled_within_12_hours && skin_prep_within_24_hours",
+        "result": "acceptable",
+        "note": "Body has been cooled within 12 hours of cardiac death, skin prep shall begin within 24 hours of death"
+      },
+      {
+        "condition": "not_cooled_within_12_hours && skin_prep_within_15_hours",
+        "result": "acceptable",
+        "note": "Body has not been cooled within 12 hours of cardiac death, skin prep shall begin within 15 hours of death"
+      },
+      {
+        "condition": "cooled_then_not_cooled && not_cooled_time <= 15_hours_cumulative",
+        "result": "acceptable",
+        "note": "Body is cooled for a period of time then not cooled for a period of time; the time period the body is not cooled cannot exceed 15 cumulative hours"
+      }
+    ]
+  },
+  "Autopsy": {
+    "required_tests": [],
+    "required_data_points": ["autopsy_performed", "autopsy_type", "tissue_type"],
+    "evaluation_logic": "autopsy_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "tissue_type == 'en_bloc_oa_grafts' && autopsy_not_limited",
+        "result": "md_discretion",
+        "note": "No En bloc and OA grafts unless autopsy is limited (head only, toxicology only)"
+      }
+    ],
+    "skin_rules": [
+      {
+        "condition": "autopsy_performed",
+        "result": "acceptable",
+        "note": "Autopsy is acceptable for skin"
+      }
+    ]
+  },
+  "Toxicology": {
+    "required_tests": [],
+    "required_data_points": ["toxicology_performed", "toxicology_results"],
+    "evaluation_logic": "toxicology_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "toxicology_positive",
+        "result": "md_discretion",
+        "note": "Positive screen or test"
+      }
+    ]
+  },
+  "Bleeding Disorder (ie Hemophillia)": {
+    "required_tests": [],
+    "required_data_points": ["hemophilia_diagnosis", "clotting_factor_concentrates", "receipt_date"],
+    "evaluation_logic": "bleeding_disorder_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "clotting_factor_concentrates_more_than_5_years_ago",
+        "result": "md_discretion",
+        "note": "Receipt of human-derived clotting factor concentrates more than 5 years ago"
+      }
+    ]
+  },
+  "Bone Disease": {
+    "required_tests": [],
+    "required_data_points": ["bone_disease_type", "bone_disease_history"],
+    "evaluation_logic": "bone_disease_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "bone_disease_type in ['osteomalacia', 'metabolic_bone_disease', 'osteoporosis']",
+        "result": "unacceptable",
+        "note": "History of diseases of the bone"
+      },
+      {
+        "condition": "bone_disease_type == 'osteoarthritis' || bone_disease_type == 'overuse'",
+        "result": "acceptable",
+        "note": "Stiff and sore joints caused by osteoarthritis, overuse, etc."
+      }
+    ],
+    "skin_rules": [
+      {
+        "condition": "bone_disease_type == 'osteoarthritis' || bone_disease_type == 'overuse'",
+        "result": "acceptable"
+      }
+    ]
+  },
+  "Bowel Perforation": {
+    "required_tests": [],
+    "required_data_points": ["bowel_perforation_occurred", "perforation_during_dissection", "tissue_separating", "post_autopsy"],
+    "evaluation_logic": "bowel_perforation_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "perforation_during_dissection || bowel_contents_observed",
+        "result": "unacceptable",
+        "note": "If known to have occurred during dissection or observation of bowel contents"
+      },
+      {
+        "condition": "post_autopsy && tissue_separating_hemipelvis",
+        "result": "acceptable",
+        "note": "In post-autopsy cases, if there is tissue separating the hemi-pelvis from abdominal cavity"
+      }
+    ],
+    "skin_rules": []
+  },
+  "Chagas disease": {
+    "required_tests": [],
+    "required_data_points": ["chagas_diagnosis", "chagas_treatment", "treatment_date"],
+    "evaluation_logic": "chagas_disease_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "chagas_treated_within_3_years",
+        "result": "unacceptable",
+        "note": "Donors treated for trypanosoma cruzi within past 3 years"
+      }
+    ]
+  },
+  "Chicken Pox": {
+    "required_tests": [],
+    "required_data_points": ["chicken_pox_active", "chicken_pox_evidence"],
+    "evaluation_logic": "chicken_pox_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "significant_active_infection",
+        "result": "unacceptable",
+        "note": "Evidence of significant active infections"
+      }
+    ]
+  },
+  "Contamination": {
+    "required_tests": [],
+    "required_data_points": ["tissue_dropped_outside_sterile_field"],
+    "evaluation_logic": "contamination_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "tissue_dropped_outside_sterile_field",
+        "result": "unacceptable",
+        "note": "Tissue dropped outside sterile field shall be returned to body at end of case"
+      }
+    ]
+  },
+  "COVID": {
+    "required_tests": [],
+    "required_data_points": ["covid_symptoms", "covid_risk_factors"],
+    "evaluation_logic": "covid_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "covid_symptoms || covid_risk_factors",
+        "result": "md_discretion",
+        "note": "Donors with clinical symptoms or risk factors"
+      }
+    ]
+  },
+  "Creutzfeldt-Jakob disease": {
+    "required_tests": [],
+    "required_data_points": ["cjd_diagnosis", "cjd_family_history", "dura_mater_transplant", "pituitary_growth_hormone", "gene_sequencing"],
+    "evaluation_logic": "creutzfeldt_jakob_disease_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "cjd_diagnosis || cjd_family_history_non_iatrogenic",
+        "result": "unacceptable",
+        "note": "Diagnosis of CJD or history of non-iatrogenic CJD in a blood relative"
+      },
+      {
+        "condition": "dura_mater_transplant || pituitary_growth_hormone || cjd_blood_relatives",
+        "result": "unacceptable",
+        "note": "Donors with increased risk"
+      },
+      {
+        "condition": "gene_sequencing_no_mutation",
+        "result": "acceptable",
+        "note": "Laboratory testing shows no mutation associated with familial CJD"
+      }
+    ]
+  },
+  "Delirium": {
+    "required_tests": [],
+    "required_data_points": ["delirium_diagnosis", "delirium_cause"],
+    "evaluation_logic": "delirium_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "delirium_caused_by_toxic_metabolic || delirium_caused_by_head_trauma",
+        "result": "md_discretion",
+        "note": "Diagnosis caused by toxic/metabolic diseases or recent head trauma should be evaluated"
+      }
+    ]
+  },
+  "Diabetes": {
+    "required_tests": [],
+    "required_data_points": ["diabetes_amputation", "diabetic_foot_ulcer", "osteomyelitis", "surgery_resolution_date"],
+    "evaluation_logic": "diabetes_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "amputation_diabetic_foot_ulcer_osteomyelitis && surgery_resolution_greater_than_12_months",
+        "result": "md_discretion",
+        "note": "Amputation for diabetic foot ulcer with underlying osteomyelitis if surgery and resolution is greater than 12 months"
+      }
+    ]
+  },
+  "Drowning": {
+    "required_tests": [],
+    "required_data_points": ["drowning_occurred", "water_type", "time_in_water", "resuscitation_success", "survival_length", "infection_sepsis_signs"],
+    "evaluation_logic": "drowning_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [],
+    "skin_rules": [
+      {
+        "condition": "drowning_occurred",
+        "result": "md_discretion",
+        "note": "Evaluated on a case-by-case basis for skin donors"
+      }
+    ]
+  },
+  "Encephalitis": {
+    "required_tests": [],
+    "required_data_points": ["encephalitis_history"],
+    "evaluation_logic": "encephalitis_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "encephalitis_current || encephalitis_past",
+        "result": "unacceptable",
+        "note": "Current or past history"
+      }
+    ]
+  },
+  "Fracture": {
+    "required_tests": [],
+    "required_data_points": ["fracture_type", "fracture_location"],
+    "evaluation_logic": "fracture_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "fracture_type == 'open'",
+        "result": "acceptable",
+        "note": "Open fractures shall be draped out of operative field and tissues involved shall not be recovered"
+      },
+      {
+        "condition": "fracture_type == 'simple_closed'",
+        "result": "acceptable",
+        "note": "Simple closed fractures should be recovered last but prior to the hemi-pelvis"
+      }
+    ],
+    "skin_rules": []
+  },
+  "Gout": {
+    "required_tests": [],
+    "required_data_points": ["gout_diagnosis_date", "gout_treatment", "gout_current_status", "gout_affected_joints", "acute_gout"],
+    "evaluation_logic": "gout_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "acute_gout",
+        "result": "md_discretion",
+        "note": "Acute gout will necessitate exclusion of musculoskeletal soft tissues and fresh soft tissue grafts"
+      },
+      {
+        "condition": "gout_diagnosis",
+        "result": "md_discretion",
+        "note": "Obtain details: when diagnosed, how treated, current status, which joints affected"
+      }
+    ]
+  },
+  "Growth Hormone": {
+    "required_tests": [],
+    "required_data_points": ["growth_hormone_type", "growth_hormone_receipt"],
+    "evaluation_logic": "growth_hormone_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "human_pituitary_growth_hormone",
+        "result": "unacceptable",
+        "note": "Receipt of human pituitary-derived growth hormone (pit-hGH)"
+      },
+      {
+        "condition": "recombinant_growth_hormone",
+        "result": "acceptable",
+        "note": "Receipt of recombinant growth hormone"
+      }
+    ]
+  },
+  "Guillain-Barré syndrome": {
+    "required_tests": [],
+    "required_data_points": ["guillain_barre_history", "guillain_barre_treatment", "guillain_barre_recovery", "guillain_barre_recurrence"],
+    "evaluation_logic": "guillain_barre_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "guillain_barre_past_history && medically_treated && full_recovery && no_recurrence",
+        "result": "md_discretion",
+        "note": "Well-documented, past history that was medically treated with full recovery and no recurrence"
+      }
+    ]
+  },
+  "Hemodialysis": {
+    "required_tests": [],
+    "required_data_points": ["hemodialysis_type", "hemodialysis_duration", "hemodialysis_reason"],
+    "evaluation_logic": "hemodialysis_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "short_term_hemodialysis_acute_renal_failure",
+        "result": "md_discretion",
+        "note": "Short term hemodialysis for acute renal failure prior to death"
+      },
+      {
+        "condition": "long_term_hemodialysis_chronic_kidney_failure",
+        "result": "unacceptable",
+        "note": "History of long-term hemodialysis for treatment of chronic kidney failure"
+      }
+    ]
+  },
+  "Herpes II (genital herpes)": {
+    "required_tests": [],
+    "required_data_points": ["herpes_ii_active", "herpes_ii_evidence"],
+    "evaluation_logic": "herpes_ii_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "significant_active_infection",
+        "result": "unacceptable",
+        "note": "Evidence of significant active infections"
+      }
+    ]
+  },
+  "High Risk Non-IV Related Drug Use": {
+    "required_tests": [],
+    "required_data_points": ["non_iv_drug_use", "drug_type", "route_administration", "source", "length_of_use", "current_use", "reliability_social_history", "health_physical_status", "cause_of_death", "circumstances_death", "sexual_activity", "toxicology_results"],
+    "evaluation_logic": "high_risk_non_iv_drug_use_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "non_iv_drug_use",
+        "result": "md_discretion",
+        "note": "Past or present history of illegal use of drugs or drug addiction - factors in determining donor suitability"
+      }
+    ]
+  },
+  "HIV Group O": {
+    "required_tests": [],
+    "required_data_points": ["hiv_group_o_risk", "africa_countries_birth", "africa_countries_residence", "africa_blood_transfusion", "africa_medical_treatment"],
+    "evaluation_logic": "hiv_group_o_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "born_lived_africa_countries || sexual_partner_africa_countries",
+        "result": "unacceptable",
+        "note": "Donors or their sexual partners who were born or lived in certain countries of Africa"
+      },
+      {
+        "condition": "blood_transfusion_africa || medical_treatment_africa",
+        "result": "unacceptable",
+        "note": "Receipt of a blood transfusion or any medical treatment that involved blood in countries of Africa"
+      }
+    ]
+  },
+  "HIV/Hepatitis": {
+    "required_tests": [],
+    "required_data_points": ["medications_unknown_reason", "aids_prophylactic_treatment", "hepatitis_prophylactic_treatment"],
+    "evaluation_logic": "hiv_hepatitis_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "medications_unknown_reason || aids_prophylactic_treatment || hepatitis_prophylactic_treatment",
+        "result": "unacceptable",
+        "note": "Medication(s) taken for unknown reason or treatment or prophylactic treatment of AIDS or hepatitis B or C"
+      }
+    ]
+  },
+  "HIV/Hepatitis/active relevant communicable disease": {
+    "required_tests": [],
+    "required_data_points": ["physical_evidence_hiv", "physical_evidence_hepatitis", "physical_evidence_communicable_disease"],
+    "evaluation_logic": "hiv_hepatitis_communicable_disease_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "physical_evidence_hiv || physical_evidence_hepatitis || physical_evidence_communicable_disease",
+        "result": "unacceptable",
+        "note": "Physical evidence of conditions or physical characteristics of HIV infection (AIDS), hepatitis or active relevant communicable diseases"
+      }
+    ]
+  },
+  "Immunizations": {
+    "required_tests": [],
+    "required_data_points": ["immunization_type", "immunization_date", "live_virus_vaccine"],
+    "evaluation_logic": "immunizations_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "live_virus_vaccine && four_weeks_since_last_dose",
+        "result": "acceptable",
+        "note": "Donors are acceptable four weeks after the last dose for vaccinations that contain live virus"
+      },
+      {
+        "condition": "live_attenuated_virus_vaccine",
+        "result": "acceptable",
+        "note": "Receipt of vaccines of live, attenuated virus if they meet all other donor criteria"
+      }
+    ]
+  },
+  "Jaundice": {
+    "required_tests": [],
+    "required_data_points": ["jaundice_areas", "jaundice_history", "jaundice_cause"],
+    "evaluation_logic": "jaundice_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "jaundice_unexplained_undiagnosed && not_drugs_mononucleosis_bile_duct",
+        "result": "md_discretion",
+        "note": "History or symptoms of unexplained or undiagnosed jaundice"
+      }
+    ],
+    "skin_rules": [
+      {
+        "condition": "jaundice_areas",
+        "result": "unacceptable",
+        "note": "Skin shall not be recovered from areas with jaundice"
+      },
+      {
+        "condition": "jaundice_unexplained_undiagnosed && not_drugs_mononucleosis_bile_duct",
+        "result": "md_discretion"
+      }
+    ]
+  },
+  "Leprosy": {
+    "required_tests": [],
+    "required_data_points": ["leprosy_history"],
+    "evaluation_logic": "leprosy_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "leprosy_current || leprosy_past",
+        "result": "unacceptable",
+        "note": "Current or past history"
+      }
+    ]
+  },
+  "Liver disease": {
+    "required_tests": [],
+    "required_data_points": ["liver_disease_symptoms", "liver_disease_unexplained"],
+    "evaluation_logic": "liver_disease_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "unexplained_liver_disease_symptoms",
+        "result": "unacceptable",
+        "note": "Clinical signs and symptoms of unexplained or undiagnosed liver disease, hepatosplenomegaly"
+      }
+    ]
+  },
+  "Long Term Illness": {
+    "required_tests": [],
+    "required_data_points": ["long_term_illness", "genetic_defects", "chronic_debilitating_disease", "disease_etiology", "disease_history", "treatment_medications", "general_health", "activity_level", "secondary_infections"],
+    "evaluation_logic": "long_term_illness_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "long_term_illness",
+        "result": "md_discretion",
+        "note": "Illness involving genetic defects, chronic debilitating disease, as well as diseases of unknown/unclear etiologies"
+      }
+    ]
+  },
+  "Long Term Steroid therapy": {
+    "required_tests": [],
+    "required_data_points": ["steroid_therapy", "steroid_duration", "steroid_reason"],
+    "evaluation_logic": "long_term_steroid_therapy_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "long_term_steroid_therapy",
+        "result": "md_discretion",
+        "note": "Possible indication of illnesses or conditions that would exclude tissue donation"
+      }
+    ]
+  },
+  "long-term (more than 3 months) bacterial, fungal, viral infections, or diseases of unknown origin": {
+    "required_tests": [],
+    "required_data_points": ["long_term_infection", "infection_duration", "infection_type"],
+    "evaluation_logic": "long_term_infection_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "long_term_infection_current",
+        "result": "unacceptable",
+        "note": "Current history"
+      }
+    ]
+  },
+  "Lou Gehrig's disease (ALS)": {
+    "required_tests": [],
+    "required_data_points": ["als_history"],
+    "evaluation_logic": "lou_gehrig_disease_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "als_current || als_past",
+        "result": "unacceptable",
+        "note": "Current or past history"
+      }
+    ]
+  },
+  "Malaria": {
+    "required_tests": [],
+    "required_data_points": ["malaria_residence", "malaria_treatment", "malaria_travel", "malaria_prophylaxis"],
+    "evaluation_logic": "malaria_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "malaria_resident_arrived_us_3_years",
+        "result": "unacceptable",
+        "note": "Residents of malarial areas who arrived in the U.S. within 3 years"
+      },
+      {
+        "condition": "malaria_treated_within_3_years",
+        "result": "unacceptable",
+        "note": "Treated for malaria within past three years"
+      },
+      {
+        "condition": "malaria_travel_6_months_no_prophylaxis",
+        "result": "unacceptable",
+        "note": "Visited endemic malarial areas in past six months and did not take anti-malarial drugs for prophylaxis"
+      }
+    ]
+  },
+  "Measles": {
+    "required_tests": [],
+    "required_data_points": ["measles_active", "measles_evidence"],
+    "evaluation_logic": "measles_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "significant_active_infection",
+        "result": "unacceptable",
+        "note": "Evidence of significant active infections"
+      }
+    ]
+  },
+  "Meningitis": {
+    "required_tests": [],
+    "required_data_points": ["meningitis_active", "meningitis_evidence"],
+    "evaluation_logic": "meningitis_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "significant_active_infection",
+        "result": "unacceptable",
+        "note": "Evidence of significant active infections"
+      }
+    ]
+  },
+  "Multiple Sclerosis (MS)": {
+    "required_tests": [],
+    "required_data_points": ["ms_history"],
+    "evaluation_logic": "multiple_sclerosis_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "ms_current || ms_past",
+        "result": "unacceptable",
+        "note": "Current or past history"
+      }
+    ]
+  },
+  "Mumps": {
+    "required_tests": [],
+    "required_data_points": ["mumps_active", "mumps_evidence"],
+    "evaluation_logic": "mumps_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "significant_active_infection",
+        "result": "unacceptable",
+        "note": "Evidence of significant active infections"
+      }
+    ]
+  },
+  "Muscular dystrophy": {
+    "required_tests": [],
+    "required_data_points": ["muscular_dystrophy_details"],
+    "evaluation_logic": "muscular_dystrophy_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "muscular_dystrophy",
+        "result": "md_discretion",
+        "note": "Obtain as many details as possible"
+      }
+    ]
+  },
+  "Needle Stick": {
+    "required_tests": [],
+    "required_data_points": ["needle_stick_exposure", "needle_stick_12_months", "sexual_relations_exposed_person"],
+    "evaluation_logic": "needle_stick_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "exposed_12_months_hiv_hbv_hcv",
+        "result": "unacceptable",
+        "note": "Exposed in preceding 12 months to known or suspected HIV, HBV, and/or HCV infected blood"
+      },
+      {
+        "condition": "sexual_relations_exposed_person_12_months",
+        "result": "md_discretion",
+        "note": "Donor had sexual relations with a person who has been exposed in preceding 12 months"
+      }
+    ]
+  },
+  "Non-tumor Related Shunts": {
+    "required_tests": [],
+    "required_data_points": ["shunt_length_time", "shunt_infections", "shunt_complications"],
+    "evaluation_logic": "non_tumor_related_shunts_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "non_tumor_related_shunts",
+        "result": "md_discretion",
+        "note": "Obtain the following information: length of time patient was shunted, history of recent/current secondary infections and complications"
+      }
+    ]
+  },
+  "Osteomyelitis": {
+    "required_tests": [],
+    "required_data_points": ["osteomyelitis_history", "osteomyelitis_age", "osteomyelitis_gender", "osteomyelitis_treatment", "osteomyelitis_affected_limb"],
+    "evaluation_logic": "osteomyelitis_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "osteomyelitis_past_history && prior_age_12_females && prior_age_14_males && no_treatment_10_years",
+        "result": "acceptable",
+        "note": "Adult donors with a past history prior to age 12 years in females or 14 years in males, without further treatment during the ten years post incident"
+      },
+      {
+        "condition": "osteomyelitis_other_history",
+        "result": "unacceptable",
+        "note": "Any other osteomyelitis history is an exclusion for all musculoskeletal tissues"
+      }
+    ],
+    "skin_rules": [
+      {
+        "condition": "osteomyelitis_past_history && prior_age_12_females && prior_age_14_males && no_treatment_10_years",
+        "result": "acceptable"
+      }
+    ]
+  },
+  "Perianal condyloma": {
+    "required_tests": [],
+    "required_data_points": ["perianal_condyloma", "anal_intercourse_evidence"],
+    "evaluation_logic": "perianal_condyloma_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "male_donor && anal_intercourse_evidence",
+        "result": "unacceptable",
+        "note": "Male donors with evidence of anal intercourse"
+      }
+    ]
+  },
+  "Genitalia Piercing": {
+    "required_tests": [],
+    "required_data_points": ["genitalia_piercing"],
+    "evaluation_logic": "genitalia_piercing_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "genitalia_piercing",
+        "result": "md_discretion",
+        "note": "Genitalia piercing(s) will be evaluated case by case"
+      }
+    ]
+  },
+  "Piercing/acupuncture": {
+    "required_tests": [],
+    "required_data_points": ["piercing_acupuncture", "shared_instruments", "piercing_location", "piercing_date"],
+    "evaluation_logic": "piercing_acupuncture_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "shared_instruments_12_months",
+        "result": "unacceptable",
+        "note": "Acupuncture, ear or body piercing in which shared instruments are known to have been used within 12 months prior to donation"
+      },
+      {
+        "condition": "piercing_acupuncture_outside_us_canada_12_months",
+        "result": "unacceptable",
+        "note": "Piercing(s) and/or acupuncture done outside of the US or Canada within the preceding 12 months"
+      }
+    ]
+  },
+  "Prosthetic Implants": {
+    "required_tests": [],
+    "required_data_points": ["prosthetic_implants", "implant_location"],
+    "evaluation_logic": "prosthetic_implants_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "prosthetic_implants",
+        "result": "md_discretion",
+        "note": "Bone with implants may be recovered. Bone and soft tissue may be cut below or above, and prosthetic device left in situ"
+      }
+    ],
+    "skin_rules": []
+  },
+  "Rabies": {
+    "required_tests": [],
+    "required_data_points": ["rabies_bite_scratch", "rabies_suspected", "rabies_vaccine", "rabies_vaccine_date"],
+    "evaluation_logic": "rabies_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "bitten_scratched_suspected_rabies_6_months",
+        "result": "unacceptable",
+        "note": "Bitten and/or scratched by an animal suspected to be infected within past six months"
+      },
+      {
+        "condition": "suspected_rabies",
+        "result": "unacceptable",
+        "note": "Suspected rabies"
+      },
+      {
+        "condition": "rabies_vaccine_after_bite && one_year_after_last_shot",
+        "result": "acceptable",
+        "note": "Receipt of rabies vaccine after bite from rabid animal one year after last shot"
+      }
+    ]
+  },
+  "Refused as blood donor": {
+    "required_tests": [],
+    "required_data_points": ["blood_donor_deferred", "deferral_reason"],
+    "evaluation_logic": "refused_blood_donor_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "deferred_unknown_reasons || deferred_diseases_infections || deferred_positive_serologic",
+        "result": "unacceptable",
+        "note": "Deferred for unknown reasons or for history of diseases, infections, or positive serologic testing results"
+      },
+      {
+        "condition": "deferred_other_circumstances",
+        "result": "md_discretion",
+        "note": "Deferred as blood donor due to other circumstances not considered an exclusion for tissue donation"
+      }
+    ]
+  },
+  "Reye's Syndrome": {
+    "required_tests": [],
+    "required_data_points": ["reyes_syndrome_history"],
+    "evaluation_logic": "reyes_syndrome_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "reyes_syndrome_past || reyes_syndrome_current",
+        "result": "unacceptable",
+        "note": "Past or current medical history"
+      }
+    ]
+  },
+  "Rheumatic Fever": {
+    "required_tests": [],
+    "required_data_points": ["rheumatic_fever", "bacterial_endocarditis", "semilunar_valvular_heart_disease", "heart_disease_unknown_etiology"],
+    "evaluation_logic": "rheumatic_fever_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "pericardium_tissue_donor && (rheumatic_fever || bacterial_endocarditis || semilunar_valvular_heart_disease || heart_disease_unknown_etiology)",
+        "result": "unacceptable",
+        "note": "Pericardium tissue donors with history of rheumatic fever, or history of or presence of bacterial endocarditis, or semilunar valvular heart disease, or heart disease of unknown etiology"
+      }
+    ],
+    "skin_rules": []
+  },
+  "Rubella": {
+    "required_tests": [],
+    "required_data_points": ["rubella_active", "rubella_evidence"],
+    "evaluation_logic": "rubella_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "significant_active_infection",
+        "result": "unacceptable",
+        "note": "Evidence of significant active infections"
+      }
+    ]
+  },
+  "Sexually Transmitted Diseases (STDs) or Sexually Transmitted infections (STIs)": {
+    "required_tests": [],
+    "required_data_points": ["std_sti_diagnosis", "std_sti_type", "std_sti_treatment", "std_sti_treatment_date", "std_sti_sexual_relations"],
+    "evaluation_logic": "std_sti_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "(std_sti_type == 'syphilis' || std_sti_type == 'gonorrhea') && treated_within_12_months",
+        "result": "unacceptable",
+        "note": "Donors diagnosed with or treated for syphilis or gonorrhea within preceding 12 months"
+      },
+      {
+        "condition": "std_sti_other && treated_within_12_months",
+        "result": "md_discretion",
+        "note": "Donors diagnosed with or treated for STDs/STIs other than syphilis or gonorrhea within preceding 12 months"
+      },
+      {
+        "condition": "std_sti_history_more_than_12_months",
+        "result": "md_discretion",
+        "note": "Donors with previous history of symptoms or conditions or a history of STDs/STIs more than 12 months ago"
+      },
+      {
+        "condition": "sexual_relations_active_std_sti_12_months",
+        "result": "md_discretion",
+        "note": "Donors who had sexual relations with an individual who had an active STD/STI within preceding 12 months"
+      }
+    ]
+  },
+  "Smallpox": {
+    "required_tests": [],
+    "required_data_points": ["smallpox_vaccine_date", "smallpox_scab_presence", "smallpox_scab_removal", "smallpox_complications"],
+    "evaluation_logic": "smallpox_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "smallpox_vaccine",
+        "result": "md_discretion",
+        "note": "Obtain the following information: date vaccine obtained, presence or absence of scab, how scab removed, any complications"
+      }
+    ]
+  },
+  "Systemic Inflammatory Response Syndrome (SIRS)": {
+    "required_tests": [],
+    "required_data_points": ["sirs_diagnosis", "sirs_cause"],
+    "evaluation_logic": "sirs_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "sirs_due_to_infection",
+        "result": "unacceptable",
+        "note": "Due to infection"
+      },
+      {
+        "condition": "sirs_other_causes",
+        "result": "md_discretion",
+        "note": "Other causes may be acceptable and will be reviewed"
+      }
+    ]
+  },
+  "Tattoo": {
+    "required_tests": [],
+    "required_data_points": ["tattoo_date", "tattoo_location", "tattoo_shared_instruments", "tattoo_outside_us_canada", "tattoo_high_risk_lifestyle"],
+    "evaluation_logic": "tattoo_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "tattoo_shared_instruments_12_months || tattoo_outside_us_canada_12_months || tattoo_high_risk_lifestyle_12_months",
+        "result": "unacceptable",
+        "note": "Donors who within 12 months prior to donation have undergone tattooing with shared instruments, tattoos done outside of the US or Canada, or tattoos indicative of high-risk lifestyles"
+      },
+      {
+        "condition": "tattoo_over_12_months",
+        "result": "md_discretion",
+        "note": "Tattoos over 12 months old may be acceptable"
+      }
+    ],
+    "skin_rules": [
+      {
+        "condition": "tattoo_areas",
+        "result": "unacceptable",
+        "note": "Skin areas with tattoos"
+      }
+    ]
+  },
+  "Transplant": {
+    "required_tests": [],
+    "required_data_points": ["transplant_type", "transplant_steroids", "transplant_anti_rejection_drugs", "transplant_infections", "transplant_blood_transfusions", "transplant_hepatitis_test", "transplant_activity_level", "transplant_date", "transplant_health_state"],
+    "evaluation_logic": "transplant_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "transplant_type",
+        "result": "md_discretion",
+        "note": "Gather all relevant information: use of steroids, anti-rejection drugs, incidence of infection, blood transfusions, hepatitis test, activity level, date of transplant, overall state of health"
+      },
+      {
+        "condition": "xenograft_non_living_cells",
+        "result": "acceptable",
+        "note": "Xenograft recipient or intimate contact with a recipient – non-living cells"
+      },
+      {
+        "condition": "xenograft_living_cells",
+        "result": "unacceptable",
+        "note": "Xenograft recipient or intimate contact with a recipient – living cells"
+      },
+      {
+        "condition": "human_tissue_transplant_screened",
+        "result": "acceptable",
+        "note": "Receipt of a human tissue transplant is acceptable unless there is evidence suggesting donor received human tissue that was not screened"
+      },
+      {
+        "condition": "non_synthetic_dura_mater",
+        "result": "unacceptable",
+        "note": "Receipt of non-synthetic dura-mater"
+      },
+      {
+        "condition": "epicel_receipt",
+        "result": "unacceptable",
+        "note": "Receipt of EpicelTM"
+      },
+      {
+        "condition": "human_dura_allograft_tissue",
+        "result": "unacceptable",
+        "note": "Receipt of human dura allograft tissue"
+      }
+    ]
+  },
+  "Trauma": {
+    "required_tests": [],
+    "required_data_points": ["trauma_type", "trauma_extent", "adipose_exposure"],
+    "evaluation_logic": "trauma_criteria",
+    "tissue_specific": true,
+    "musculoskeletal_rules": [
+      {
+        "condition": "extensive_deep_abrasions_lacerations || adipose_environmental_contaminants",
+        "result": "md_discretion",
+        "note": "Extensive and/or deep abrasions/lacerations or exposure of adipose to environmental contaminants"
+      }
+    ],
+    "skin_rules": [
+      {
+        "condition": "extensive_deep_abrasions_lacerations || adipose_environmental_contaminants",
+        "result": "unacceptable",
+        "note": "Extensive and/or deep abrasions/lacerations or exposure of adipose to environmental contaminants"
+      }
+    ]
+  },
+  "Travel": {
+    "required_tests": [],
+    "required_data_points": ["travel_malarial_areas", "travel_chagas", "travel_tse", "travel_uk", "travel_france", "travel_europe", "travel_dates"],
+    "evaluation_logic": "travel_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "malarial_areas_arrived_us_3_years || chagas_areas_arrived_us_3_years || tse_areas_arrived_us_3_years",
+        "result": "unacceptable",
+        "note": "Residents of malarial areas who arrived in U.S. within 3 years"
+      },
+      {
+        "condition": "malarial_areas_6_months_no_prophylaxis",
+        "result": "md_discretion",
+        "note": "Visited any endemic malarial areas in past six months and did not take anti-malarial drugs for prophylaxis"
+      },
+      {
+        "condition": "uk_3_months_1980_1996",
+        "result": "unacceptable",
+        "note": "Three or more months cumulatively in United Kingdom from beginning of 1980 through end of 1996"
+      },
+      {
+        "condition": "blood_transfusion_uk_france_1980_present",
+        "result": "unacceptable",
+        "note": "Receipt of transfusion of blood or blood products in the UK or France between 1980 - present"
+      },
+      {
+        "condition": "europe_5_years_1980_present",
+        "result": "unacceptable",
+        "note": "5 years or more cumulatively in Europe from 1980 to present"
+      }
+    ]
+  },
+  "Tuberculosis (TB)": {
+    "required_tests": [],
+    "required_data_points": ["tb_diagnosis", "tb_symptoms", "tb_test_results", "tb_exposure", "tb_treatment", "tb_living_situation", "tb_exposure_length", "tb_time_since_exposure"],
+    "evaluation_logic": "tuberculosis_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "tb_diagnosis || tb_symptoms_history",
+        "result": "unacceptable",
+        "note": "Diagnosis or history of symptoms associated with TB regardless of present health status"
+      },
+      {
+        "condition": "tb_skin_test_positive && no_diagnosis && no_symptoms",
+        "result": "md_discretion",
+        "note": "Positive TB skin test or prophylactic treatment for possible exposure for TB but have never been diagnosed with or had any symptoms"
+      },
+      {
+        "condition": "active_tb_infection",
+        "result": "unacceptable",
+        "note": "Evidence of significant active infections"
+      }
+    ]
+  },
+  "AATB New TB Criteria": {
+    "required_tests": [],
+    "required_data_points": ["tb_disease_history", "tb_latent_infection", "tb_latent_diagnosis_date", "tb_travel_immigration", "tb_country_incidence", "tb_exposure_2_years", "tb_homelessness", "tb_incarceration_2_years", "tb_esrd_transplant", "tb_advanced_kidney_disease", "tb_diabetes", "tb_cirrhosis", "tb_alcohol_use_disorder", "tb_immunosuppressive_medications"],
+    "evaluation_logic": "aatb_new_tb_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "tb_disease_history_ever",
+        "result": "unacceptable",
+        "note": "Persons with a history (ever) of tuberculosis disease"
+      },
+      {
+        "condition": "tb_latent_infection_diagnosed_within_2_years",
+        "result": "unacceptable",
+        "note": "Persons with a history of (latent) tuberculosis infection initially diagnosed within the past two (2) years"
+      },
+      {
+        "condition": "viable_cells_tissue && (age_65_plus || tb_travel_immigration_2_years || tb_exposure_2_years || tb_latent_2_years_ago || tb_homelessness_2_years || tb_incarceration_2_years || tb_esrd_transplant)",
+        "result": "unacceptable",
+        "note": "For tissues intended to ultimately retain viable cells - various risk factors"
+      },
+      {
+        "condition": "viable_cells_tissue && exposure_risk_factor && reactivation_risk_factor",
+        "result": "unacceptable",
+        "note": "Potential donors with at least one risk factor from each column (exposure and reactivation) are ineligible"
+      }
+    ]
+  },
+  "Typhus": {
+    "required_tests": [],
+    "required_data_points": ["typhus_active", "typhus_evidence"],
+    "evaluation_logic": "typhus_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "significant_active_infection",
+        "result": "unacceptable",
+        "note": "Evidence of significant active infections"
+      }
+    ]
+  },
+  "US Military": {
+    "required_tests": [],
+    "required_data_points": ["us_military_member", "military_base_northern_europe", "military_base_europe", "military_residence_dates"],
+    "evaluation_logic": "us_military_criteria",
+    "tissue_specific": false,
+    "rules": [
+      {
+        "condition": "military_northern_europe_6_months_1980_1990 || military_europe_6_months_1980_1996",
+        "result": "unacceptable",
+        "note": "Current or former U.S. military members who resided at US military bases in Northern Europe for 6 months or more from 1980 through 1990, or elsewhere in Europe for 6 months or more from 1980 through 1996"
+      },
+      {
+        "condition": "uk_3_months_1980_1996",
+        "result": "unacceptable",
+        "note": "Donors who spent three or more months cumulatively in the United Kingdom from the beginning of 1980 through end of 1996"
+      }
+    ]
+  }
+}
+
