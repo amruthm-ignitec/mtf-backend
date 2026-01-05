@@ -1,7 +1,7 @@
 """fix_userrole_enum_case_issues
 
 Revision ID: fix_userrole_case
-Revises: 09cb35b9b49c
+Revises: merge_heads
 Create Date: 2026-01-05 13:50:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'fix_userrole_case'
-down_revision = '09cb35b9b49c'
+down_revision = 'merge_heads'
 branch_labels = None
 depends_on = None
 
