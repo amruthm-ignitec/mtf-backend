@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Dict, Any
 from datetime import datetime
@@ -688,12 +688,14 @@ async def get_donor_feedbacks(
 @router.post("/{donor_id}/feedback", response_model=dict)
 async def create_donor_feedback(
     donor_id: int,
-    feedback: dict,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new feedback for a specific donor. All authenticated users can submit feedback."""
     from app.models.donor_feedback import DonorFeedback
+    from app.schemas.donor_feedback import DonorFeedbackCreate, DonorFeedbackResponse
+    import json
     
     # Verify donor exists
     donor = db.query(Donor).filter(Donor.id == donor_id).first()
@@ -703,9 +705,18 @@ async def create_donor_feedback(
             detail="Donor not found"
         )
     
+    # Parse JSON body
+    try:
+        body = await request.json()
+        feedback = DonorFeedbackCreate(**body)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid request body: {str(e)}"
+        )
+    
     # Validate feedback text
-    feedback_text = feedback.get("text", "").strip() if isinstance(feedback, dict) else ""
-    if not feedback_text:
+    if not feedback.text or not feedback.text.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Feedback text cannot be empty"
@@ -715,7 +726,7 @@ async def create_donor_feedback(
     db_feedback = DonorFeedback(
         donor_id=donor_id,
         username=current_user.full_name,
-        feedback=feedback_text
+        feedback=feedback.text.strip()
     )
     
     db.add(db_feedback)
