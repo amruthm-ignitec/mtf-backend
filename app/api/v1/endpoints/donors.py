@@ -669,6 +669,7 @@ async def get_donor_feedbacks(
 ):
     """Get all feedbacks for a specific donor. All authenticated users can see all feedbacks for a donor."""
     from app.models.donor_feedback import DonorFeedback
+    from app.schemas.donor_feedback import DonorFeedbackResponse
     
     # Verify donor exists
     donor = db.query(Donor).filter(Donor.id == donor_id).first()
@@ -683,7 +684,17 @@ async def get_donor_feedbacks(
         DonorFeedback.donor_id == donor_id
     ).order_by(DonorFeedback.created_at.desc()).offset(skip).limit(limit).all()
     
-    return feedbacks
+    # Convert SQLAlchemy objects to dictionaries for JSON serialization
+    return [
+        {
+            "id": fb.id,
+            "donor_id": fb.donor_id,
+            "username": fb.username,
+            "feedback": fb.feedback,
+            "created_at": fb.created_at.isoformat() if fb.created_at else None
+        }
+        for fb in feedbacks
+    ]
 
 @router.post("/{donor_id}/feedback", response_model=dict)
 async def create_donor_feedback(
@@ -734,4 +745,12 @@ async def create_donor_feedback(
     db.refresh(db_feedback)
     
     logger.info(f"Donor feedback created for donor {donor_id} by user: {current_user.email} ({current_user.full_name})")
-    return db_feedback
+    
+    # Convert SQLAlchemy object to dictionary for JSON serialization
+    return {
+        "id": db_feedback.id,
+        "donor_id": db_feedback.donor_id,
+        "username": db_feedback.username,
+        "feedback": db_feedback.feedback,
+        "created_at": db_feedback.created_at.isoformat() if db_feedback.created_at else None
+    }
