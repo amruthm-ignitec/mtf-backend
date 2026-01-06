@@ -18,3 +18,4 @@ class Donor(Base):
     
     # Relationships
     documents = relationship("Document", back_populates="donor", lazy="dynamic")
+    feedbacks = relationship("DonorFeedback", back_populates="donor", lazy="dynamic")

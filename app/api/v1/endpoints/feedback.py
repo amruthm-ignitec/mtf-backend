@@ -4,8 +4,8 @@ from typing import List
 import logging
 from app.database.database import get_db
 from app.models.user import User
-from app.models.user_feedback import UserFeedback
-from app.schemas.user_feedback import FeedbackCreate, FeedbackResponse
+from app.models.platform_feedback import PlatformFeedback
+from app.schemas.platform_feedback import FeedbackCreate, FeedbackResponse
 from app.api.v1.endpoints.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -18,8 +18,8 @@ async def get_feedbacks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get all feedbacks. All authenticated users can see all feedbacks."""
-    feedbacks = db.query(UserFeedback).order_by(UserFeedback.created_at.desc()).offset(skip).limit(limit).all()
+    """Get all platform feedbacks. All authenticated users can see all feedbacks."""
+    feedbacks = db.query(PlatformFeedback).order_by(PlatformFeedback.created_at.desc()).offset(skip).limit(limit).all()
     return feedbacks
 
 @router.post("/", response_model=FeedbackResponse)
@@ -28,7 +28,7 @@ async def create_feedback(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new feedback. All authenticated users can submit feedback."""
+    """Create a new platform feedback. All authenticated users can submit feedback."""
     if not feedback.text or not feedback.text.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -36,7 +36,7 @@ async def create_feedback(
         )
     
     # Create new feedback
-    db_feedback = UserFeedback(
+    db_feedback = PlatformFeedback(
         username=current_user.full_name,
         feedback=feedback.text.strip()
     )
@@ -45,6 +45,6 @@ async def create_feedback(
     db.commit()
     db.refresh(db_feedback)
     
-    logger.info(f"Feedback created by user: {current_user.email} ({current_user.full_name})")
+    logger.info(f"Platform feedback created by user: {current_user.email} ({current_user.full_name})")
     return db_feedback
 

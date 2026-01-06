@@ -5,7 +5,8 @@ from .document import Document, DocumentStatus, DocumentType
 from .setting import Setting, SettingType
 from .donor_approval import DonorApproval, ApprovalStatus, ApprovalType
 from .document_chunk import DocumentChunk
-from .user_feedback import UserFeedback
+from .platform_feedback import PlatformFeedback
+from .donor_feedback import DonorFeedback
 
 # Criteria-focused models
 from .laboratory_result import LaboratoryResult, TestType

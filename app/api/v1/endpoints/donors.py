@@ -658,3 +658,69 @@ async def get_donor_extraction_detailed(
         "donor_id": donor_id,
         "documents": detailed_results
     }
+
+@router.get("/{donor_id}/feedback", response_model=List[dict])
+async def get_donor_feedbacks(
+    donor_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all feedbacks for a specific donor. All authenticated users can see all feedbacks for a donor."""
+    from app.models.donor_feedback import DonorFeedback
+    
+    # Verify donor exists
+    donor = db.query(Donor).filter(Donor.id == donor_id).first()
+    if not donor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donor not found"
+        )
+    
+    # Get feedbacks for this donor, sorted by created_at descending (newest first)
+    feedbacks = db.query(DonorFeedback).filter(
+        DonorFeedback.donor_id == donor_id
+    ).order_by(DonorFeedback.created_at.desc()).offset(skip).limit(limit).all()
+    
+    return feedbacks
+
+@router.post("/{donor_id}/feedback", response_model=dict)
+async def create_donor_feedback(
+    donor_id: int,
+    feedback: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new feedback for a specific donor. All authenticated users can submit feedback."""
+    from app.models.donor_feedback import DonorFeedback
+    
+    # Verify donor exists
+    donor = db.query(Donor).filter(Donor.id == donor_id).first()
+    if not donor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Donor not found"
+        )
+    
+    # Validate feedback text
+    feedback_text = feedback.get("text", "").strip() if isinstance(feedback, dict) else ""
+    if not feedback_text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Feedback text cannot be empty"
+        )
+    
+    # Create new feedback
+    db_feedback = DonorFeedback(
+        donor_id=donor_id,
+        username=current_user.full_name,
+        feedback=feedback_text
+    )
+    
+    db.add(db_feedback)
+    db.commit()
+    db.refresh(db_feedback)
+    
+    logger.info(f"Donor feedback created for donor {donor_id} by user: {current_user.email} ({current_user.full_name})")
+    return db_feedback
