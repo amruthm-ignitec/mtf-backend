@@ -55,6 +55,17 @@ def is_positive_test_result(result: str) -> bool:
     return False
 
 
+def is_explicitly_true(value: Any) -> bool:
+    """Check if value is explicitly true/yes. Returns False for None, null, or missing values."""
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower().strip() in ['yes', 'true', '1']
+    return bool(value)
+
+
 def evaluate_age_criteria(
     extracted_data: Dict[str, Any],
     lab_results: List[LaboratoryResult],
@@ -129,7 +140,7 @@ def evaluate_cancer_criteria(
     cancer_type = (extracted_data.get('cancer_type') or '').lower()
     diagnosis_date = extracted_data.get('diagnosis_date')
     treatment = extracted_data.get('treatment', '')
-    recurrence = extracted_data.get('recurrence', False)
+    recurrence = is_explicitly_true(extracted_data.get('recurrence'))
     time_since_death = extracted_data.get('time_since_death')
     
     # Check for unacceptable cancers (regardless of time)
@@ -217,10 +228,10 @@ def evaluate_hiv_criteria(
             }
     
     # Check extracted data for HIV history/exposure
-    hiv_history = extracted_data.get('hiv_history', False)
-    hiv_exposure = extracted_data.get('hiv_exposure', False)
-    exposed_12_months = extracted_data.get('exposed_to_hiv_12_months', False)
-    needle_tracks = extracted_data.get('needle_tracks', False)
+    hiv_history = is_explicitly_true(extracted_data.get('hiv_history'))
+    hiv_exposure = is_explicitly_true(extracted_data.get('hiv_exposure'))
+    exposed_12_months = is_explicitly_true(extracted_data.get('exposed_to_hiv_12_months'))
+    needle_tracks = is_explicitly_true(extracted_data.get('needle_tracks'))
     
     if hiv_history or hiv_exposure or exposed_12_months:
         if exposed_12_months:
@@ -263,11 +274,11 @@ def evaluate_hiv_aids_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate HIV/AIDS criteria."""
-    aids_diagnosed = extracted_data.get('aids_diagnosed', False)
-    hiv_infected = extracted_data.get('hiv_infected', False)
-    positive_test = extracted_data.get('positive_test', False)
-    needle_tracks = extracted_data.get('needle_tracks', False)
-    iv_drug_abuse = extracted_data.get('iv_drug_abuse', False)
+    aids_diagnosed = is_explicitly_true(extracted_data.get('aids_diagnosed'))
+    hiv_infected = is_explicitly_true(extracted_data.get('hiv_infected'))
+    positive_test = is_explicitly_true(extracted_data.get('positive_test'))
+    needle_tracks = is_explicitly_true(extracted_data.get('needle_tracks'))
+    iv_drug_abuse = is_explicitly_true(extracted_data.get('iv_drug_abuse'))
     
     if aids_diagnosed or hiv_infected or positive_test or needle_tracks or iv_drug_abuse:
         return {
@@ -302,12 +313,12 @@ def evaluate_hepatitis_criteria(
             }
     
     # Check extracted data
-    resided_with_hepatitis = extracted_data.get('resided_with_hepatitis_person_12_months', False)
-    hepatitis_c_treated_cured = extracted_data.get('hepatitis_c_treated_cured', False)
-    unexplained_liver_disease = extracted_data.get('unexplained_liver_disease_symptoms', False)
-    active_hepatitis = extracted_data.get('active_hepatitis_diagnosis', False)
-    hepatitis_b_vaccine = extracted_data.get('hepatitis_b_vaccine', False)
-    hbsab_positive = extracted_data.get('hbsab_positive', False)
+    resided_with_hepatitis = is_explicitly_true(extracted_data.get('resided_with_hepatitis_person_12_months'))
+    hepatitis_c_treated_cured = is_explicitly_true(extracted_data.get('hepatitis_c_treated_cured'))
+    unexplained_liver_disease = is_explicitly_true(extracted_data.get('unexplained_liver_disease_symptoms'))
+    active_hepatitis = is_explicitly_true(extracted_data.get('active_hepatitis_diagnosis'))
+    hepatitis_b_vaccine = is_explicitly_true(extracted_data.get('hepatitis_b_vaccine'))
+    hbsab_positive = is_explicitly_true(extracted_data.get('hbsab_positive'))
     
     if resided_with_hepatitis:
         return {
@@ -356,12 +367,12 @@ def evaluate_sepsis_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Sepsis criteria."""
-    sepsis_diagnosed = extracted_data.get('sepsis_diagnosis', False)
-    bacteremia = extracted_data.get('bacteremia', False)
-    septicemia = extracted_data.get('septicemia', False)
-    sepsis_syndrome = extracted_data.get('sepsis_syndrome', False)
-    systemic_infection = extracted_data.get('systemic_infection', False)
-    septic_shock = extracted_data.get('septic_shock', False)
+    sepsis_diagnosed = is_explicitly_true(extracted_data.get('sepsis_diagnosis'))
+    bacteremia = is_explicitly_true(extracted_data.get('bacteremia'))
+    septicemia = is_explicitly_true(extracted_data.get('septicemia'))
+    sepsis_syndrome = is_explicitly_true(extracted_data.get('sepsis_syndrome'))
+    systemic_infection = is_explicitly_true(extracted_data.get('systemic_infection'))
+    septic_shock = is_explicitly_true(extracted_data.get('septic_shock'))
     
     if sepsis_diagnosed or bacteremia or septicemia or sepsis_syndrome or systemic_infection or septic_shock:
         return {
@@ -382,7 +393,7 @@ def evaluate_sepsis_criteria(
                 'reasoning': f'Positive blood culture result: {culture.result} - requires review for sepsis'
             }
     
-    uncertainty = extracted_data.get('uncertainty_regarding_sepsis', False)
+    uncertainty = is_explicitly_true(extracted_data.get('uncertainty_regarding_sepsis'))
     if uncertainty:
         return {
             'result': EvaluationResult.MD_DISCRETION,
@@ -402,8 +413,8 @@ def evaluate_septicemia_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Septicemia criteria."""
-    septicemia_evidence = extracted_data.get('septicemia_evidence', False)
-    positive_blood_culture = extracted_data.get('positive_blood_culture', False)
+    septicemia_evidence = is_explicitly_true(extracted_data.get('septicemia_evidence'))
+    positive_blood_culture = is_explicitly_true(extracted_data.get('positive_blood_culture'))
     
     # Check blood culture results
     blood_cultures = [lr for lr in lab_results 
@@ -413,7 +424,7 @@ def evaluate_septicemia_criteria(
         result_lower = culture.result.lower()
         if 'no growth' not in result_lower and 'negative' not in result_lower:
             # Check if it might be contamination
-            contamination_possibility = extracted_data.get('contamination_possibility', False)
+            contamination_possibility = is_explicitly_true(extracted_data.get('contamination_possibility'))
             if contamination_possibility:
                 return {
                     'result': EvaluationResult.MD_DISCRETION,
@@ -444,10 +455,10 @@ def evaluate_tuberculosis_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Tuberculosis criteria."""
-    tb_diagnosis = extracted_data.get('tb_diagnosis', False)
-    tb_symptoms = extracted_data.get('tb_symptoms_history', False)
-    tb_test_positive = extracted_data.get('tb_test_positive', False)
-    active_tb = extracted_data.get('active_tb_infection', False)
+    tb_diagnosis = is_explicitly_true(extracted_data.get('tb_diagnosis'))
+    tb_symptoms = is_explicitly_true(extracted_data.get('tb_symptoms_history'))
+    tb_test_positive = is_explicitly_true(extracted_data.get('tb_test_positive'))
+    active_tb = is_explicitly_true(extracted_data.get('active_tb_infection'))
     
     if tb_diagnosis or tb_symptoms:
         return {
@@ -463,8 +474,8 @@ def evaluate_tuberculosis_criteria(
     
     if tb_test_positive:
         # Check if it's just a positive test without diagnosis/symptoms
-        no_diagnosis = not extracted_data.get('tb_diagnosed', False)
-        no_symptoms = not extracted_data.get('tb_symptoms', False)
+        no_diagnosis = not is_explicitly_true(extracted_data.get('tb_diagnosed'))
+        no_symptoms = not is_explicitly_true(extracted_data.get('tb_symptoms'))
         
         if no_diagnosis and no_symptoms:
             return {
@@ -485,14 +496,14 @@ def evaluate_high_risk_behavior_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate High Risk Behavior criteria."""
-    sex_for_money_drugs_12_months = extracted_data.get('sex_for_money_drugs_12_months', False)
-    female_male_partner_msm_5_years = extracted_data.get('female_male_partner_msm_5_years', False)
-    sex_with_iv_drug_user_12_months = extracted_data.get('sex_with_iv_drug_user_12_months', False)
-    sex_with_hiv_hepatitis_12_months = extracted_data.get('sex_with_hiv_hepatitis_12_months', False)
-    sex_for_money_drugs_5_years = extracted_data.get('sex_for_money_drugs_5_years', False)
-    male_msm_5_years = extracted_data.get('male_msm_5_years', False)
-    iv_drug_use_5_years = extracted_data.get('iv_drug_use_5_years', False)
-    iv_drug_use_more_than_5_years = extracted_data.get('iv_drug_use_more_than_5_years', False)
+    sex_for_money_drugs_12_months = is_explicitly_true(extracted_data.get('sex_for_money_drugs_12_months'))
+    female_male_partner_msm_5_years = is_explicitly_true(extracted_data.get('female_male_partner_msm_5_years'))
+    sex_with_iv_drug_user_12_months = is_explicitly_true(extracted_data.get('sex_with_iv_drug_user_12_months'))
+    sex_with_hiv_hepatitis_12_months = is_explicitly_true(extracted_data.get('sex_with_hiv_hepatitis_12_months'))
+    sex_for_money_drugs_5_years = is_explicitly_true(extracted_data.get('sex_for_money_drugs_5_years'))
+    male_msm_5_years = is_explicitly_true(extracted_data.get('male_msm_5_years'))
+    iv_drug_use_5_years = is_explicitly_true(extracted_data.get('iv_drug_use_5_years'))
+    iv_drug_use_more_than_5_years = is_explicitly_true(extracted_data.get('iv_drug_use_more_than_5_years'))
     
     # Unacceptable behaviors (12 months)
     if sex_for_money_drugs_12_months or female_male_partner_msm_5_years or sex_with_iv_drug_user_12_months or sex_with_hiv_hepatitis_12_months:
@@ -528,8 +539,8 @@ def evaluate_iv_drug_use_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate IV Drug Use criteria."""
-    iv_drug_use_5_years = extracted_data.get('iv_drug_use_5_years', False)
-    iv_drug_use_more_than_5_years = extracted_data.get('iv_drug_use_more_than_5_years', False)
+    iv_drug_use_5_years = is_explicitly_true(extracted_data.get('iv_drug_use_5_years'))
+    iv_drug_use_more_than_5_years = is_explicitly_true(extracted_data.get('iv_drug_use_more_than_5_years'))
     drug_type = extracted_data.get('drug_type', '')
     route = extracted_data.get('route', '')
     duration = extracted_data.get('duration', '')
@@ -559,8 +570,8 @@ def evaluate_incarceration_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Incarceration criteria."""
-    incarceration_72_hours_12_months = extracted_data.get('incarceration_72_hours_12_months', False)
-    incarceration_1_year = extracted_data.get('incarceration_1_year', False)
+    incarceration_72_hours_12_months = is_explicitly_true(extracted_data.get('incarceration_72_hours_12_months'))
+    incarceration_1_year = is_explicitly_true(extracted_data.get('incarceration_1_year'))
     incarceration_length = extracted_data.get('incarceration_length', '')
     incarceration_circumstances = extracted_data.get('incarceration_circumstances', '')
     
@@ -637,7 +648,7 @@ def evaluate_west_nile_virus_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate West Nile Virus criteria."""
-    wnv_diagnosis = extracted_data.get('wnv_diagnosis', False)
+    wnv_diagnosis = is_explicitly_true(extracted_data.get('wnv_diagnosis'))
     wnv_onset_date = extracted_data.get('wnv_onset_date')
     days_since_diagnosis = extracted_data.get('days_since_diagnosis_or_onset', 999)
     days_since_test = extracted_data.get('days_since_test', 999)
@@ -673,11 +684,11 @@ def evaluate_infection_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Infection criteria."""
-    sores_cutaneous_infection = extracted_data.get('sores_cutaneous_infection_breakdown', False)
-    significant_active_infection = extracted_data.get('significant_active_infection', False)
-    active_bacterial_viral_meningitis_encephalitis = extracted_data.get('active_bacterial_viral_meningitis_encephalitis', False)
-    meningitis_resolved_6_months = extracted_data.get('meningitis_resolved_6_months', False)
-    herpes_zoster_inactive_healed = extracted_data.get('herpes_zoster_inactive_healed', False)
+    sores_cutaneous_infection = is_explicitly_true(extracted_data.get('sores_cutaneous_infection_breakdown'))
+    significant_active_infection = is_explicitly_true(extracted_data.get('significant_active_infection'))
+    active_bacterial_viral_meningitis_encephalitis = is_explicitly_true(extracted_data.get('active_bacterial_viral_meningitis_encephalitis'))
+    meningitis_resolved_6_months = is_explicitly_true(extracted_data.get('meningitis_resolved_6_months'))
+    herpes_zoster_inactive_healed = is_explicitly_true(extracted_data.get('herpes_zoster_inactive_healed'))
     
     # Skin-specific: sores/cutaneous infection
     if sores_cutaneous_infection:
@@ -728,11 +739,11 @@ def evaluate_cooling_criteria(
     skin_prep_time = extracted_data.get('skin_prep_time')
     
     # Simplified evaluation - actual implementation would parse and compare times
-    cooled_within_12_hours = extracted_data.get('cooled_within_12_hours', False)
-    skin_prep_within_24_hours = extracted_data.get('skin_prep_within_24_hours', False)
-    not_cooled_within_12_hours = extracted_data.get('not_cooled_within_12_hours', False)
-    skin_prep_within_15_hours = extracted_data.get('skin_prep_within_15_hours', False)
-    cooled_then_not_cooled = extracted_data.get('cooled_then_not_cooled', False)
+    cooled_within_12_hours = is_explicitly_true(extracted_data.get('cooled_within_12_hours'))
+    skin_prep_within_24_hours = is_explicitly_true(extracted_data.get('skin_prep_within_24_hours'))
+    not_cooled_within_12_hours = is_explicitly_true(extracted_data.get('not_cooled_within_12_hours'))
+    skin_prep_within_15_hours = is_explicitly_true(extracted_data.get('skin_prep_within_15_hours'))
+    cooled_then_not_cooled = is_explicitly_true(extracted_data.get('cooled_then_not_cooled'))
     not_cooled_time = extracted_data.get('not_cooled_time_cumulative', 0)
     
     if cooled_within_12_hours and skin_prep_within_24_hours:
@@ -766,7 +777,7 @@ def evaluate_autopsy_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Autopsy criteria."""
-    autopsy_performed = extracted_data.get('autopsy_performed', False)
+    autopsy_performed = is_explicitly_true(extracted_data.get('autopsy_performed'))
     autopsy_type = extracted_data.get('autopsy_type', '')
     tissue_type = extracted_data.get('tissue_type', '')
     
@@ -798,8 +809,8 @@ def evaluate_toxicology_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Toxicology criteria."""
-    toxicology_performed = extracted_data.get('toxicology_performed', False)
-    toxicology_positive = extracted_data.get('toxicology_positive', False)
+    toxicology_performed = is_explicitly_true(extracted_data.get('toxicology_performed'))
+    toxicology_positive = is_explicitly_true(extracted_data.get('toxicology_positive'))
     
     if toxicology_positive:
         return {
@@ -821,7 +832,7 @@ def evaluate_autoimmune_criteria(
 ) -> Dict[str, Any]:
     """Evaluate Autoimmune diseases criteria."""
     autoimmune_type = (extracted_data.get('autoimmune_disease_type') or '').lower()
-    skin_manifestations = extracted_data.get('skin_manifestations', False)
+    skin_manifestations = is_explicitly_true(extracted_data.get('skin_manifestations'))
     tissue_type = extracted_data.get('tissue_type', '')
     
     # Unacceptable for both
@@ -863,10 +874,10 @@ def evaluate_dementia_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Dementia criteria."""
-    dementia_unknown_etiology = extracted_data.get('dementia_unknown_etiology', False)
-    memory_loss_unknown_etiology = extracted_data.get('memory_loss_unknown_etiology', False)
-    dementia_caused_by_cva_brain_tumor_trauma_toxic = extracted_data.get('dementia_caused_by_cva_brain_tumor_trauma_toxic', False)
-    no_tse_evidence = extracted_data.get('no_tse_evidence', False)
+    dementia_unknown_etiology = is_explicitly_true(extracted_data.get('dementia_unknown_etiology'))
+    memory_loss_unknown_etiology = is_explicitly_true(extracted_data.get('memory_loss_unknown_etiology'))
+    dementia_caused_by_cva_brain_tumor_trauma_toxic = is_explicitly_true(extracted_data.get('dementia_caused_by_cva_brain_tumor_trauma_toxic'))
+    no_tse_evidence = is_explicitly_true(extracted_data.get('no_tse_evidence'))
     
     if dementia_unknown_etiology or memory_loss_unknown_etiology:
         return {
@@ -893,7 +904,7 @@ def evaluate_bleeding_disorder_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Bleeding Disorder (Hemophilia) criteria."""
-    clotting_factor_concentrates_more_than_5_years_ago = extracted_data.get('clotting_factor_concentrates_more_than_5_years_ago', False)
+    clotting_factor_concentrates_more_than_5_years_ago = is_explicitly_true(extracted_data.get('clotting_factor_concentrates_more_than_5_years_ago'))
     
     if clotting_factor_concentrates_more_than_5_years_ago:
         return {
@@ -946,10 +957,10 @@ def evaluate_bowel_perforation_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Bowel Perforation criteria."""
-    perforation_during_dissection = extracted_data.get('perforation_during_dissection', False)
-    bowel_contents_observed = extracted_data.get('bowel_contents_observed', False)
-    post_autopsy = extracted_data.get('post_autopsy', False)
-    tissue_separating_hemipelvis = extracted_data.get('tissue_separating_hemipelvis', False)
+    perforation_during_dissection = is_explicitly_true(extracted_data.get('perforation_during_dissection'))
+    bowel_contents_observed = is_explicitly_true(extracted_data.get('bowel_contents_observed'))
+    post_autopsy = is_explicitly_true(extracted_data.get('post_autopsy'))
+    tissue_separating_hemipelvis = is_explicitly_true(extracted_data.get('tissue_separating_hemipelvis'))
     
     if perforation_during_dissection or bowel_contents_observed:
         return {
@@ -976,7 +987,7 @@ def evaluate_chagas_disease_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Chagas disease criteria."""
-    chagas_treated_within_3_years = extracted_data.get('chagas_treated_within_3_years', False)
+    chagas_treated_within_3_years = is_explicitly_true(extracted_data.get('chagas_treated_within_3_years'))
     
     if chagas_treated_within_3_years:
         return {
@@ -997,8 +1008,8 @@ def evaluate_chicken_pox_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Chicken Pox criteria."""
-    significant_active_infection = extracted_data.get('significant_active_infection', False)
-    chicken_pox_active = extracted_data.get('chicken_pox_active', False)
+    significant_active_infection = is_explicitly_true(extracted_data.get('significant_active_infection'))
+    chicken_pox_active = is_explicitly_true(extracted_data.get('chicken_pox_active'))
     
     if significant_active_infection or chicken_pox_active:
         return {
@@ -1019,7 +1030,7 @@ def evaluate_contamination_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Contamination criteria."""
-    tissue_dropped_outside_sterile_field = extracted_data.get('tissue_dropped_outside_sterile_field', False)
+    tissue_dropped_outside_sterile_field = is_explicitly_true(extracted_data.get('tissue_dropped_outside_sterile_field'))
     
     if tissue_dropped_outside_sterile_field:
         return {
@@ -1040,8 +1051,8 @@ def evaluate_covid_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate COVID criteria."""
-    covid_symptoms = extracted_data.get('covid_symptoms', False)
-    covid_risk_factors = extracted_data.get('covid_risk_factors', False)
+    covid_symptoms = is_explicitly_true(extracted_data.get('covid_symptoms'))
+    covid_risk_factors = is_explicitly_true(extracted_data.get('covid_risk_factors'))
     
     if covid_symptoms or covid_risk_factors:
         return {
@@ -1062,12 +1073,12 @@ def evaluate_creutzfeldt_jakob_disease_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Creutzfeldt-Jakob disease criteria."""
-    cjd_diagnosis = extracted_data.get('cjd_diagnosis', False)
-    cjd_family_history_non_iatrogenic = extracted_data.get('cjd_family_history_non_iatrogenic', False)
-    dura_mater_transplant = extracted_data.get('dura_mater_transplant', False)
-    pituitary_growth_hormone = extracted_data.get('pituitary_growth_hormone', False)
-    cjd_blood_relatives = extracted_data.get('cjd_blood_relatives', False)
-    gene_sequencing_no_mutation = extracted_data.get('gene_sequencing_no_mutation', False)
+    cjd_diagnosis = is_explicitly_true(extracted_data.get('cjd_diagnosis'))
+    cjd_family_history_non_iatrogenic = is_explicitly_true(extracted_data.get('cjd_family_history_non_iatrogenic'))
+    dura_mater_transplant = is_explicitly_true(extracted_data.get('dura_mater_transplant'))
+    pituitary_growth_hormone = is_explicitly_true(extracted_data.get('pituitary_growth_hormone'))
+    cjd_blood_relatives = is_explicitly_true(extracted_data.get('cjd_blood_relatives'))
+    gene_sequencing_no_mutation = is_explicitly_true(extracted_data.get('gene_sequencing_no_mutation'))
     
     if cjd_diagnosis or cjd_family_history_non_iatrogenic:
         if gene_sequencing_no_mutation:
@@ -1099,8 +1110,8 @@ def evaluate_delirium_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Delirium criteria."""
-    delirium_caused_by_toxic_metabolic = extracted_data.get('delirium_caused_by_toxic_metabolic', False)
-    delirium_caused_by_head_trauma = extracted_data.get('delirium_caused_by_head_trauma', False)
+    delirium_caused_by_toxic_metabolic = is_explicitly_true(extracted_data.get('delirium_caused_by_toxic_metabolic'))
+    delirium_caused_by_head_trauma = is_explicitly_true(extracted_data.get('delirium_caused_by_head_trauma'))
     
     if delirium_caused_by_toxic_metabolic or delirium_caused_by_head_trauma:
         return {
@@ -1121,8 +1132,8 @@ def evaluate_diabetes_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Diabetes criteria."""
-    amputation_diabetic_foot_ulcer_osteomyelitis = extracted_data.get('amputation_diabetic_foot_ulcer_osteomyelitis', False)
-    surgery_resolution_greater_than_12_months = extracted_data.get('surgery_resolution_greater_than_12_months', False)
+    amputation_diabetic_foot_ulcer_osteomyelitis = is_explicitly_true(extracted_data.get('amputation_diabetic_foot_ulcer_osteomyelitis'))
+    surgery_resolution_greater_than_12_months = is_explicitly_true(extracted_data.get('surgery_resolution_greater_than_12_months'))
     
     if amputation_diabetic_foot_ulcer_osteomyelitis and surgery_resolution_greater_than_12_months:
         return {
@@ -1143,7 +1154,7 @@ def evaluate_drowning_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Drowning criteria."""
-    drowning_occurred = extracted_data.get('drowning_occurred', False)
+    drowning_occurred = is_explicitly_true(extracted_data.get('drowning_occurred'))
     tissue_type = extracted_data.get('tissue_type', '')
     
     if drowning_occurred and tissue_type == 'skin':
@@ -1165,8 +1176,8 @@ def evaluate_encephalitis_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Encephalitis criteria."""
-    encephalitis_current = extracted_data.get('encephalitis_current', False)
-    encephalitis_past = extracted_data.get('encephalitis_past', False)
+    encephalitis_current = is_explicitly_true(extracted_data.get('encephalitis_current'))
+    encephalitis_past = is_explicitly_true(extracted_data.get('encephalitis_past'))
     
     if encephalitis_current or encephalitis_past:
         return {
@@ -1214,8 +1225,8 @@ def evaluate_gout_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Gout criteria."""
-    acute_gout = extracted_data.get('acute_gout', False)
-    gout_diagnosis = extracted_data.get('gout_diagnosis', False)
+    acute_gout = is_explicitly_true(extracted_data.get('acute_gout'))
+    gout_diagnosis = is_explicitly_true(extracted_data.get('gout_diagnosis'))
     
     if acute_gout:
         return {
@@ -1242,8 +1253,8 @@ def evaluate_growth_hormone_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Growth Hormone criteria."""
-    human_pituitary_growth_hormone = extracted_data.get('human_pituitary_growth_hormone', False)
-    recombinant_growth_hormone = extracted_data.get('recombinant_growth_hormone', False)
+    human_pituitary_growth_hormone = is_explicitly_true(extracted_data.get('human_pituitary_growth_hormone'))
+    recombinant_growth_hormone = is_explicitly_true(extracted_data.get('recombinant_growth_hormone'))
     
     if human_pituitary_growth_hormone:
         return {
@@ -1270,10 +1281,10 @@ def evaluate_guillain_barre_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Guillain-Barré syndrome criteria."""
-    guillain_barre_past_history = extracted_data.get('guillain_barre_past_history', False)
-    medically_treated = extracted_data.get('medically_treated', False)
-    full_recovery = extracted_data.get('full_recovery', False)
-    no_recurrence = extracted_data.get('no_recurrence', False)
+    guillain_barre_past_history = is_explicitly_true(extracted_data.get('guillain_barre_past_history'))
+    medically_treated = is_explicitly_true(extracted_data.get('medically_treated'))
+    full_recovery = is_explicitly_true(extracted_data.get('full_recovery'))
+    no_recurrence = is_explicitly_true(extracted_data.get('no_recurrence'))
     
     if guillain_barre_past_history and medically_treated and full_recovery and no_recurrence:
         return {
@@ -1300,8 +1311,8 @@ def evaluate_hemodialysis_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Hemodialysis criteria."""
-    short_term_hemodialysis_acute_renal_failure = extracted_data.get('short_term_hemodialysis_acute_renal_failure', False)
-    long_term_hemodialysis_chronic_kidney_failure = extracted_data.get('long_term_hemodialysis_chronic_kidney_failure', False)
+    short_term_hemodialysis_acute_renal_failure = is_explicitly_true(extracted_data.get('short_term_hemodialysis_acute_renal_failure'))
+    long_term_hemodialysis_chronic_kidney_failure = is_explicitly_true(extracted_data.get('long_term_hemodialysis_chronic_kidney_failure'))
     
     if long_term_hemodialysis_chronic_kidney_failure:
         return {
@@ -1328,8 +1339,8 @@ def evaluate_herpes_ii_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Herpes II (genital herpes) criteria."""
-    significant_active_infection = extracted_data.get('significant_active_infection', False)
-    herpes_ii_active = extracted_data.get('herpes_ii_active', False)
+    significant_active_infection = is_explicitly_true(extracted_data.get('significant_active_infection'))
+    herpes_ii_active = is_explicitly_true(extracted_data.get('herpes_ii_active'))
     
     if significant_active_infection or herpes_ii_active:
         return {
@@ -1350,7 +1361,7 @@ def evaluate_high_risk_non_iv_drug_use_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate High Risk Non-IV Related Drug Use criteria."""
-    non_iv_drug_use = extracted_data.get('non_iv_drug_use', False)
+    non_iv_drug_use = is_explicitly_true(extracted_data.get('non_iv_drug_use'))
     
     if non_iv_drug_use:
         return {
@@ -1371,10 +1382,10 @@ def evaluate_hiv_group_o_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate HIV Group O criteria."""
-    born_lived_africa_countries = extracted_data.get('born_lived_africa_countries', False)
-    sexual_partner_africa_countries = extracted_data.get('sexual_partner_africa_countries', False)
-    blood_transfusion_africa = extracted_data.get('blood_transfusion_africa', False)
-    medical_treatment_africa = extracted_data.get('medical_treatment_africa', False)
+    born_lived_africa_countries = is_explicitly_true(extracted_data.get('born_lived_africa_countries'))
+    sexual_partner_africa_countries = is_explicitly_true(extracted_data.get('sexual_partner_africa_countries'))
+    blood_transfusion_africa = is_explicitly_true(extracted_data.get('blood_transfusion_africa'))
+    medical_treatment_africa = is_explicitly_true(extracted_data.get('medical_treatment_africa'))
     
     # Africa countries: Cameroon, Central African Republic, Chad, Congo, Equatorial Guinea, Gabon, Niger, Nigeria, Senegal, Togo, Zambia, Benin, Kenya (after 1977)
     if born_lived_africa_countries or sexual_partner_africa_countries:
@@ -1402,9 +1413,9 @@ def evaluate_hiv_hepatitis_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate HIV/Hepatitis criteria."""
-    medications_unknown_reason = extracted_data.get('medications_unknown_reason', False)
-    aids_prophylactic_treatment = extracted_data.get('aids_prophylactic_treatment', False)
-    hepatitis_prophylactic_treatment = extracted_data.get('hepatitis_prophylactic_treatment', False)
+    medications_unknown_reason = is_explicitly_true(extracted_data.get('medications_unknown_reason'))
+    aids_prophylactic_treatment = is_explicitly_true(extracted_data.get('aids_prophylactic_treatment'))
+    hepatitis_prophylactic_treatment = is_explicitly_true(extracted_data.get('hepatitis_prophylactic_treatment'))
     
     if medications_unknown_reason or aids_prophylactic_treatment or hepatitis_prophylactic_treatment:
         return {
@@ -1425,9 +1436,9 @@ def evaluate_hiv_hepatitis_communicable_disease_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate HIV/Hepatitis/active relevant communicable disease criteria."""
-    physical_evidence_hiv = extracted_data.get('physical_evidence_hiv', False)
-    physical_evidence_hepatitis = extracted_data.get('physical_evidence_hepatitis', False)
-    physical_evidence_communicable_disease = extracted_data.get('physical_evidence_communicable_disease', False)
+    physical_evidence_hiv = is_explicitly_true(extracted_data.get('physical_evidence_hiv'))
+    physical_evidence_hepatitis = is_explicitly_true(extracted_data.get('physical_evidence_hepatitis'))
+    physical_evidence_communicable_disease = is_explicitly_true(extracted_data.get('physical_evidence_communicable_disease'))
     
     if physical_evidence_hiv or physical_evidence_hepatitis or physical_evidence_communicable_disease:
         return {
@@ -1448,9 +1459,9 @@ def evaluate_immunizations_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Immunizations criteria."""
-    live_virus_vaccine = extracted_data.get('live_virus_vaccine', False)
-    four_weeks_since_last_dose = extracted_data.get('four_weeks_since_last_dose', False)
-    live_attenuated_virus_vaccine = extracted_data.get('live_attenuated_virus_vaccine', False)
+    live_virus_vaccine = is_explicitly_true(extracted_data.get('live_virus_vaccine'))
+    four_weeks_since_last_dose = is_explicitly_true(extracted_data.get('four_weeks_since_last_dose'))
+    live_attenuated_virus_vaccine = is_explicitly_true(extracted_data.get('live_attenuated_virus_vaccine'))
     
     if live_virus_vaccine:
         if four_weeks_since_last_dose:
@@ -1483,9 +1494,9 @@ def evaluate_jaundice_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Jaundice criteria."""
-    jaundice_areas = extracted_data.get('jaundice_areas', False)
-    jaundice_unexplained_undiagnosed = extracted_data.get('jaundice_unexplained_undiagnosed', False)
-    not_drugs_mononucleosis_bile_duct = extracted_data.get('not_drugs_mononucleosis_bile_duct', False)
+    jaundice_areas = is_explicitly_true(extracted_data.get('jaundice_areas'))
+    jaundice_unexplained_undiagnosed = is_explicitly_true(extracted_data.get('jaundice_unexplained_undiagnosed'))
+    not_drugs_mononucleosis_bile_duct = is_explicitly_true(extracted_data.get('not_drugs_mononucleosis_bile_duct'))
     tissue_type = extracted_data.get('tissue_type', '')
     
     if tissue_type == 'skin' and jaundice_areas:
@@ -1513,8 +1524,8 @@ def evaluate_leprosy_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Leprosy criteria."""
-    leprosy_current = extracted_data.get('leprosy_current', False)
-    leprosy_past = extracted_data.get('leprosy_past', False)
+    leprosy_current = is_explicitly_true(extracted_data.get('leprosy_current'))
+    leprosy_past = is_explicitly_true(extracted_data.get('leprosy_past'))
     
     if leprosy_current or leprosy_past:
         return {
@@ -1535,7 +1546,7 @@ def evaluate_liver_disease_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Liver disease criteria."""
-    unexplained_liver_disease_symptoms = extracted_data.get('unexplained_liver_disease_symptoms', False)
+    unexplained_liver_disease_symptoms = is_explicitly_true(extracted_data.get('unexplained_liver_disease_symptoms'))
     
     if unexplained_liver_disease_symptoms:
         return {
@@ -1556,7 +1567,7 @@ def evaluate_long_term_illness_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Long Term Illness criteria."""
-    long_term_illness = extracted_data.get('long_term_illness', False)
+    long_term_illness = is_explicitly_true(extracted_data.get('long_term_illness'))
     
     if long_term_illness:
         return {
@@ -1577,7 +1588,7 @@ def evaluate_long_term_steroid_therapy_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Long Term Steroid therapy criteria."""
-    long_term_steroid_therapy = extracted_data.get('long_term_steroid_therapy', False)
+    long_term_steroid_therapy = is_explicitly_true(extracted_data.get('long_term_steroid_therapy'))
     
     if long_term_steroid_therapy:
         return {
@@ -1598,7 +1609,7 @@ def evaluate_long_term_infection_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate long-term (more than 3 months) bacterial, fungal, viral infections, or diseases of unknown origin criteria."""
-    long_term_infection_current = extracted_data.get('long_term_infection_current', False)
+    long_term_infection_current = is_explicitly_true(extracted_data.get('long_term_infection_current'))
     
     if long_term_infection_current:
         return {
@@ -1619,8 +1630,8 @@ def evaluate_lou_gehrig_disease_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Lou Gehrig's disease (ALS) criteria."""
-    als_current = extracted_data.get('als_current', False)
-    als_past = extracted_data.get('als_past', False)
+    als_current = is_explicitly_true(extracted_data.get('als_current'))
+    als_past = is_explicitly_true(extracted_data.get('als_past'))
     
     if als_current or als_past:
         return {
@@ -1641,9 +1652,9 @@ def evaluate_malaria_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Malaria criteria."""
-    malaria_resident_arrived_us_3_years = extracted_data.get('malaria_resident_arrived_us_3_years', False)
-    malaria_treated_within_3_years = extracted_data.get('malaria_treated_within_3_years', False)
-    malaria_travel_6_months_no_prophylaxis = extracted_data.get('malaria_travel_6_months_no_prophylaxis', False)
+    malaria_resident_arrived_us_3_years = is_explicitly_true(extracted_data.get('malaria_resident_arrived_us_3_years'))
+    malaria_treated_within_3_years = is_explicitly_true(extracted_data.get('malaria_treated_within_3_years'))
+    malaria_travel_6_months_no_prophylaxis = is_explicitly_true(extracted_data.get('malaria_travel_6_months_no_prophylaxis'))
     
     if malaria_resident_arrived_us_3_years:
         return {
@@ -1676,8 +1687,8 @@ def evaluate_measles_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Measles criteria."""
-    significant_active_infection = extracted_data.get('significant_active_infection', False)
-    measles_active = extracted_data.get('measles_active', False)
+    significant_active_infection = is_explicitly_true(extracted_data.get('significant_active_infection'))
+    measles_active = is_explicitly_true(extracted_data.get('measles_active'))
     
     if significant_active_infection or measles_active:
         return {
@@ -1698,8 +1709,8 @@ def evaluate_meningitis_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Meningitis criteria."""
-    significant_active_infection = extracted_data.get('significant_active_infection', False)
-    meningitis_active = extracted_data.get('meningitis_active', False)
+    significant_active_infection = is_explicitly_true(extracted_data.get('significant_active_infection'))
+    meningitis_active = is_explicitly_true(extracted_data.get('meningitis_active'))
     
     if significant_active_infection or meningitis_active:
         return {
@@ -1720,8 +1731,8 @@ def evaluate_multiple_sclerosis_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Multiple Sclerosis (MS) criteria."""
-    ms_current = extracted_data.get('ms_current', False)
-    ms_past = extracted_data.get('ms_past', False)
+    ms_current = is_explicitly_true(extracted_data.get('ms_current'))
+    ms_past = is_explicitly_true(extracted_data.get('ms_past'))
     
     if ms_current or ms_past:
         return {
@@ -1742,8 +1753,8 @@ def evaluate_mumps_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Mumps criteria."""
-    significant_active_infection = extracted_data.get('significant_active_infection', False)
-    mumps_active = extracted_data.get('mumps_active', False)
+    significant_active_infection = is_explicitly_true(extracted_data.get('significant_active_infection'))
+    mumps_active = is_explicitly_true(extracted_data.get('mumps_active'))
     
     if significant_active_infection or mumps_active:
         return {
@@ -1764,7 +1775,7 @@ def evaluate_muscular_dystrophy_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Muscular dystrophy criteria."""
-    muscular_dystrophy = extracted_data.get('muscular_dystrophy', False)
+    muscular_dystrophy = is_explicitly_true(extracted_data.get('muscular_dystrophy'))
     
     if muscular_dystrophy:
         return {
@@ -1785,8 +1796,8 @@ def evaluate_needle_stick_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Needle Stick criteria."""
-    exposed_12_months_hiv_hbv_hcv = extracted_data.get('exposed_12_months_hiv_hbv_hcv', False)
-    sexual_relations_exposed_person_12_months = extracted_data.get('sexual_relations_exposed_person_12_months', False)
+    exposed_12_months_hiv_hbv_hcv = is_explicitly_true(extracted_data.get('exposed_12_months_hiv_hbv_hcv'))
+    sexual_relations_exposed_person_12_months = is_explicitly_true(extracted_data.get('sexual_relations_exposed_person_12_months'))
     
     if exposed_12_months_hiv_hbv_hcv:
         return {
@@ -1813,7 +1824,7 @@ def evaluate_non_tumor_related_shunts_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Non-tumor Related Shunts criteria."""
-    non_tumor_related_shunts = extracted_data.get('non_tumor_related_shunts', False)
+    non_tumor_related_shunts = is_explicitly_true(extracted_data.get('non_tumor_related_shunts'))
     
     if non_tumor_related_shunts:
         return {
@@ -1834,11 +1845,11 @@ def evaluate_osteomyelitis_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Osteomyelitis criteria."""
-    osteomyelitis_past_history = extracted_data.get('osteomyelitis_past_history', False)
-    prior_age_12_females = extracted_data.get('prior_age_12_females', False)
-    prior_age_14_males = extracted_data.get('prior_age_14_males', False)
-    no_treatment_10_years = extracted_data.get('no_treatment_10_years', False)
-    osteomyelitis_other_history = extracted_data.get('osteomyelitis_other_history', False)
+    osteomyelitis_past_history = is_explicitly_true(extracted_data.get('osteomyelitis_past_history'))
+    prior_age_12_females = is_explicitly_true(extracted_data.get('prior_age_12_females'))
+    prior_age_14_males = is_explicitly_true(extracted_data.get('prior_age_14_males'))
+    no_treatment_10_years = is_explicitly_true(extracted_data.get('no_treatment_10_years'))
+    osteomyelitis_other_history = is_explicitly_true(extracted_data.get('osteomyelitis_other_history'))
     gender = (donor_info.get('gender') or '').lower()
     
     if osteomyelitis_other_history:
@@ -1875,7 +1886,7 @@ def evaluate_perianal_condyloma_criteria(
 ) -> Dict[str, Any]:
     """Evaluate Perianal condyloma criteria."""
     male_donor = (donor_info.get('gender') or '').lower() == 'male'
-    anal_intercourse_evidence = extracted_data.get('anal_intercourse_evidence', False)
+    anal_intercourse_evidence = is_explicitly_true(extracted_data.get('anal_intercourse_evidence'))
     
     if male_donor and anal_intercourse_evidence:
         return {
@@ -1896,7 +1907,7 @@ def evaluate_genitalia_piercing_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Genitalia Piercing criteria."""
-    genitalia_piercing = extracted_data.get('genitalia_piercing', False)
+    genitalia_piercing = is_explicitly_true(extracted_data.get('genitalia_piercing'))
     
     if genitalia_piercing:
         return {
@@ -1917,8 +1928,8 @@ def evaluate_piercing_acupuncture_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Piercing/acupuncture criteria."""
-    shared_instruments_12_months = extracted_data.get('shared_instruments_12_months', False)
-    piercing_acupuncture_outside_us_canada_12_months = extracted_data.get('piercing_acupuncture_outside_us_canada_12_months', False)
+    shared_instruments_12_months = is_explicitly_true(extracted_data.get('shared_instruments_12_months'))
+    piercing_acupuncture_outside_us_canada_12_months = is_explicitly_true(extracted_data.get('piercing_acupuncture_outside_us_canada_12_months'))
     
     if shared_instruments_12_months:
         return {
@@ -1945,7 +1956,7 @@ def evaluate_prosthetic_implants_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Prosthetic Implants criteria."""
-    prosthetic_implants = extracted_data.get('prosthetic_implants', False)
+    prosthetic_implants = is_explicitly_true(extracted_data.get('prosthetic_implants'))
     
     if prosthetic_implants:
         return {
@@ -1966,10 +1977,10 @@ def evaluate_rabies_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Rabies criteria."""
-    bitten_scratched_suspected_rabies_6_months = extracted_data.get('bitten_scratched_suspected_rabies_6_months', False)
-    suspected_rabies = extracted_data.get('suspected_rabies', False)
-    rabies_vaccine_after_bite = extracted_data.get('rabies_vaccine_after_bite', False)
-    one_year_after_last_shot = extracted_data.get('one_year_after_last_shot', False)
+    bitten_scratched_suspected_rabies_6_months = is_explicitly_true(extracted_data.get('bitten_scratched_suspected_rabies_6_months'))
+    suspected_rabies = is_explicitly_true(extracted_data.get('suspected_rabies'))
+    rabies_vaccine_after_bite = is_explicitly_true(extracted_data.get('rabies_vaccine_after_bite'))
+    one_year_after_last_shot = is_explicitly_true(extracted_data.get('one_year_after_last_shot'))
     
     if bitten_scratched_suspected_rabies_6_months:
         return {
@@ -2002,10 +2013,10 @@ def evaluate_refused_blood_donor_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Refused as blood donor criteria."""
-    deferred_unknown_reasons = extracted_data.get('deferred_unknown_reasons', False)
-    deferred_diseases_infections = extracted_data.get('deferred_diseases_infections', False)
-    deferred_positive_serologic = extracted_data.get('deferred_positive_serologic', False)
-    deferred_other_circumstances = extracted_data.get('deferred_other_circumstances', False)
+    deferred_unknown_reasons = is_explicitly_true(extracted_data.get('deferred_unknown_reasons'))
+    deferred_diseases_infections = is_explicitly_true(extracted_data.get('deferred_diseases_infections'))
+    deferred_positive_serologic = is_explicitly_true(extracted_data.get('deferred_positive_serologic'))
+    deferred_other_circumstances = is_explicitly_true(extracted_data.get('deferred_other_circumstances'))
     
     if deferred_unknown_reasons or deferred_diseases_infections or deferred_positive_serologic:
         return {
@@ -2032,8 +2043,8 @@ def evaluate_reyes_syndrome_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Reye's Syndrome criteria."""
-    reyes_syndrome_past = extracted_data.get('reyes_syndrome_past', False)
-    reyes_syndrome_current = extracted_data.get('reyes_syndrome_current', False)
+    reyes_syndrome_past = is_explicitly_true(extracted_data.get('reyes_syndrome_past'))
+    reyes_syndrome_current = is_explicitly_true(extracted_data.get('reyes_syndrome_current'))
     
     if reyes_syndrome_past or reyes_syndrome_current:
         return {
@@ -2055,10 +2066,10 @@ def evaluate_rheumatic_fever_criteria(
 ) -> Dict[str, Any]:
     """Evaluate Rheumatic Fever criteria."""
     pericardium_tissue_donor = (extracted_data.get('tissue_type') or '').lower() == 'pericardium'
-    rheumatic_fever = extracted_data.get('rheumatic_fever', False)
-    bacterial_endocarditis = extracted_data.get('bacterial_endocarditis', False)
-    semilunar_valvular_heart_disease = extracted_data.get('semilunar_valvular_heart_disease', False)
-    heart_disease_unknown_etiology = extracted_data.get('heart_disease_unknown_etiology', False)
+    rheumatic_fever = is_explicitly_true(extracted_data.get('rheumatic_fever'))
+    bacterial_endocarditis = is_explicitly_true(extracted_data.get('bacterial_endocarditis'))
+    semilunar_valvular_heart_disease = is_explicitly_true(extracted_data.get('semilunar_valvular_heart_disease'))
+    heart_disease_unknown_etiology = is_explicitly_true(extracted_data.get('heart_disease_unknown_etiology'))
     
     if pericardium_tissue_donor and (rheumatic_fever or bacterial_endocarditis or semilunar_valvular_heart_disease or heart_disease_unknown_etiology):
         return {
@@ -2079,8 +2090,8 @@ def evaluate_rubella_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Rubella criteria."""
-    significant_active_infection = extracted_data.get('significant_active_infection', False)
-    rubella_active = extracted_data.get('rubella_active', False)
+    significant_active_infection = is_explicitly_true(extracted_data.get('significant_active_infection'))
+    rubella_active = is_explicitly_true(extracted_data.get('rubella_active'))
     
     if significant_active_infection or rubella_active:
         return {
@@ -2102,10 +2113,10 @@ def evaluate_std_sti_criteria(
 ) -> Dict[str, Any]:
     """Evaluate Sexually Transmitted Diseases (STDs) or Sexually Transmitted infections (STIs) criteria."""
     std_sti_type = (extracted_data.get('std_sti_type') or '').lower()
-    treated_within_12_months = extracted_data.get('treated_within_12_months', False)
-    std_sti_other = extracted_data.get('std_sti_other', False)
-    std_sti_history_more_than_12_months = extracted_data.get('std_sti_history_more_than_12_months', False)
-    sexual_relations_active_std_sti_12_months = extracted_data.get('sexual_relations_active_std_sti_12_months', False)
+    treated_within_12_months = is_explicitly_true(extracted_data.get('treated_within_12_months'))
+    std_sti_other = is_explicitly_true(extracted_data.get('std_sti_other'))
+    std_sti_history_more_than_12_months = is_explicitly_true(extracted_data.get('std_sti_history_more_than_12_months'))
+    sexual_relations_active_std_sti_12_months = is_explicitly_true(extracted_data.get('sexual_relations_active_std_sti_12_months'))
     
     if (std_sti_type in ['syphilis', 'gonorrhea']) and treated_within_12_months:
         return {
@@ -2144,7 +2155,7 @@ def evaluate_smallpox_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Smallpox criteria."""
-    smallpox_vaccine = extracted_data.get('smallpox_vaccine', False)
+    smallpox_vaccine = is_explicitly_true(extracted_data.get('smallpox_vaccine'))
     
     if smallpox_vaccine:
         return {
@@ -2165,8 +2176,8 @@ def evaluate_sirs_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Systemic Inflammatory Response Syndrome (SIRS) criteria."""
-    sirs_due_to_infection = extracted_data.get('sirs_due_to_infection', False)
-    sirs_other_causes = extracted_data.get('sirs_other_causes', False)
+    sirs_due_to_infection = is_explicitly_true(extracted_data.get('sirs_due_to_infection'))
+    sirs_other_causes = is_explicitly_true(extracted_data.get('sirs_other_causes'))
     
     if sirs_due_to_infection:
         return {
@@ -2193,11 +2204,11 @@ def evaluate_tattoo_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Tattoo criteria."""
-    tattoo_shared_instruments_12_months = extracted_data.get('tattoo_shared_instruments_12_months', False)
-    tattoo_outside_us_canada_12_months = extracted_data.get('tattoo_outside_us_canada_12_months', False)
-    tattoo_high_risk_lifestyle_12_months = extracted_data.get('tattoo_high_risk_lifestyle_12_months', False)
-    tattoo_over_12_months = extracted_data.get('tattoo_over_12_months', False)
-    tattoo_areas = extracted_data.get('tattoo_areas', False)
+    tattoo_shared_instruments_12_months = is_explicitly_true(extracted_data.get('tattoo_shared_instruments_12_months'))
+    tattoo_outside_us_canada_12_months = is_explicitly_true(extracted_data.get('tattoo_outside_us_canada_12_months'))
+    tattoo_high_risk_lifestyle_12_months = is_explicitly_true(extracted_data.get('tattoo_high_risk_lifestyle_12_months'))
+    tattoo_over_12_months = is_explicitly_true(extracted_data.get('tattoo_over_12_months'))
+    tattoo_areas = is_explicitly_true(extracted_data.get('tattoo_areas'))
     tissue_type = extracted_data.get('tissue_type', '')
     
     if tissue_type == 'skin' and tattoo_areas:
@@ -2232,12 +2243,12 @@ def evaluate_transplant_criteria(
 ) -> Dict[str, Any]:
     """Evaluate Transplant criteria."""
     transplant_type = extracted_data.get('transplant_type', '')
-    xenograft_non_living_cells = extracted_data.get('xenograft_non_living_cells', False)
-    xenograft_living_cells = extracted_data.get('xenograft_living_cells', False)
-    human_tissue_transplant_screened = extracted_data.get('human_tissue_transplant_screened', False)
-    non_synthetic_dura_mater = extracted_data.get('non_synthetic_dura_mater', False)
-    epicel_receipt = extracted_data.get('epicel_receipt', False)
-    human_dura_allograft_tissue = extracted_data.get('human_dura_allograft_tissue', False)
+    xenograft_non_living_cells = is_explicitly_true(extracted_data.get('xenograft_non_living_cells'))
+    xenograft_living_cells = is_explicitly_true(extracted_data.get('xenograft_living_cells'))
+    human_tissue_transplant_screened = is_explicitly_true(extracted_data.get('human_tissue_transplant_screened'))
+    non_synthetic_dura_mater = is_explicitly_true(extracted_data.get('non_synthetic_dura_mater'))
+    epicel_receipt = is_explicitly_true(extracted_data.get('epicel_receipt'))
+    human_dura_allograft_tissue = is_explicitly_true(extracted_data.get('human_dura_allograft_tissue'))
     
     if non_synthetic_dura_mater:
         return {
@@ -2294,8 +2305,8 @@ def evaluate_trauma_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Trauma criteria."""
-    extensive_deep_abrasions_lacerations = extracted_data.get('extensive_deep_abrasions_lacerations', False)
-    adipose_environmental_contaminants = extracted_data.get('adipose_environmental_contaminants', False)
+    extensive_deep_abrasions_lacerations = is_explicitly_true(extracted_data.get('extensive_deep_abrasions_lacerations'))
+    adipose_environmental_contaminants = is_explicitly_true(extracted_data.get('adipose_environmental_contaminants'))
     tissue_type = extracted_data.get('tissue_type', '')
     
     if extensive_deep_abrasions_lacerations or adipose_environmental_contaminants:
@@ -2323,13 +2334,13 @@ def evaluate_travel_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Travel criteria."""
-    malarial_areas_arrived_us_3_years = extracted_data.get('malarial_areas_arrived_us_3_years', False)
-    chagas_areas_arrived_us_3_years = extracted_data.get('chagas_areas_arrived_us_3_years', False)
-    tse_areas_arrived_us_3_years = extracted_data.get('tse_areas_arrived_us_3_years', False)
-    malarial_areas_6_months_no_prophylaxis = extracted_data.get('malarial_areas_6_months_no_prophylaxis', False)
-    uk_3_months_1980_1996 = extracted_data.get('uk_3_months_1980_1996', False)
-    blood_transfusion_uk_france_1980_present = extracted_data.get('blood_transfusion_uk_france_1980_present', False)
-    europe_5_years_1980_present = extracted_data.get('europe_5_years_1980_present', False)
+    malarial_areas_arrived_us_3_years = is_explicitly_true(extracted_data.get('malarial_areas_arrived_us_3_years'))
+    chagas_areas_arrived_us_3_years = is_explicitly_true(extracted_data.get('chagas_areas_arrived_us_3_years'))
+    tse_areas_arrived_us_3_years = is_explicitly_true(extracted_data.get('tse_areas_arrived_us_3_years'))
+    malarial_areas_6_months_no_prophylaxis = is_explicitly_true(extracted_data.get('malarial_areas_6_months_no_prophylaxis'))
+    uk_3_months_1980_1996 = is_explicitly_true(extracted_data.get('uk_3_months_1980_1996'))
+    blood_transfusion_uk_france_1980_present = is_explicitly_true(extracted_data.get('blood_transfusion_uk_france_1980_present'))
+    europe_5_years_1980_present = is_explicitly_true(extracted_data.get('europe_5_years_1980_present'))
     
     if malarial_areas_arrived_us_3_years or chagas_areas_arrived_us_3_years or tse_areas_arrived_us_3_years:
         return {
@@ -2374,18 +2385,18 @@ def evaluate_aatb_new_tb_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate AATB New TB Criteria."""
-    tb_disease_history_ever = extracted_data.get('tb_disease_history_ever', False)
-    tb_latent_infection_diagnosed_within_2_years = extracted_data.get('tb_latent_infection_diagnosed_within_2_years', False)
-    viable_cells_tissue = extracted_data.get('viable_cells_tissue', False)
+    tb_disease_history_ever = is_explicitly_true(extracted_data.get('tb_disease_history_ever'))
+    tb_latent_infection_diagnosed_within_2_years = is_explicitly_true(extracted_data.get('tb_latent_infection_diagnosed_within_2_years'))
+    viable_cells_tissue = is_explicitly_true(extracted_data.get('viable_cells_tissue'))
     age_65_plus = donor_info.get('age', 0) >= 65
-    tb_travel_immigration_2_years = extracted_data.get('tb_travel_immigration_2_years', False)
-    tb_exposure_2_years = extracted_data.get('tb_exposure_2_years', False)
-    tb_latent_2_years_ago = extracted_data.get('tb_latent_2_years_ago', False)
-    tb_homelessness_2_years = extracted_data.get('tb_homelessness_2_years', False)
-    tb_incarceration_2_years = extracted_data.get('tb_incarceration_2_years', False)
-    tb_esrd_transplant = extracted_data.get('tb_esrd_transplant', False)
-    exposure_risk_factor = extracted_data.get('exposure_risk_factor', False)
-    reactivation_risk_factor = extracted_data.get('reactivation_risk_factor', False)
+    tb_travel_immigration_2_years = is_explicitly_true(extracted_data.get('tb_travel_immigration_2_years'))
+    tb_exposure_2_years = is_explicitly_true(extracted_data.get('tb_exposure_2_years'))
+    tb_latent_2_years_ago = is_explicitly_true(extracted_data.get('tb_latent_2_years_ago'))
+    tb_homelessness_2_years = is_explicitly_true(extracted_data.get('tb_homelessness_2_years'))
+    tb_incarceration_2_years = is_explicitly_true(extracted_data.get('tb_incarceration_2_years'))
+    tb_esrd_transplant = is_explicitly_true(extracted_data.get('tb_esrd_transplant'))
+    exposure_risk_factor = is_explicitly_true(extracted_data.get('exposure_risk_factor'))
+    reactivation_risk_factor = is_explicitly_true(extracted_data.get('reactivation_risk_factor'))
     
     if tb_disease_history_ever:
         return {
@@ -2425,8 +2436,8 @@ def evaluate_typhus_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate Typhus criteria."""
-    significant_active_infection = extracted_data.get('significant_active_infection', False)
-    typhus_active = extracted_data.get('typhus_active', False)
+    significant_active_infection = is_explicitly_true(extracted_data.get('significant_active_infection'))
+    typhus_active = is_explicitly_true(extracted_data.get('typhus_active'))
     
     if significant_active_infection or typhus_active:
         return {
@@ -2447,9 +2458,9 @@ def evaluate_us_military_criteria(
     criterion_info: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate US Military criteria."""
-    military_northern_europe_6_months_1980_1990 = extracted_data.get('military_northern_europe_6_months_1980_1990', False)
-    military_europe_6_months_1980_1996 = extracted_data.get('military_europe_6_months_1980_1996', False)
-    uk_3_months_1980_1996 = extracted_data.get('uk_3_months_1980_1996', False)
+    military_northern_europe_6_months_1980_1990 = is_explicitly_true(extracted_data.get('military_northern_europe_6_months_1980_1990'))
+    military_europe_6_months_1980_1996 = is_explicitly_true(extracted_data.get('military_europe_6_months_1980_1996'))
+    uk_3_months_1980_1996 = is_explicitly_true(extracted_data.get('uk_3_months_1980_1996'))
     
     if military_northern_europe_6_months_1980_1990 or military_europe_6_months_1980_1996:
         return {

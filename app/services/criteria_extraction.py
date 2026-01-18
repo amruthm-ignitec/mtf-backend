@@ -225,6 +225,9 @@ CRITICAL INSTRUCTIONS:
 4. Extract exact values as they appear (dates, numbers, text)
 5. For boolean/yes-no questions, extract as true/false/null based on what's stated
 6. For dates, extract in the format found in the document (or convert to YYYY-MM-DD if possible)
+7. DO NOT infer diagnoses from test results. For example:
+   - If document shows "Blood Culture: Positive" but does NOT explicitly state "Sepsis Diagnosis" or "Diagnosed with Sepsis", then sepsis_diagnosis must be null
+   - Only extract true/Yes for diagnosis fields if the document explicitly states the diagnosis
 
 ACCEPTANCE CRITERIA TO EXTRACT DATA FOR:
 {criteria_list_str}
