@@ -225,9 +225,24 @@ CRITICAL INSTRUCTIONS:
 4. Extract exact values as they appear (dates, numbers, text)
 5. For boolean/yes-no questions, extract as true/false/null based on what's stated
 6. For dates, extract in the format found in the document (or convert to YYYY-MM-DD if possible)
-7. DO NOT infer diagnoses from test results. For example:
-   - If document shows "Blood Culture: Positive" but does NOT explicitly state "Sepsis Diagnosis" or "Diagnosed with Sepsis", then sepsis_diagnosis must be null
-   - Only extract true/Yes for diagnosis fields if the document explicitly states the diagnosis
+7. STRICT RULE FOR DIAGNOSIS FIELDS (sepsis_diagnosis, tb_diagnosis, etc.):
+   - Extract true/Yes ONLY if the document contains a statement that indicates the patient 
+     HAS or HAD the condition as a medical fact/diagnosis
+   - The statement must indicate the condition is/was present in the patient, not just mentioned
+   - Accept ANY phrasing that clearly indicates a diagnosis (e.g., "diagnosed with", "has", 
+     "confirmed", "present", "active", "history of", "noted", "diagnosis:", etc.)
+   - Extract null (NOT true) if:
+     * The condition word appears only in test names (e.g., "Sepsis Protocol", "TB Test")
+     * The condition word appears only in lab results without a diagnosis statement
+     * Document says "rule out [condition]" or "R/O [condition]" (this means checking, not diagnosing)
+     * Document says "no evidence of [condition]" or "negative for [condition]"
+     * Document says "suspected [condition]" or "possible [condition]" (uncertainty, not diagnosis)
+     * Test results are positive/negative but no explicit diagnosis statement exists
+     * The word appears only in passing without indicating the patient has the condition
+   
+   KEY PRINCIPLE: A diagnosis field should be true ONLY when the document states that the 
+   patient has/had the condition as a medical fact. If you're inferring it from test results 
+   alone, or if it's only mentioned in test names/protocols, it must be null.
 
 ACCEPTANCE CRITERIA TO EXTRACT DATA FOR:
 {criteria_list_str}

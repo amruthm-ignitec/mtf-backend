@@ -374,16 +374,34 @@ def evaluate_sepsis_criteria(
     systemic_infection = is_explicitly_true(extracted_data.get('systemic_infection'))
     septic_shock = is_explicitly_true(extracted_data.get('septic_shock'))
     
+    # Check blood culture results FIRST (before checking diagnosis flags)
+    blood_cultures = [lr for lr in lab_results 
+                     if lr.test_type == TestType.CULTURE and 'blood' in lr.test_name.lower()]
+    
+    # Safety check: If sepsis is diagnosed but blood culture is negative, flag for review
+    if sepsis_diagnosed:
+        negative_cultures = []
+        for culture in blood_cultures:
+            result_lower = culture.result.lower()
+            if 'no growth' in result_lower or 'negative' in result_lower:
+                negative_cultures.append(culture.result)
+        
+        if negative_cultures:
+            # Contradiction detected - this suggests extraction may be incorrect
+            # Return MD_DISCRETION to require manual review rather than auto-rejecting
+            return {
+                'result': EvaluationResult.MD_DISCRETION,
+                'reasoning': f'Contradiction detected: sepsis diagnosis present but blood culture shows {negative_cultures[0]}. Requires manual review to verify diagnosis accuracy.'
+            }
+    
+    # Check other sepsis-related diagnoses
     if sepsis_diagnosed or bacteremia or septicemia or sepsis_syndrome or systemic_infection or septic_shock:
         return {
             'result': EvaluationResult.UNACCEPTABLE,
             'reasoning': 'Documented medical diagnosis of sepsis or clinical evidence consistent with sepsis'
         }
     
-    # Check blood culture results
-    blood_cultures = [lr for lr in lab_results 
-                     if lr.test_type == TestType.CULTURE and 'blood' in lr.test_name.lower()]
-    
+    # Check for positive blood cultures (when no explicit diagnosis)
     for culture in blood_cultures:
         result_lower = culture.result.lower()
         if 'no growth' not in result_lower and 'negative' not in result_lower:
