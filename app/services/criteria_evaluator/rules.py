@@ -76,9 +76,9 @@ def evaluate_age_criteria(
     Evaluate age criteria.
     Returns result for both tissue types.
     """
-    age = donor_info.get('age') or extracted_data.get('donor_age')
+    age = extracted_data.get('donor_age') or donor_info.get('age')
     tissue_type = extracted_data.get('tissue_type', '')
-    gender = donor_info.get('gender', '')
+    gender = extracted_data.get('gender') or donor_info.get('gender', '')
     
     if not age:
         return {
@@ -814,9 +814,15 @@ def evaluate_autopsy_criteria(
                 'reasoning': 'En bloc and OA grafts require limited autopsy (head only, toxicology only)'
             }
     
+    if not autopsy_performed:
+        return {
+            'result': EvaluationResult.ACCEPTABLE,
+            'reasoning': 'Autopsy was not performed; no autopsy report is expected.'
+        }
+
     return {
         'result': EvaluationResult.ACCEPTABLE,
-        'reasoning': 'Autopsy criteria met'
+        'reasoning': 'Autopsy performed; criteria met.'
     }
 
 

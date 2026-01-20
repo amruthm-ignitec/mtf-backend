@@ -108,6 +108,12 @@ async def update_user(
         )
     
     update_data = user_update.dict(exclude_unset=True)
+
+    # Handle password update separately (store hashed_password)
+    password = update_data.pop("password", None)
+    if password:
+        user.hashed_password = get_password_hash(password)
+
     for field, value in update_data.items():
         setattr(user, field, value)
     

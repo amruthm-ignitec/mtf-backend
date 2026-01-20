@@ -107,6 +107,24 @@ class CriteriaEvaluator:
                     criteria_by_name[criterion_name] = []
                 criteria_by_name[criterion_name].append(eval_obj)
             
+            # Extract age and gender from "Age" criterion if available (prioritize document-extracted values)
+            extracted_age = None
+            extracted_gender = None
+            if 'Age' in criteria_by_name:
+                age_eval_objects = criteria_by_name['Age']
+                for eval_obj in age_eval_objects:
+                    if eval_obj.extracted_data:
+                        if 'donor_age' in eval_obj.extracted_data and eval_obj.extracted_data['donor_age'] is not None:
+                            extracted_age = eval_obj.extracted_data['donor_age']
+                        if 'gender' in eval_obj.extracted_data and eval_obj.extracted_data['gender'] is not None:
+                            extracted_gender = eval_obj.extracted_data['gender']
+            
+            # Build donor_info with extracted values first, fallback to user-entered values
+            donor_info = {
+                'age': extracted_age if extracted_age is not None else donor.age,
+                'gender': extracted_gender if extracted_gender is not None else donor.gender
+            }
+            
             # Evaluate each criterion
             for criterion_name, eval_objects in criteria_by_name.items():
                 if criterion_name not in self.criteria_config:
@@ -128,7 +146,7 @@ class CriteriaEvaluator:
                     criterion_info=criterion_info,
                     extracted_data=merged_extracted_data,
                     lab_results=lab_results,
-                    donor_info={'age': donor.age, 'gender': donor.gender}
+                    donor_info=donor_info
                 )
                 
                 # Update evaluation results in database
