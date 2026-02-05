@@ -12,6 +12,83 @@ from app.models.laboratory_result import LaboratoryResult, TestType
 logger = logging.getLogger(__name__)
 
 
+def clean_time_of_death(raw_time: str) -> str:
+    """
+    Clean and extract date, time, and timezone from time of death string.
+    Removes labels and other extraneous information.
+    
+    Args:
+        raw_time: Raw time of death string that may contain dates, labels, etc.
+    
+    Returns:
+        Cleaned string with date, time, and timezone (e.g., "07/03/2025 19:03 EDT")
+    """
+    if not raw_time:
+        return raw_time
+    
+    # Remove common prefixes/labels
+    cleaned = re.sub(r'(?:death\s+date[-:]?\s*time|date[-:]?\s*time|time\s+of\s+death)[:\s]*', '', raw_time, flags=re.IGNORECASE)
+    
+    # Common timezone abbreviations
+    timezone_abbrevs = r'(?:EDT|EST|PDT|PST|CDT|CST|MDT|MST|AKDT|AKST|HST|UTC|GMT)'
+    
+    # Date patterns: MM/DD/YYYY, MM-DD-YYYY, YYYY-MM-DD, DD/MM/YYYY, etc.
+    date_patterns = [
+        r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})',  # MM/DD/YYYY or MM-DD-YYYY
+        r'(\d{4}[/-]\d{1,2}[/-]\d{1,2})',  # YYYY-MM-DD or YYYY/MM/DD
+        r'(\d{1,2}[/-]\d{1,2}[/-]\d{2})',  # MM/DD/YY or MM-DD-YY
+    ]
+    
+    # Pattern to match date, time (HH:MM or HH:MM:SS), and timezone
+    # Try to find date + time + timezone together
+    for date_pattern in date_patterns:
+        full_pattern = date_pattern + r'\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*(' + timezone_abbrevs + r')\b'
+        match = re.search(full_pattern, cleaned, re.IGNORECASE)
+        if match:
+            date_part = match.group(1)
+            time_part = match.group(2)
+            tz_part = match.group(3).upper()
+            return f"{date_part} {time_part} {tz_part}"
+    
+    # Fallback: try to find date and time separately, then timezone
+    date_match = None
+    for date_pattern in date_patterns:
+        date_match = re.search(date_pattern, cleaned)
+        if date_match:
+            break
+    
+    time_pattern = r'(\d{1,2}:\d{2}(?::\d{2})?)'
+    time_match = re.search(time_pattern, cleaned)
+    
+    if date_match and time_match:
+        date_part = date_match.group(1)
+        time_part = time_match.group(1)
+        # Look for timezone within reasonable distance after the time
+        time_pos = time_match.end()
+        remaining_text = cleaned[time_pos:time_pos+30]
+        tz_match = re.search(r'\b(' + timezone_abbrevs + r')\b', remaining_text, re.IGNORECASE)
+        if tz_match:
+            return f"{date_part} {time_part} {tz_match.group(1).upper()}"
+        return f"{date_part} {time_part}"
+    
+    # If we have time but no date, try to find timezone
+    if time_match:
+        time_part = time_match.group(1)
+        time_pos = time_match.end()
+        remaining_text = cleaned[time_pos:time_pos+30]
+        tz_match = re.search(r'\b(' + timezone_abbrevs + r')\b', remaining_text, re.IGNORECASE)
+        if tz_match:
+            return f"{time_part} {tz_match.group(1).upper()}"
+        return time_part
+    
+    # If no time pattern found, return original but cleaned of common unwanted words
+    # Remove words like "Asystole", "Death", etc.
+    cleaned = re.sub(r'\b(asystole|death|expired|deceased)\b', '', cleaned, flags=re.IGNORECASE)
+    cleaned = cleaned.strip()
+    
+    return cleaned if cleaned else raw_time
+
+
 def extract_recovery_information(vectordb: Any, page_doc_list: List[Any]) -> Dict[str, Any]:
     """
     Extract recovery information using semantic search + pattern matching.
@@ -171,7 +248,9 @@ def extract_terminal_information(vectordb: Any, page_doc_list: List[Any]) -> Dic
         for pattern in tod_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                terminal_info['time_of_death'] = match.group(1).strip()
+                raw_time = match.group(1).strip()
+                # Clean the extracted time to only include time and timezone
+                terminal_info['time_of_death'] = clean_time_of_death(raw_time)
                 break
         
         # Cause of death patterns
