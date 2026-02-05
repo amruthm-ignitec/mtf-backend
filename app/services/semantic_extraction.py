@@ -26,7 +26,7 @@ def clean_time_of_death(raw_time: str) -> str:
     if not raw_time:
         return raw_time
     
-    # Remove common prefixes/labels
+    # Remove common prefixes/labels but keep the original for fallback
     cleaned = re.sub(r'(?:death\s+date[-:]?\s*time|date[-:]?\s*time|time\s+of\s+death)[:\s]*', '', raw_time, flags=re.IGNORECASE)
     
     # Common timezone abbreviations
@@ -81,12 +81,25 @@ def clean_time_of_death(raw_time: str) -> str:
             return f"{time_part} {tz_match.group(1).upper()}"
         return time_part
     
-    # If no time pattern found, return original but cleaned of common unwanted words
-    # Remove words like "Asystole", "Death", etc.
-    cleaned = re.sub(r'\b(asystole|death|expired|deceased)\b', '', cleaned, flags=re.IGNORECASE)
-    cleaned = cleaned.strip()
+    # If we have date but no time, return the date
+    if date_match:
+        return date_match.group(1)
     
-    return cleaned if cleaned else raw_time
+    # If no structured pattern found, clean unwanted words but preserve the rest
+    # Remove words like "Asystole", "Death", etc. but keep date/time info
+    cleaned_result = re.sub(r'\b(asystole|death|expired|deceased)\b', '', cleaned, flags=re.IGNORECASE)
+    cleaned_result = re.sub(r'\s+', ' ', cleaned_result).strip()
+    
+    # If we still have something meaningful, return it
+    if cleaned_result and len(cleaned_result) > 3:
+        return cleaned_result
+    
+    # Last resort: return the original cleaned text (without prefix) if it has content
+    if cleaned and len(cleaned.strip()) > 3:
+        return cleaned.strip()
+    
+    # Final fallback: return original
+    return raw_time
 
 
 def extract_recovery_information(vectordb: Any, page_doc_list: List[Any]) -> Dict[str, Any]:
@@ -249,9 +262,17 @@ def extract_terminal_information(vectordb: Any, page_doc_list: List[Any]) -> Dic
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 raw_time = match.group(1).strip()
-                # Clean the extracted time to only include time and timezone
-                terminal_info['time_of_death'] = clean_time_of_death(raw_time)
-                break
+                if raw_time:
+                    # Clean the extracted time to only include date, time and timezone
+                    cleaned_time = clean_time_of_death(raw_time)
+                    # Only set if we got a meaningful result with digits (indicating date/time)
+                    if cleaned_time and cleaned_time.strip() and re.search(r'\d', cleaned_time):
+                        terminal_info['time_of_death'] = cleaned_time.strip()
+                        logger.debug(f"Extracted time of death: {terminal_info['time_of_death']} from raw: {raw_time}")
+                        break
+                    else:
+                        logger.debug(f"clean_time_of_death returned invalid result for raw_time: {raw_time}, cleaned: {cleaned_time}")
+                        # Continue to try other patterns if this one didn't yield a result
         
         # Cause of death patterns
         cod_patterns = [
