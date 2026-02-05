@@ -188,16 +188,37 @@ def extract_all_criteria_data_batched(
         
         retrieved_docs = unique_docs[:50]  # Limit to top 50 unique chunks
         
+        # Track source pages for citations
+        source_pages = []
+        
         # Also include first 20 pages from page_doc_list for comprehensive coverage
         context_pages = []
         for page_doc in page_doc_list[:20]:
             if hasattr(page_doc, 'page_content'):
                 context_pages.append(page_doc)
+                # Extract page number
+                page_num = getattr(page_doc, 'metadata', {}).get('page')
+                if page_num is not None:
+                    try:
+                        page_int = int(page_num) if isinstance(page_num, (int, str)) and str(page_num).isdigit() else None
+                        if page_int and page_int not in source_pages:
+                            source_pages.append(page_int)
+                    except (ValueError, TypeError):
+                        pass
         
         # Build comprehensive context
         context_parts = []
         for doc in retrieved_docs:
             context_parts.append(f"Page {doc.metadata.get('page', '?')}: {doc.page_content}")
+            # Extract page number from retrieved docs
+            page_num = doc.metadata.get('page')
+            if page_num is not None:
+                try:
+                    page_int = int(page_num) if isinstance(page_num, (int, str)) and str(page_num).isdigit() else None
+                    if page_int and page_int not in source_pages:
+                        source_pages.append(page_int)
+                except (ValueError, TypeError):
+                    pass
         for page_doc in context_pages:
             page_num = getattr(page_doc, 'metadata', {}).get('page', '?')
             content = getattr(page_doc, 'page_content', '')
@@ -243,6 +264,16 @@ CRITICAL INSTRUCTIONS:
    KEY PRINCIPLE: A diagnosis field should be true ONLY when the document states that the 
    patient has/had the condition as a medical fact. If you're inferring it from test results 
    alone, or if it's only mentioned in test names/protocols, it must be null.
+   
+   CRITICAL FOR sepsis_diagnosis: This field means "sepsis is present in the patient", NOT 
+   "a sepsis diagnosis was performed". Only set to true if the document explicitly states 
+   that the patient HAS sepsis, HAD sepsis, or was DIAGNOSED WITH sepsis (meaning sepsis 
+   is/was present). If the document only mentions "sepsis diagnosis" in the context of 
+   testing, ruling out, or performing diagnostic procedures, but does not confirm sepsis 
+   is present, set to null. Examples:
+   - TRUE: "Patient diagnosed with sepsis", "Sepsis present", "Active sepsis", "History of sepsis"
+   - NULL: "Rule out sepsis", "Sepsis protocol initiated", "Sepsis diagnosis pending", 
+           "Testing for sepsis", "Sepsis workup performed", "No sepsis found"
 
 ACCEPTANCE CRITERIA TO EXTRACT DATA FOR:
 {criteria_list_str}
@@ -326,6 +357,9 @@ Return only the JSON object, no other text or markdown formatting:"""
                 # Add metadata
                 extracted_data['_criterion_name'] = criterion_name
                 extracted_data['_extraction_timestamp'] = str(os.path.getmtime(__file__))
+                # Add source pages for citations (sorted, deduplicated)
+                if source_pages:
+                    extracted_data['_source_pages'] = sorted(list(set(source_pages)))
                 
                 # Skip storing if there's no actual data (all values are null)
                 if not _has_actual_data(extracted_data):
@@ -397,6 +431,9 @@ def extract_single_criterion(
         retriever = vectordb.as_retriever(search_type='similarity', search_kwargs={'k': 5})
         retrieved_docs = retriever.invoke(search_query)
         
+        # Track source pages for citations
+        source_pages = []
+        
         if not retrieved_docs:
             # Also try searching in page_doc_list by keyword
             relevant_pages = []
@@ -406,6 +443,15 @@ def extract_single_criterion(
                     content = page_doc.page_content.lower()
                     if criterion_lower in content or any(dp.lower() in content for dp in required_data_points):
                         relevant_pages.append(page_doc)
+                        # Extract page number
+                        page_num = getattr(page_doc, 'metadata', {}).get('page')
+                        if page_num is not None:
+                            try:
+                                page_int = int(page_num) if isinstance(page_num, (int, str)) and str(page_num).isdigit() else None
+                                if page_int and page_int not in source_pages:
+                                    source_pages.append(page_int)
+                            except (ValueError, TypeError):
+                                pass
             
             if not relevant_pages:
                 return None
@@ -420,6 +466,16 @@ def extract_single_criterion(
                 f"Page {doc.metadata.get('page', '?')}: {doc.page_content}"
                 for doc in retrieved_docs
             ])
+            # Extract page numbers from retrieved docs
+            for doc in retrieved_docs:
+                page_num = doc.metadata.get('page')
+                if page_num is not None:
+                    try:
+                        page_int = int(page_num) if isinstance(page_num, (int, str)) and str(page_num).isdigit() else None
+                        if page_int and page_int not in source_pages:
+                            source_pages.append(page_int)
+                    except (ValueError, TypeError):
+                        pass
         
         # Create extraction prompt
         data_points_list = ", ".join(required_data_points)
@@ -460,6 +516,9 @@ Return only the JSON object, no other text:"""
             # Add metadata
             extracted_data['_criterion_name'] = criterion_name
             extracted_data['_extraction_timestamp'] = str(os.path.getmtime(__file__))  # Simple timestamp
+            # Add source pages for citations (sorted, deduplicated)
+            if source_pages:
+                extracted_data['_source_pages'] = sorted(list(set(source_pages)))
             
             return extracted_data
             
