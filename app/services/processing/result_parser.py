@@ -176,13 +176,18 @@ class ResultParser:
                 
                 criterion_name = eval_obj.criterion_name
                 if criterion_name not in criteria_data:
+                    # Extract source pages from extracted_data metadata
+                    source_pages = extracted_data.get('_source_pages', [])
                     criteria_data[criterion_name] = {
                         "extracted_data": extracted_data,
                         "evaluation_result": eval_obj.evaluation_result.value,
                         "evaluation_reasoning": eval_obj.evaluation_reasoning,
                         "tissue_types": [],
-                        "document_ids": []  # Collect all document IDs for this criterion
+                        "document_ids": [],  # Collect all document IDs for this criterion
+                        "source_pages": []  # Collect all source pages for citations
                     }
+                    if source_pages:
+                        criteria_data[criterion_name]["source_pages"].extend(source_pages)
                 
                 # Only append if not already present (deduplicate)
                 tissue_type_value = eval_obj.tissue_type.value
@@ -192,6 +197,15 @@ class ResultParser:
                 # Add document_id if available and not already present
                 if eval_obj.document_id and eval_obj.document_id not in criteria_data[criterion_name]["document_ids"]:
                     criteria_data[criterion_name]["document_ids"].append(eval_obj.document_id)
+                
+                # Add source pages if available and not already present
+                source_pages = extracted_data.get('_source_pages', [])
+                if source_pages:
+                    for page in source_pages:
+                        if page not in criteria_data[criterion_name]["source_pages"]:
+                            criteria_data[criterion_name]["source_pages"].append(page)
+                    # Sort and deduplicate
+                    criteria_data[criterion_name]["source_pages"] = sorted(list(set(criteria_data[criterion_name]["source_pages"])))
             
             return criteria_data
         except Exception as e:
