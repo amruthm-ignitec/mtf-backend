@@ -312,12 +312,17 @@ def extract_terminal_information(vectordb: Any, page_doc_list: List[Any]) -> Dic
             )
             if sepsis_context:
                 context_text = sepsis_context.group(0).lower()
-                if re.search(r'present|yes|positive|confirmed|diagnosed|evidence', context_text):
+                # Check for negative indicators first (testing, ruling out, protocols, etc.)
+                if re.search(r'rule\s+out|r\/o|testing\s+for|test\s+for|protocol|workup|pending|suspected|possible|no\s+sepsis|negative\s+for|no\s+evidence', context_text):
+                    terminal_info['sepsis'] = None  # Not confirmed as present
+                elif re.search(r'present|yes|positive|confirmed|diagnosed\s+with|has\s+sepsis|had\s+sepsis|active\s+sepsis|history\s+of\s+sepsis|evidence\s+of\s+sepsis', context_text):
                     terminal_info['sepsis'] = 'Present'
                 elif re.search(r'absent|no|negative|none|not\s+present|ruled\s+out', context_text):
                     terminal_info['sepsis'] = 'Absent'
                 else:
-                    terminal_info['sepsis'] = 'Present'  # Default if mentioned
+                    # If sepsis is mentioned but context is unclear, don't assume it's present
+                    # Only set to Present if there are strong positive indicators
+                    terminal_info['sepsis'] = None  # Unclear - don't default to Present
         
         return terminal_info
         
