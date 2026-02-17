@@ -1,64 +1,23 @@
-# FastAPI and ASGI server
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+# FastAPI & server
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
 
-# Database
-sqlalchemy==2.0.44
-alembic==1.12.1
-psycopg2-binary==2.9.11
+# Config
+pydantic-settings>=2.0.0
 
-# Authentication & Security
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
-email-validator==2.3.0
+# Database (async PostgreSQL)
+sqlalchemy[asyncio]>=2.0.0
+asyncpg>=0.29.0
 
-# Azure Blob Storage
-azure-storage-blob==12.19.0
-azure-core==1.36.0
-
-# OpenAI Integration
+# Azure
+azure-ai-documentintelligence>=1.0.0
+azure-core>=1.29.0
 openai>=1.12.0
 
-# PDF Processing
-pdfplumber==0.11.4
-pymupdf>=1.24.0
-pdfminer.six==20231228
-# OCR uses Azure OpenAI GPT-4 Vision (already included in openai package)
+# File / UUID
+python-multipart>=0.0.6
 
-# LangChain for AI Processing
-langchain==0.2.15
-langchain-openai==0.1.23
-langchain-community==0.2.14
-
-# Vector Stores
-faiss-cpu>=1.9.0
-pgvector>=0.2.0  # PostgreSQL vector extension Python client
-
-# Data Processing
-pandas>=2.0.0
-
-# Validation
-pydantic==2.12.3
-pydantic-settings==2.1.0
-pydantic-core==2.41.4
-
-# Additional dependencies
-bcrypt==5.0.0
-cryptography==46.0.3
-dnspython==2.8.0
-
-# Production dependencies
-gunicorn==21.2.0
-uvloop==0.22.1
-httptools==0.7.1
-
-# Development dependencies (optional)
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.28.1
-requests==2.32.5
-
-# Additional production dependencies
-python-dotenv==1.0.0
-structlog==23.2.0
+# Tests
+pytest>=7.0.0
+pytest-asyncio>=0.23.0
+httpx>=0.26.0

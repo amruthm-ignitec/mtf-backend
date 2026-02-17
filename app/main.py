@@ -1,148 +1,251 @@
-from fastapi import FastAPI, Request, HTTPException
+"""FastAPI app: upload, donors, document status. Worker started on lifespan."""
+import asyncio
+import re
+from contextlib import asynccontextmanager
+from pathlib import Path
+from uuid import UUID
+
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-import logging
-import time
-import uuid
-from app.core.config import settings
-from app.core.logging import logger
-from app.core.exceptions import (
-    http_exception_handler,
-    validation_exception_handler,
-    general_exception_handler
-)
-from app.api.v1.api import api_router
-from app.database.database import init_db
-from app.workers.document_worker import start_worker
+from fastapi.responses import FileResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-# Create FastAPI app
-app = FastAPI(
-    title=settings.APP_NAME,
-    description="Tissue Donation Management System API",
-    version=settings.APP_VERSION,
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
-    openapi_url="/openapi.json" if settings.DEBUG else None,
-)
+from app.config import get_settings
+from app.database import async_session_factory, init_db
+from app.models import Document, Donor
+from app.worker import processing_queue, start_worker
 
-# Add exception handlers
-app.add_exception_handler(HTTPException, http_exception_handler)
-app.add_exception_handler(RequestValidationError, validation_exception_handler)
-app.add_exception_handler(Exception, general_exception_handler)
 
-# CORS middleware
+async def get_db() -> AsyncSession:
+    async with async_session_factory() as session:
+        yield session
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    task = start_worker()
+    yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
+app = FastAPI(title="DonorIQ", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Request logging middleware
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start_time = time.time()
-    request_id = str(uuid.uuid4())
-    
-    # Add request ID to request state
-    request.state.request_id = request_id
-    
-    # Log request
-    logger.info(
-        f"Request: {request.method} {request.url}",
-        extra={"request_id": request_id}
-    )
-    
-    # Process request
-    response = await call_next(request)
-    
-    # Log response
-    process_time = time.time() - start_time
-    logger.info(
-        f"Response: {response.status_code} - {process_time:.3f}s",
-        extra={"request_id": request_id}
-    )
-    
-    # Add request ID to response headers
-    response.headers["X-Request-ID"] = request_id
-    
-    return response
 
-# Include API routes
-app.include_router(api_router, prefix="/api/v1")
+def _donor_list_item(donor: Donor) -> dict:
+    """Build list item with optional name/age from merged_data."""
+    name = f"Donor {donor.external_id}"
+    age = None
+    if donor.merged_data and isinstance(donor.merged_data, dict):
+        identity = donor.merged_data.get("Identity") or {}
+        if identity.get("Donor_ID"):
+            name = str(identity.get("Donor_ID", name))
+        if identity.get("Age") is not None:
+            try:
+                age = int(identity["Age"])
+            except (TypeError, ValueError):
+                pass
+    return {
+        "id": str(donor.id),
+        "external_id": donor.external_id,
+        "name": name,
+        "age": age,
+        "eligibility_status": donor.eligibility_status,
+        "flags": donor.flags,
+    }
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup."""
-    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    logger.info(f"Environment: {settings.ENVIRONMENT}")
-    
-    # Initialize database
-    try:
-        init_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        raise
-    
-    # Reset stuck documents (documents that were processing when server restarted)
-    try:
-        from app.database.database import SessionLocal
-        from app.services.queue_service import queue_service
-        db = SessionLocal()
+
+def _external_id_from_filename(filename: str) -> str:
+    stem = Path(filename).stem
+    match = re.match(r"^([0-9]+)", stem)
+    return match.group(1) if match else stem or "unknown"
+
+
+@app.post("/upload")
+async def upload(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save file, create donor + document, add document to processing queue."""
+    settings = get_settings()
+    upload_dir = Path(settings.upload_dir)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="PDF file required")
+    contents = await file.read()
+    max_bytes = settings.max_file_size_mb * 1024 * 1024
+    if len(contents) > max_bytes:
+        raise HTTPException(status_code=400, detail="File too large")
+    safe_name = file.filename or "document.pdf"
+    file_path = upload_dir / safe_name
+    # Deduplicate if same filename
+    if file_path.exists():
+        stem = file_path.stem
+        suffix = file_path.suffix
+        counter = 1
+        while file_path.exists():
+            file_path = upload_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+    file_path.write_bytes(contents)
+    external_id = _external_id_from_filename(safe_name)
+    result = await db.execute(select(Donor).where(Donor.external_id == external_id))
+    donor = result.scalar_one_or_none()
+    if not donor:
+        donor = Donor(external_id=external_id)
+        db.add(donor)
+        await db.flush()
+    document = Document(
+        donor_id=donor.id,
+        filename=safe_name,
+        file_path=str(file_path.resolve()),
+        status="QUEUED",
+    )
+    db.add(document)
+    await db.commit()
+    await db.refresh(document)
+    processing_queue.put_nowait(document.id)
+    return {"document_id": str(document.id), "donor_id": str(donor.id), "status": "QUEUED"}
+
+
+@app.get("/donors/")
+async def list_donors(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+):
+    """List donors with skip/limit. Each item includes id, external_id, name, age, eligibility_status, flags."""
+    result = await db.execute(select(Donor).offset(skip).limit(limit).order_by(Donor.id))
+    donors = result.scalars().all()
+    return [_donor_list_item(d) for d in donors]
+
+
+@app.get("/donors/queue/details")
+async def get_queue_details(db: AsyncSession = Depends(get_db)):
+    """Return queue items for donors that have at least one document."""
+    result = await db.execute(
+        select(Donor)
+        .where(Donor.id.in_(select(Document.donor_id).distinct()))
+        .options(selectinload(Donor.documents))
+    )
+    donors = result.scalars().unique().all()
+    items = []
+    for donor in donors:
+        docs = donor.documents or []
+        processing_status = "pending"
+        if docs:
+            statuses = [d.status for d in docs]
+            if any(s == "PROCESSING" or s == "QUEUED" for s in statuses):
+                processing_status = "processing" if "PROCESSING" in statuses else "queued"
+            elif all(s == "COMPLETED" for s in statuses):
+                processing_status = "completed"
+            elif any(s == "FAILED" for s in statuses):
+                processing_status = "failed" if all(s == "FAILED" for s in statuses) else "completed"
+        name = f"Donor {donor.external_id}"
+        if donor.merged_data and isinstance(donor.merged_data, dict):
+            identity = (donor.merged_data.get("Identity") or {}).get("Donor_ID")
+            if identity:
+                name = str(identity)
+        inv = (donor.merged_data or {}).get("Document_Inventory") or {}
+        required_documents = [
+            {"id": k, "name": k, "type": "document", "label": k.replace("Has_", "").replace("_", " "), "status": "completed" if inv.get(k) else "missing", "isRequired": True, "pageCount": 0}
+            for k in ("Has_Authorization", "Has_DRAI", "Has_Infectious_Disease_Labs")
+        ]
+        critical_findings = [
+            {"type": "flag", "severity": "high", "automaticRejection": True, "description": f, "source": {"documentId": "", "pageNumber": "", "confidence": 0}}
+            for f in (donor.flags or [])
+        ]
+        items.append({
+            "id": str(donor.id),
+            "donorName": name,
+            "processingStatus": processing_status,
+            "criticalFindings": critical_findings,
+            "requiredDocuments": required_documents,
+        })
+    return items
+
+
+@app.get("/donors/{donor_id}")
+async def get_donor(donor_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Return merged_data, eligibility_status, and flags."""
+    result = await db.execute(select(Donor).where(Donor.id == donor_id))
+    donor = result.scalar_one_or_none()
+    if not donor:
+        raise HTTPException(status_code=404, detail="Donor not found")
+    return {
+        "id": str(donor.id),
+        "external_id": donor.external_id,
+        "merged_data": donor.merged_data,
+        "eligibility_status": donor.eligibility_status,
+        "flags": donor.flags,
+    }
+
+
+@app.get("/documents/donor/{donor_id}")
+async def list_documents_by_donor(donor_id: UUID, db: AsyncSession = Depends(get_db)):
+    """List documents for a donor."""
+    result = await db.execute(select(Document).where(Document.donor_id == donor_id))
+    documents = result.scalars().all()
+    return [
+        {"id": str(d.id), "donor_id": str(d.donor_id), "filename": d.filename, "status": d.status}
+        for d in documents
+    ]
+
+
+@app.get("/documents/{document_id}/status")
+async def get_document_status(document_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Return document processing status (and optional progress)."""
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {
+        "id": str(document.id),
+        "donor_id": str(document.donor_id),
+        "filename": document.filename,
+        "status": document.status,
+    }
+
+
+@app.get("/documents/{document_id}/pdf")
+async def get_document_pdf(document_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Stream PDF file from local storage."""
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    path = Path(document.file_path)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path=document.file_path, media_type="application/pdf", filename=document.filename)
+
+
+@app.delete("/documents/{document_id}")
+async def delete_document(document_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Delete document record and file on disk."""
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    path = Path(document.file_path)
+    if path.is_file():
         try:
-            reset_count = await queue_service.reset_stuck_documents(db)
-            if reset_count > 0:
-                logger.info(f"Reset {reset_count} document(s) that were stuck in processing state")
-        finally:
-            db.close()
-    except Exception as e:
-        logger.error(f"Error resetting stuck documents: {e}")
-        # Don't raise - continue with startup even if reset fails
-    
-    # Start background worker
-    try:
-        await start_worker()
-    except Exception as e:
-        logger.error(f"Failed to start document worker: {e}")
-        # Don't raise - worker failure shouldn't prevent API from starting
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on application shutdown."""
-    logger.info("Application shutting down")
-    # Worker will stop gracefully when event loop is cancelled
-
-@app.get("/")
-async def root():
-    """Root endpoint with API information."""
-    return {
-        "message": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "status": "running",
-        "environment": settings.ENVIRONMENT,
-        "docs": "/docs" if settings.DEBUG else "disabled"
-    }
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint for monitoring."""
-    return {
-        "status": "healthy",
-        "timestamp": time.time(),
-        "version": settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT
-    }
-
-@app.get("/metrics")
-async def metrics():
-    """Basic metrics endpoint."""
-    return {
-        "uptime": "running",
-        "version": settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT,
-        "debug": settings.DEBUG
-    }
+            path.unlink()
+        except OSError:
+            pass
+    await db.delete(document)
+    await db.commit()
+    return Response(status_code=204)

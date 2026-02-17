@@ -1,3 +1,1 @@
-# DonorIQ Backend Application
-
-
+# DonorIQ backend application package

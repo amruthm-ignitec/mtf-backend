@@ -1,1 +1,1 @@
-# Services package
+# DonorIQ services: extraction, merger, compliance
