@@ -10,6 +10,21 @@ from app.config import get_settings
 # asyncpg does not support libpq params like sslmode; strip them and use connect_args for SSL
 ASYNCPG_UNSUPPORTED_QUERY_KEYS = frozenset({"sslmode", "ssl_mode"})
 
+
+def _normalize_netloc_host(parsed):
+    """If host is empty (e.g. postgresql://user:pass@/db), use localhost to avoid IDNA 'label empty'."""
+    host = (parsed.hostname or "").strip()
+    if host:
+        return parsed.netloc
+    # netloc is like "user:pass@" or "user:pass@:5432"
+    netloc = parsed.netloc.rstrip(":")
+    if netloc.endswith("@"):
+        return netloc + "localhost" + (":" + str(parsed.port) if parsed.port else "")
+    if "@" in netloc and ":" in netloc.split("@")[-1]:
+        return netloc.split("@")[0] + "@localhost:" + netloc.split("@")[1].lstrip(":")
+    return "localhost" + (":" + str(parsed.port) if parsed.port else "")
+
+
 def _async_engine_url_and_connect_args():
     settings = get_settings()
     raw = settings.database_url_async
@@ -22,7 +37,8 @@ def _async_engine_url_and_connect_args():
             if vals and sslmode is None:
                 sslmode = vals[0]
     new_query = urlencode(query, doseq=True)
-    url = urlunparse(parsed._replace(query=new_query))
+    netloc = _normalize_netloc_host(parsed)
+    url = urlunparse(parsed._replace(netloc=netloc, query=new_query))
     connect_args = {}
     if sslmode and str(sslmode).lower() in ("require", "verify-ca", "verify-full"):
         connect_args["ssl"] = True
