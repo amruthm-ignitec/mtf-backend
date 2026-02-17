@@ -134,7 +134,13 @@ def find_relevant_pages_with_azure(client: DocumentIntelligenceClient, file_path
     logger.info("Scanning document (OCR)...")
     path = Path(file_path)
     with path.open("rb") as f:
-        poller = client.begin_analyze_document("prebuilt-read", document=f)
+        # In current azure-ai-documentintelligence, the request payload is passed
+        # via the `analyze_request` parameter, not `document`/`body`.
+        poller = client.begin_analyze_document(
+            "prebuilt-read",
+            analyze_request=f,
+            content_type="application/pdf",
+        )
     result = poller.result()
     relevant = []
     for page in result.pages:
@@ -160,9 +166,11 @@ def extract_structure_with_layout(
     logger.info("Extracting layout (markdown) for pages %s", page_range)
     path = Path(file_path)
     with path.open("rb") as f:
+        # Use `analyze_request` per current SDK; request is the PDF bytes.
         poller = client.begin_analyze_document(
             "prebuilt-layout",
-            document=f,
+            analyze_request=f,
+            content_type="application/pdf",
             pages=page_range,
             output_content_format="markdown",
         )
