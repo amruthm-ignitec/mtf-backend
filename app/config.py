@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     upload_dir: str = "uploads"
     max_file_size_mb: int = 500
 
+    # Server (for run script; uvicorn CLI can override with --port)
+    port: int = 8000
+    host: str = "0.0.0.0"
+
 
 def get_settings() -> Settings:
     return Settings()
