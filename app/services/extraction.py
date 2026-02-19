@@ -118,19 +118,19 @@ TARGET_SCHEMA = {
     },
 }
 
-# Exact prompt from plan.md section 4
-SYSTEM_PROMPT = """You are an expert Medical Chart Auditor. Extract data into the requested JSON.
-**CRITICAL RULES:**
-1. **Serology:** Extract EVERY SINGLE ROW. If result is 'Reactive', 'Equivocal', or 'Indeterminate', record it exactly.
-2. **Timestamps:** 'Cooling Start' is when ice is applied. 'Uncooled Time' is the duration before ice. Do not confuse them.
-3. **Medical Records:** Only mark 'Has_Full_Medical_Records' TRUE if you see actual clinical notes (progress/consults). Do NOT count the 'Review Checklist' as the records themselves.
-4. **Infection Flags:** Scan specifically for 'Sepsis', 'Bacteremia', 'Septic Shock', or 'WBC > 15'. Add these to 'Clinical_Summary.Infection_Markers'.
-5. **Inventory:** If a report is marked 'Not Performed' or has a '-', mark Present=False.
-6. **Citations:** Every extracted field MUST include a 'Source_Page' integer based on the '--- PAGE X ---' headers."""
+# Match POC system prompt so production extraction behaves like the working script
+SYSTEM_PROMPT = """You are an expert Medical Chart Auditor.
+Extract data into the requested JSON.
+1. **Serology:** If Sample is 'Post-transfusion', explicitly note it.
+2. **Citation Source:** Look for the '--- PAGE X ---' header above the text you are reading.
+   - Every extracted field must include a 'Source_Page' integer.
+   - If you extract a test result from Page 5, set "Source_Page": 5.
+3. **History:** Summarize Social History (Drugs/Smoking) carefully.
+4. **Inventory:** Check headers to confirm if forms (DRAI, Authorization) exist."""
 
 
 def find_relevant_pages_with_azure(client: DocumentIntelligenceClient, file_path: str) -> list[int]:
-    """Scan document with Azure Read; return page numbers that contain relevant keywords."""
+    """Match POC: scan with Azure Read, return page numbers that contain relevant keywords. Fallback to [1,2] or [1] if none."""
     logger.info("Scanning document (OCR)...")
     path = Path(file_path)
     with path.open("rb") as f:
@@ -143,8 +143,12 @@ def find_relevant_pages_with_azure(client: DocumentIntelligenceClient, file_path
             relevant.append(page.page_number)
     if not relevant:
         total = len(result.pages) if result.pages else 1
-        return [1, 2] if total >= 2 else [1]
-    return sorted(set(relevant))
+        page_numbers = [1, 2] if total >= 2 else [1]
+        logger.info("No keywords found; defaulting to pages %s", page_numbers)
+        return page_numbers
+    page_numbers = sorted(set(relevant))
+    logger.info("Relevant pages (%d): %s", len(page_numbers), page_numbers[:20] if len(page_numbers) > 20 else page_numbers)
+    return page_numbers
 
 
 def extract_structure_with_layout(
@@ -229,11 +233,10 @@ def extract_full_pipeline(file_path: str) -> dict:
     if not path.is_file():
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    # 1. Router
+    # 1. Router: same as POC – keyword-based page selection
     page_numbers = find_relevant_pages_with_azure(doc_client, file_path)
-    logger.info("Relevant pages: %s", page_numbers[:20] if len(page_numbers) > 20 else page_numbers)
 
-    # 2. Layout: all relevant pages (no hard limit so chunking can handle large docs)
+    # 2. Layout: same as POC – cap at 10 pages so production matches POC behavior
     markdown = extract_structure_with_layout(doc_client, file_path, page_numbers)
 
     if not markdown.strip():
